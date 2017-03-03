@@ -20,7 +20,8 @@
             [flatgui.inputchannels.awtbase :as inputbase]
             [flatgui.util.matrix :as m]
             [flatgui.comlogic :as fgc])
-  (:import [java.awt.event KeyEvent]))
+  (:import [java.awt.event KeyEvent]
+           (flatgui.core.engine.ui FGTransferable)))
 
 
 (defn create-single-line-model [text caret-pos selection-mark]
@@ -359,22 +360,39 @@
   (if (and
         (get-property [:this] :editable)
         (= :has-focus (:mode (get-property [:this] :focus-state))))
-    (if (timer/timer-event? component)
-      (not old-caret-visible)
-      old-caret-visible)
+    ; TODO need proper client-specific blink impl
+    ;(if (timer/timer-event? component)
+    ;  (not old-caret-visible)
+    ;  old-caret-visible)
+    true
     false))
 
-;; TODO Shift+Del should send replaced text to clipboard
+;;; TODO Shift+Del should send replaced text to clipboard
 (fg/defevolverfn :->clipboard
   (if (clipboard/clipboard-copy? component)
     (let [model (get-property [:this] :model)
-          selection-mark (:selection-mark model)
-          caret-pos (:caret-pos model)]
-      (if (not= caret-pos selection-mark)
-        (let [sstart (min caret-pos selection-mark)
-              send (max caret-pos selection-mark)
-              text (:text model)]
-          (subs text sstart send))
+          selection-mark-line (:selection-mark-line model)
+          selection-mark-line-pos (:selection-mark-line-pos model)
+          caret-line (:caret-line model)
+          caret-line-pos (:caret-line-pos model)]
+      (cond
+        (and (not= selection-mark-line-pos caret-line-pos) (= caret-line selection-mark-line))
+        (let [sstart (min caret-line-pos selection-mark-line-pos)
+              send (max caret-line-pos selection-mark-line-pos)
+              text (:text model)
+              selected-text (subs text sstart send)]
+          (FGTransferable. selected-text))
+        (not= caret-line selection-mark-line)
+        (let [caret-line-first (< caret-line selection-mark-line)
+              sstart (if caret-line-first [caret-line caret-line-pos] [selection-mark-line selection-mark-line-pos])
+              send (if caret-line-first [selection-mark-line selection-mark-line-pos] [caret-line caret-line-pos])
+              int-line-range (range (inc (first sstart)) (first send))
+              lines (:lines model)]
+          (FGTransferable. (str
+                             (subs (nth lines (first sstart)) (second sstart)) "\n"
+                             (apply str (map #(str (nth lines %) "\n") int-line-range))
+                             (subs (nth lines (first send)) 0 (second send)))))
+        :else
         old-->clipboard))))
 
 (fg/defevolverfn :cursor

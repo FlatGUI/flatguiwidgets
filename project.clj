@@ -20,7 +20,10 @@
                  [org.flatgui/flatguithemes ~flatgui-version]
                  [org.flatgui/flatguiskins ~flatgui-version]]
   :deploy-repositories {"releases" {:url "https://oss.sonatype.org/service/local/staging/deploy/maven2/" :creds :gpg}
-                        "snapshots" {:url "https://oss.sonatype.org/content/repositories/snapshots/" :creds :gpg}}
+                        "snapshots" {:url "https://oss.sonatype.org/content/repositories/snapshots/" :creds :gpg}
+                        "clojars" {:url "https://clojars.org/repo/"
+                                   :username :env/clojars_user
+                                   :password :env/clojars_password}}
   :omit-source true
   :aot :all
 

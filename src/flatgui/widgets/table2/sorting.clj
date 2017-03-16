@@ -11,18 +11,15 @@
   flatgui.widgets.table2.sorting
   (:require [flatgui.base :as fg]))
 
-(def modes [:none :asc :desc])
+;(def modes [:none :asc :desc])
+;
+;(def empty-sorting-mode {:mode :node
+;                         :degree 0})
+;
+;(fg/defevolverfn header-cell-sorting-mode-evolver :sorting-mode)
+;
+;(fg/defevolverfn table-sorting-state-evolver :sorting-state
+;
+;  )
 
-(def empty-sorting-mode {:mode :node
-                         :degree 0})
 
-(fg/defevolverfn header-cell-sorting-mode-evolver :sorting-mode)
-
-(fg/defevolverfn table-sorting-state-evolver :sorting-state
-
-  )
-
-
-
-(fg/defaccessorfn sort [component xxx]
-  nil)

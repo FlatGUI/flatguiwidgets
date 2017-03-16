@@ -20,14 +20,12 @@
            (java.awt Container)))
 
 (test/deftest uiapp-test
-  (let [a-text "aa123"
-        b-text "bb456"
+  (let [checkbox-not-pressed-text "aa123"
+        checkbox-pressed-text "bb456"
         _ (core/defevolverfn :text
                              (if (get-property [:sw-text] :pressed)
-                               "bb456";b-text
-                               "aa123";a-text
-                               ))
-        _ (println "E=" text-evolver)
+                               checkbox-pressed-text
+                               checkbox-not-pressed-text))
         t-win (core/defcomponent
                 window/window
                 :hello
@@ -45,27 +43,20 @@
                 (core/defcomponent
                   label/label
                   :txt
-                  {:text a-text
+                  {:text checkbox-not-pressed-text
                    :clip-size (m/defpoint 2.25 0.25 0)
                    :position-matrix (m/translation 2.5 0.75)
                    :evolvers {:text text-evolver}}))
-        _ (println "E1=" (get-in t-win [:children :txt :evolvers :text]))
         container (core/defroot (core/defcomponent panel/panel :main {:clip-size (m/defpoint 10 10)} t-win))
-        ui-app (FGAppContainer. container (FGAWTInteropUtil. 64))
+        ui-app (FGAppContainer. "c1" container (FGAWTInteropUtil. 64))
         _ (.initialize ui-app)
         dummy-source (Container.)
         txt-uid (.getComponentUid ui-app [:main :hello :txt])
         container-accessor (.getContainerAccessor ui-app)
         look-before-click (.get (.getComponent container-accessor txt-uid) :look-vec)
-        _ (println "============================================== ui-app starting events ========================")
         _ (.get (.evolve ui-app (MouseEvent. dummy-source MouseEvent/MOUSE_PRESSED 0 MouseEvent/BUTTON1_DOWN_MASK 129 129 129 129 1 false MouseEvent/BUTTON1)))
         _ (.get (.evolve ui-app (MouseEvent. dummy-source MouseEvent/MOUSE_RELEASED 0 MouseEvent/BUTTON1_DOWN_MASK 129 129 129 129 1 false MouseEvent/BUTTON1)))
         _ (.get (.evolve ui-app (MouseEvent. dummy-source MouseEvent/MOUSE_CLICKED 0 MouseEvent/BUTTON1_DOWN_MASK 129 129 129 129 1 false MouseEvent/BUTTON1)))
-        look-after-click (.get (.getComponent container-accessor txt-uid) :look-vec)
-        _ (println "============================================== ui-app results ========================")
-        _ (println "look-before-click = " look-before-click)
-        _ (println "look-after-click = " look-after-click)
-        ]
-    (test/is (some #(= a-text %) (second look-before-click)))
-    (test/is (some #(= b-text %) (second look-after-click)))
-    ))
+        look-after-click (.get (.getComponent container-accessor txt-uid) :look-vec)]
+    (test/is (some #(= checkbox-not-pressed-text %) (second look-before-click)))
+    (test/is (some #(= checkbox-pressed-text %) (second look-after-click)))))

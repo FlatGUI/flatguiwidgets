@@ -57,33 +57,40 @@ flatgui.widgets.table2.table
     [(int (Math/ceil (double (/ (m/y clip-size) (get-property [:this] :min-cell-h)))))
      (int (Math/ceil (double (/ (m/x clip-size) (get-property [:this] :min-cell-w)))))]))
 
-(fg/defevolverfn :header-model-pos-size
+(fg/defevolverfn :header-model-pos
   (if-let [cell-id (second (get-reason))]
-    (let [cs (get-property [:this cell-id] :clip-size)
-          pm (get-property [:this cell-id] :position-matrix)
+    (let [pm (get-property [:this cell-id] :position-matrix)
           pmt (dec (count pm))
-          screen->model (get-property [:this] :screen->model)
-          ;; TODO get :model-coord from the cell? or maybe cell should not have :model-coord
-          model-coord (screen->model (get-property [:this cell-id] :screen-coord))]
+          model-coord (get-property [:this cell-id] :model-coord)]
       (loop [d 0
-             positions (:positions old-header-model-pos-size)
-             sizes (:sizes old-header-model-pos-size)]
+             positions old-header-model-pos]
         (if (< d (count model-coord))
           (recur
             (inc d)
-            (assoc-in positions [d (nth model-coord d)] (m/mx-get pm d pmt))
+            (assoc-in positions [d (nth model-coord d)] (m/mx-get pm d pmt)))
+          positions)))
+    old-header-model-pos))
+
+(fg/defevolverfn :header-model-size
+  (if-let [cell-id (second (get-reason))]
+    (let [cs (get-property [:this cell-id] :clip-size)
+          model-coord (get-property [:this cell-id] :model-coord)]
+      (loop [d 0
+             sizes old-header-model-size]
+        (if (< d (count model-coord))
+          (recur
+            (inc d)
             (assoc-in sizes [d (nth model-coord d)] (m/mx-get cs d 0)))
-          {:positions positions
-           :sizes sizes})))
-    old-header-model-pos-size))
+          sizes)))
+    old-header-model-size))
 
 (fg/defaccessorfn dummy-value-provider [component model-row model-col]
   (str (get-property [:this] :id) "-" model-row "-" model-col))
 
 (fg/defwidget "table"
   {:header-line-count [1 0]                             ; By default, 1 header row and 0 header columns
-   :header-model-pos-size {:positions [[0] [0]]         ; By default, 1 cell (1 row header) starting at 0,0 of size 1,1
-                           :sizes [[1] [1]]}
+   :header-model-pos [[0] [0]]                          ; By default, 1 cell (1 row header) starting at 0,0 of size 1,1
+   :header-model-size [[1] [1]]
    :model-size [1 1]                                    ; By default, 1x1 (1 row header cell)
    :physical-screen-size [1 1]                          ; Determined by cell minimum size (a constant) and table clip size
    :min-cell-w 0.25
@@ -93,5 +100,7 @@ flatgui.widgets.table2.table
    ;:children {:content-pane contentpane/tablecontentpane}
    :evolvers {:physical-screen-size physical-screen-size-evolver ; may be turned off for better performance (but :physical-screen-size would need to be enough)
               :children children-evolver                ; maintains enough child cells to always cover :physical-screen-size area
+              :header-model-pos header-model-pos-evolver
+              :header-model-size header-model-size-evolver
               }}
   scrollpanel/scrollpanel)

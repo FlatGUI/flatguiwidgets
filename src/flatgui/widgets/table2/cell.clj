@@ -10,7 +10,29 @@
       :author "Denys Lebediev"}
  flatgui.widgets.table2.cell
   (:require [flatgui.base :as fg]
-            [flatgui.widgets.component :as component]))
+            [flatgui.widgets.component :as component]
+            [flatgui.util.matrix :as m]))
+
+(fg/defevolverfn :model-coord
+  (let [screen->model (get-property [:this] :screen->model)]
+    (screen->model (get-property [:this] :screen-coord))))
+
+(fg/defevolverfn :clip-size
+  (if (= [] (get-reason))
+    (let [mc (get-property [:this] :model-coord)
+          sizes (get-property [] :header-model-size)]
+      (apply m/defmxcol (concat
+                          (mapv (fn [d] (get-in sizes [d (nth mc d)])) (range (count mc)))
+                          [0 1]))) ;Concat with [z 1] (where z==0) is done specifically because coord is 2-dimentional
+    old-clip-size))
+
+(fg/defevolverfn :position-matrix
+  (if (= [] (get-reason))
+    (let [mc (get-property [:this] :model-coord)
+          positions (get-property [] :header-model-pos)]
+      ;;This works with two-argument version of m/translation
+      (apply m/translation (mapv (fn [d] (get-in positions [d (nth mc d)])) (range (count mc)))))
+    old-position-matrix))
 
 (fg/defwidget "cell"
   {

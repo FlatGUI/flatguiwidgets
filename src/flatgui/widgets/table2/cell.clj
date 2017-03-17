@@ -11,10 +11,11 @@
  flatgui.widgets.table2.cell
   (:require [flatgui.base :as fg]
             [flatgui.widgets.component :as component]
-            [flatgui.util.matrix :as m]))
+            [flatgui.util.matrix :as m]
+            [flatgui.util.rectmath :as r]))
 
 (fg/defevolverfn :model-coord
-  (let [screen->model (get-property [:this] :screen->model)]
+  (let [screen->model (get-property [] :screen->model)]
     (screen->model (get-property [:this] :screen-coord))))
 
 (fg/defevolverfn :clip-size
@@ -34,17 +35,39 @@
       (apply m/translation (mapv (fn [d] (get-in positions [d (nth mc d)])) (range (count mc)))))
     old-position-matrix))
 
+(fg/defevolverfn :in-use
+  ;; 2-dimentional version
+  (let [svpm (get-property [] :viewport-matrix)
+        scs (get-property [] :clip-size)
+        viewport-rect-x1 (m/mx-x svpm)
+        viewport-rect-y1 (m/mx-y svpm)
+        viewport-rect-x2 (+ viewport-rect-x1 (m/x scs))
+        viewport-rect-y2 (+ viewport-rect-y1 (m/y scs))
+        cpm (get-property [:this] :position-matrix)
+        ccs (get-property [:this] :clip-size)
+        cell-rect-x1 (m/mx-x cpm)
+        cell-rect-y1 (m/mx-y cpm)
+        cell-rect-x2 (+ cell-rect-x1 (m/x ccs))
+        cell-rect-y2 (+ cell-rect-y1 (m/y ccs))]
+    (r/intersect?
+      viewport-rect-x1 viewport-rect-y1 viewport-rect-x2 viewport-rect-y2
+      cell-rect-x1 cell-rect-y1 cell-rect-x2 cell-rect-y2)))
+
 (fg/defwidget "cell"
   {
+   ;;; Actually on screen, regardless of screen coord on the scrollable pane, and therefore regardles of how many
+   ;;; rows/columns there are. These coords are limited by physical screen size
+   ;:physical-screen-coord [0 0]
 
-   ;; Actually on screen, regardless of screen coord on the scrollable pane, and therefore regardles of how many
-   ;; rows/columns there are. These coords are limited by physical screen size
-   :physical-screen-coord [0 0]
+   ;; true if cell is located somewhere within visible area
+   :in-use false
+
    ;; Screen coord on the surface of the scrollable panel ("virtual" screen). These values are potentially unlimited
    :screen-coord [0 0]
    ;; Model coords which are different from screen coords in case sorting/filtering/etc applied ; TODO use table function to translate
    :model-coord [0 0]
-   :evolvers {;:clip-size clip-size-evolver
-              ;:position-matrix position-matrix-evolver
-              }}
+   :evolvers {:clip-size clip-size-evolver
+              :position-matrix position-matrix-evolver
+              :in-use in-use-evolver
+              :model-coord model-coord-evolver}}
   component/component)

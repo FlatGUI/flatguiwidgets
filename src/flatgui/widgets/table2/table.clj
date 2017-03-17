@@ -49,7 +49,8 @@ flatgui.widgets.table2.table
                       [cid (if c c (fg/defcomponent
                                      cell/cell
                                      cid
-                                     {:physical-screen-coord coord}))]))
+                                     {;:physical-screen-coord coord
+                                      }))]))
                   (all-coords-2d (get-property [:this] :physical-screen-size))))))
 
 (fg/defevolverfn :physical-screen-size
@@ -84,6 +85,27 @@ flatgui.widgets.table2.table
           sizes)))
     old-header-model-size))
 
+;(fg/defevolverfn :in-use-model
+;  (cond
+;    (= (get-reason) [:this])
+;
+;    (= (count (get-reason)) 2)
+;    (let [cell-id (second (get-reason))
+;             in-use (get-property [:this cell-id] :in-use)]
+;      (if in-use
+;        {}))
+;
+;    :else
+;    old-in-use-model))
+
+(fg/defevolverfn :not-in-use
+  (if-let [cell-id (second (get-reason))]
+    (let [in-use (get-property [:this cell-id] :in-use)]
+      (if in-use
+        (disj old-not-in-use cell-id)
+        (conj old-not-in-use cell-id)))
+    old-not-in-use))
+
 (fg/defaccessorfn dummy-value-provider [component model-row model-col]
   (str (get-property [:this] :id) "-" model-row "-" model-col))
 
@@ -95,6 +117,12 @@ flatgui.widgets.table2.table
    :physical-screen-size [1 1]                          ; Determined by cell minimum size (a constant) and table clip size
    :min-cell-w 0.25
    :min-cell-h 0.25
+
+   :not-in-use #{}
+
+   ;:in-use-model {:scr-area [[0 0] [1 1]]               ; visible area in terms of screen coords
+   ;               :bench {}}                            ; cell ids (and possibly screen coords assigned) awaiting to be put in use
+
    :screen->model identity                              ; This coord vector translation fn may take into account sorting/filtering etc.
    :value-provider dummy-value-provider
    ;:children {:content-pane contentpane/tablecontentpane}
@@ -102,5 +130,6 @@ flatgui.widgets.table2.table
               :children children-evolver                ; maintains enough child cells to always cover :physical-screen-size area
               :header-model-pos header-model-pos-evolver
               :header-model-size header-model-size-evolver
+              :not-in-use not-in-use-evolver
               }}
   scrollpanel/scrollpanel)

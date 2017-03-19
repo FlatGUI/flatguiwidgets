@@ -227,6 +227,121 @@
                  :cell-6 false :cell-7 false :cell-8 false} cell-in-use2))
     (test/is (= #{:cell-0 :cell-1 :cell-2 :cell-3 :cell-5 :cell-6 :cell-7 :cell-8} not-in-use2))))
 
+(test/deftest edge-search-test1
+  (let [visit-track (atom [])
+        pred (fn [i] (do (swap! visit-track (fn [s] (conj s i))) (= i 9)))
+        search-result (table/edge-search 10 3 pred)]
+    (test/is (= 9 search-result))
+    (test/is (= [3 4 2 5 1 6 0 7 8 9] @visit-track))))
+
+(test/deftest edge-search-test2
+  (let [visit-track (atom [])
+        pred (fn [i] (do (swap! visit-track (fn [s] (conj s i))) (= i 0)))
+        search-result (table/edge-search 10 8 pred)]
+    (test/is (= 0 search-result))
+    (test/is (= [8 9 7 6 5 4 3 2 1 0] @visit-track))))
+
+(test/deftest edge-search-test3
+  (let [visit-track (atom [])
+        pred (fn [i] (do (swap! visit-track (fn [s] (conj s i))) (= i 9999))) ;Will never be found
+        search-result (table/edge-search 3 1 pred)]
+    (test/is (= -1 search-result))
+    (test/is (= [1 2 0] @visit-track))))
+
+(test/deftest edge-search-test4
+  (let [visit-track (atom [])
+        pred (fn [i] (do (swap! visit-track (fn [s] (conj s i))) (= i 9999))) ;Will never be found
+        search-result (table/edge-search 3 0 pred)]
+    (test/is (= 3 search-result))
+    (test/is (= [0 1 2] @visit-track))))
+
+(test/deftest edge-search-test5
+  (let [visit-track (atom [])
+        pred (fn [i] (do (swap! visit-track (fn [s] (conj s i))) (= i 3)))
+        search-result (table/edge-search 5 4 pred)]
+    (test/is (= 3 search-result))
+    (test/is (= [4 3] @visit-track))))
+
+(test/deftest in-use-model-test
+  (let [init-header-model-pos  [[0 2 3 4 6 8]
+                                [0 1 3 4 7]]
+        init-header-model-size [[2 1 1 2 2 2]
+                                [1 2 1 3 3]]
+        init-viewport-matrix (m/translation -2.5 -2.5)
+        init-clip-size (m/defpoint 2.0 2.0)
+        step-1 {:header-model-pos init-header-model-pos
+                :header-model-size init-header-model-size
+                :viewport-matrix init-viewport-matrix
+                :clip-size init-clip-size}
+        step-2 (assoc step-1
+                 :viewport-matrix (m/translation -3.5 -4.5)
+                 :clip-size (m/defpoint 4.0 3.0))
+        step-3 (assoc step-2
+                 :header-model-pos [[0 2 3 4 6 7]
+                                    [0 1 3 4 8]]
+                 :header-model-size [[2 1 1 2 1 3]
+                                     [1 2 1 4 2]])
+        _ (fg/defevolverfn :header-model-pos (if (get-reason)
+                                               (do
+                                                 (println "<><>Evolving :header-model-pos")
+                                                 (:header-model-pos (get-reason)))
+                                               old-header-model-pos))
+        _ (fg/defevolverfn :header-model-size (if (get-reason)
+                                                (do
+                                                  (println "<><>Evolving :header-model-size")
+                                                  (:header-model-size (get-reason)))
+                                                old-header-model-size))
+        _ (fg/defevolverfn :viewport-matrix (if (get-reason) (:viewport-matrix (get-reason)) old-viewport-matrix))
+        _ (fg/defevolverfn :clip-size (if (get-reason) (:clip-size (get-reason)) old-clip-size))
+        container (fg/defroot
+                    {:id :main
+                     :physical-screen-size [10 10]
+                     :screen->model identity
+                     :header-model-pos init-header-model-pos
+                     :header-model-size init-header-model-size
+                     :viewport-matrix init-viewport-matrix
+                     :clip-size init-clip-size
+                     :in-use-model {:viewport-begin [0 0]
+                                    :viewport-end [1 1]
+                                    :screen-area [[0 0] [0 0]]
+                                    :vacant-screen-coords #{}}
+                     :children {}
+                     :evolvers {:header-model-pos header-model-pos-evolver
+                                :header-model-size header-model-size-evolver
+                                :viewport-matrix viewport-matrix-evolver
+                                :clip-size clip-size-evolver
+                                :in-use-model table/in-use-model-evolver
+                                :children table/children-evolver}})
+        results (atom {})
+        result-collector (proxy [IResultCollector] []
+                           (appendResult [_parentComponentUid, _path, node, newValue]
+                             (swap! results (fn [r] (if (= :in-use-model (.getPropertyId node))
+                                                      newValue
+                                                      r))))
+                           (componentAdded [_parentComponentUid _componentUid])
+                           (componentRemoved [_componentUid])
+                           (postProcessAfterEvolveCycle [_a _m]))
+        container-engine (Container.
+                           (ClojureContainerParser.)
+                           result-collector
+                           container)
+        init-result @results
+        _ (.evolve container-engine [:main] step-2)
+        step2-result @results
+        _ (println "==================================== STEP 3 =========================================")
+        _ (.evolve container-engine [:main] step-3)
+        step3-result @results]
+    (test/is (= [2.5 2.5] (:viewport-begin init-result)))
+    (test/is (= [4.5 4.5] (:viewport-end init-result)))
+    (test/is (= [[1 1] [3 3]] (:screen-area init-result)))
+    (test/is (= [3.5 4.5] (:viewport-begin step2-result)))
+    (test/is (= [7.5 7.5] (:viewport-end step2-result)))
+    (test/is (= [[2 3] [4 4]] (:screen-area step2-result)))
+    (test/is (= [3.5 4.5] (:viewport-begin step3-result)))
+    (test/is (= [7.5 7.5] (:viewport-end step3-result)))
+    (test/is (= [[2 3] [5 3]] (:screen-area step3-result)))
+    ))
+
 ;;;
 ;;; Sorting
 ;;;

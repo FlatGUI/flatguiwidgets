@@ -281,6 +281,12 @@
                                     [0 1 3 4 8]]
                  :header-model-size [[2 1 1 2 1 3]
                                      [1 2 1 4 2]])
+        step-4 (assoc step-3
+                 :viewport-matrix (m/translation -8.5 -1.25)
+                 :clip-size (m/defpoint 1.0 0.5))
+        step-5 (assoc step-4
+                 :viewport-matrix (m/translation 0 0)
+                 :clip-size (m/defpoint 15 12))
         _ (fg/defevolverfn :header-model-pos (if (get-reason)
                                                (do
                                                  (println "<><>Evolving :header-model-pos")
@@ -330,16 +336,30 @@
         step2-result @results
         _ (println "==================================== STEP 3 =========================================")
         _ (.evolve container-engine [:main] step-3)
-        step3-result @results]
+        step3-result @results
+        _ (.evolve container-engine [:main] step-4)
+        step4-result @results
+        _ (.evolve container-engine [:main] step-5)
+        step5-result @results]
     (test/is (= [2.5 2.5] (:viewport-begin init-result)))
     (test/is (= [4.5 4.5] (:viewport-end init-result)))
     (test/is (= [[1 1] [3 3]] (:screen-area init-result)))
+
     (test/is (= [3.5 4.5] (:viewport-begin step2-result)))
     (test/is (= [7.5 7.5] (:viewport-end step2-result)))
     (test/is (= [[2 3] [4 4]] (:screen-area step2-result)))
+
     (test/is (= [3.5 4.5] (:viewport-begin step3-result)))
     (test/is (= [7.5 7.5] (:viewport-end step3-result)))
     (test/is (= [[2 3] [5 3]] (:screen-area step3-result)))
+
+    (test/is (= [8.5 1.25] (:viewport-begin step4-result)))
+    (test/is (= [9.5 1.75] (:viewport-end step4-result)))
+    (test/is (= [[5 1] [5 1]] (:screen-area step4-result)))
+
+    (test/is (= [0 0] (:viewport-begin step5-result)))
+    (test/is (= [15 12] (:viewport-end step5-result)))
+    (test/is (= [[0 0] [5 4]] (:screen-area step5-result)))
     ))
 
 ;;;

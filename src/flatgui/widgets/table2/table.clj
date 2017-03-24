@@ -16,8 +16,10 @@ flatgui.widgets.table2.table
             [flatgui.widgets.table2.cell :as cell]
             [flatgui.util.matrix :as m]
             [flatgui.util.vecmath :as v]
-            [flatgui.util.rectmath :as r])
-  (:import (java.util Collections)))
+            [flatgui.util.rectmath :as r]
+            [clojure.set :as set])
+  (:import (java.util Collections)
+           (flatgui.core.engine GetPropertyStaticClojureFn GetDynPropertyClojureFn GetPropertyDynPathClojureFn GetDynPropertyDynPathClojureFn)))
 
 ;;; Given
 ;;; - col & row header positions and sizes
@@ -44,22 +46,34 @@ flatgui.widgets.table2.table
     (mapcat (fn [r] (map (fn [c] [r c]) (range col-cnt))) (range row-cnt))))
 
 (fg/defevolverfn :children
-  (let [;screen->model (get-property [:this] :screen->model) TODO this is not here, this will be needed in each cell to determine virtual screen coord
-        ]
-    (into {} (map (fn [coord]
-                    (let [cid (apply gen-cell-id coord)
-                          c (cid old-children)]
-                      [cid (if c c (fg/defcomponent
-                                     cell/cell
-                                     cid
-                                     {;:physical-screen-coord coord
-                                      }))]))
-                  (all-coords-2d (get-property [:this] :physical-screen-size))))))
+  (if (not (nil? (get-reason)))
+    (let [                                                    ;in-use-model (get-property [:this] :in-use-model)
+          ;vacant-screen-coords (:vacant-screen-coords in-use-model)
+          ;not-in-use (get-property [:this] :not-in-use)
+          r (into {} (map (fn [coord]
+                            (let [cid (apply gen-cell-id coord)
+                                  c (cid old-children)]
+                              [cid (if c c (fg/defcomponent
+                                             (get-property [:this] :cell-prototype)
+                                             cid
+                                             {;:physical-screen-coord coord
+                                              }))]))
+                          (all-coords-2d (get-property [:this] :physical-screen-size))))
+          _ (println "SCR SIZE: " (get-property [:this] :physical-screen-size) " child count: " (count r))
+          ]
+      r)
+    old-children))
 
 (fg/defevolverfn :physical-screen-size
-  (let [clip-size (get-property [:this] :clip-size)]
-    [(int (Math/ceil (double (/ (m/y clip-size) (get-property [:this] :min-cell-h)))))
-     (int (Math/ceil (double (/ (m/x clip-size) (get-property [:this] :min-cell-w)))))]))
+  (let [min-physical-cells (if-let [pd (get-property [:this] :min-physical-cells)] pd [20 20])
+        clip-size (get-property [:this] :clip-size)]
+    ;[(int (Math/ceil (double (/ (m/y clip-size) (get-property [:this] :min-cell-h)))))
+    ; (int (Math/ceil (double (/ (m/x clip-size) (get-property [:this] :min-cell-w)))))]
+    ;; inc because for example screen size of 1.2 may actually occupy 3 cells of 1 (one partially for 0.1, one fully, and one last for 0.1)
+    [(Math/max (int (inc (Math/ceil (double (/ (m/y clip-size) (get-property [:this] :min-cell-h)))))) (first min-physical-cells))
+     (Math/max (int (inc (Math/ceil (double (/ (m/x clip-size) (get-property [:this] :min-cell-w)))))) (second min-physical-cells))]
+
+    ))
 
 (fg/defevolverfn :header-model-pos
   (if-let [cell-id (second (get-reason))]
@@ -89,78 +103,62 @@ flatgui.widgets.table2.table
     old-header-model-size))
 
 (defn edge-search [range-size start pred]
-  (let [_ (println "    --edge-search" range-size start pred)]
-    (loop [dir-dist [(if (< start (dec range-size)) 1 -1) 1]
-           i start]
-      (if (and
-            (and (>= i 0) (< i range-size))
-            (not (pred i)))
-        (recur
-          (let [dir (first dir-dist)
-                dist (second dir-dist)
-                next-dist (inc dist)]
-            (if (= 1 dir)
-              (if (>= (+ start (* -1 dist)) 0)
-                [-1 dist]
-                [1 next-dist])
-              (if (< (+ start (* 1 next-dist)) range-size)
-                [1 next-dist]
-                [-1 next-dist])))
-          (+ start (apply * dir-dist)))
-        i))
-    ))
+  (loop [dir-dist [(if (< start (dec range-size)) 1 -1) 1]
+         i start]
+    (if (and
+          (and (>= i 0) (< i range-size))
+          (not (pred i)))
+      (recur
+        (let [dir (first dir-dist)
+              dist (second dir-dist)
+              next-dist (inc dist)]
+          (if (= 1 dir)
+            (if (>= (+ start (* -1 dist)) 0)
+              [-1 dist]
+              [1 next-dist])
+            (if (< (+ start (* 1 next-dist)) range-size)
+              [1 next-dist]
+              [-1 next-dist])))
+        (+ start (apply * dir-dist)))
+      i)))
+
+(defn combine-ranges [s1 s2] (mapcat (fn [e1] (map (fn [e2] [e1 e2]) (range (first s2) (inc (second s2))))) (range (first s1) (inc (second s1)))))
+
+(defn rects->coords [rects] (mapcat (fn [vr] (combine-ranges [(:x vr) (+ (:x vr) (:w vr))] [(:y vr) (+ (:y vr) (:h vr))])) rects))
+
+(fg/defaccessorfn enough-cells? [component]
+  (let [pss (get-property [:this] :physical-screen-size)
+        child-count (count (get-property [:this] :children))
+        needed-count (* (first pss) (second pss))]
+    (>= child-count needed-count)))
+
+;; TODO This means :header-model-pos and :header-model-size should be combined in one property
+(fg/defaccessorfn dimension-headers-consistent? [component]
+  (let [header-model-pos (get-property [:this] :header-model-pos)
+        header-model-size (get-property [:this] :header-model-size)]
+    (= (map count header-model-pos) (map count header-model-size))))
 
 (fg/defevolverfn :in-use-model
-  (cond
-    (= (get-reason) [:this])
-    (let [header-model-pos (get-property [:this] :header-model-pos)
+  (if (and (enough-cells? component) (dimension-headers-consistent? component))
+    (let [cs (get-property [:this] :clip-size)
+          header-model-pos (get-property [:this] :header-model-pos)
           header-model-size (get-property [:this] :header-model-size)
           vpm (get-property [:this] :viewport-matrix)
-          cs (get-property [:this] :clip-size)
           viewport-begin (mapv (fn [a] (* -1 a)) (v/mxtransf->vec vpm 2)) ;2-dimensional
           viewport-end (v/-mxtransf+point->vec vpm cs 2) ;2-dimensional
-          viewport-begin-shift (v/vec-comparenum (:viewport-begin old-in-use-model) viewport-begin)
-          viewport-end-shift (v/vec-comparenum (:viewport-end old-in-use-model) viewport-end)
-
-          _ (println
-              "---------------------------:in-use-model\n"
-              "vpm" vpm "\n"
-              "cs" cs "\n"
-              "header-model-pos" header-model-pos "\n"
-              "header-model-size" header-model-size "\n"
-              "old viewport-begin" (:viewport-begin old-in-use-model) "\n"
-              "old viewport-end" (:viewport-end old-in-use-model) "\n"
-              "viewport-begin" viewport-begin "\n"
-              "viewport-end" viewport-end "\n"
-              "screen-area" (:screen-area old-in-use-model)
-              ;"\n"
-              ;"viewport-begin-shift" viewport-begin-shift "\n"
-              ;"viewport-end-shift" viewport-end-shift
-              )
           search-fn (fn [d start for-begin]
-                      (let [;rng (vec (range (count (nth header-model-pos d))))
-                            header-model-pos-d (nth header-model-pos d)
+                      (let [header-model-pos-d (nth header-model-pos d)
                             header-model-size-d (nth header-model-size d)
                             dim-range-size (count header-model-pos-d)
                             visible-screen-coord? (fn [coord]
-                                                    (let [r (if (and (and (>= coord 0) (< coord dim-range-size)))
-                                                              (let [screen-point-from (nth header-model-pos-d coord)
-                                                                    screen-point-to (+
-                                                                                      (nth header-model-pos-d coord)
-                                                                                      (nth header-model-size-d coord))]
-                                                                (r/line&
-                                                                  (nth viewport-begin d) (nth viewport-end d)
-                                                                  screen-point-from screen-point-to)))
-                                                          _ (if (not for-begin)
-                                                              (println "IN DIM" d
-                                                                       "coord" coord (if (and (>= coord 0) (< coord dim-range-size))
-                                                                                       [(nth header-model-pos-d coord)
-                                                                                        (+
-                                                                                          (nth header-model-pos-d coord)
-                                                                                          (nth header-model-size-d coord))]
-                                                                                       "<out of range>")
-                                                                       "visibility is" r))]
-                                                      r))
+                                                    (if (and (and (>= coord 0) (< coord dim-range-size)))
+                                                      (let [screen-point-from (nth header-model-pos-d coord)
+                                                            screen-point-to (+
+                                                                              (nth header-model-pos-d coord)
+                                                                              (nth header-model-size-d coord))]
+                                                        (r/line&
+                                                          (nth viewport-begin d) (nth viewport-end d)
+                                                          screen-point-from screen-point-to))))
                             viewport-begin-pred (fn [coord] (and
                                                               (not (visible-screen-coord? (dec coord)))
                                                               (visible-screen-coord? coord)))
@@ -174,81 +172,62 @@ flatgui.widgets.table2.table
                           :else search-result)))
 
           old-screen-area (:screen-area old-in-use-model)
-          ;new-screen-area [(mapv #(search-fn % (first old-screen-area) viewport-begin-shift) (range (count viewport-begin)))
-          ;                 (mapv #(search-fn % (second old-screen-area) viewport-end-shift) (range (count viewport-end)))]
-          _ (println "CALLING SEARCH---------->")
           dimensions (range (count viewport-begin))
           new-screen-area [(mapv #(search-fn % (nth (first old-screen-area) %) true) dimensions)
                            (mapv #(search-fn % (nth (second old-screen-area) %) false) dimensions)]
-          _ (println "-----> new-screen-area = " new-screen-area)
 
-          ;search-fn (fn [d v v-shift]
-          ;            (let [src-coord (nth v d)
-          ;                  step (nth v-shift d)]
-          ;              (let [_ (println
-          ;                        "    ---------------------------search-fn\n"
-          ;                        "    d" d "\n"
-          ;                        "    v" v "\n"
-          ;                        "    v-shift" v-shift)
-          ;                    inbound? (fn [coord d] (and
-          ;                                             (>= coord 0)
-          ;                                             (< coord (count (nth header-model-pos d)))))
-          ;                    visible-screen-point? (fn [dimc d] (and
-          ;                                                         (>= dimc (nth viewport-begin d))
-          ;                                                         (< dimc (nth viewport-end d))))
-          ;                    visible-screen-coord? (fn [coord d]
-          ;                                            (or
-          ;                                              (visible-screen-point? (nth (nth header-model-pos d) coord) d)
-          ;                                              (visible-screen-point? (+
-          ;                                                                       (nth (nth header-model-pos d) coord)
-          ;                                                                       (nth (nth header-model-size d) coord)) d)))
-          ; ]
-          ;                (loop [coord src-coord]
-          ;                  (if (and (inbound? coord d) (not (visible-screen-coord? coord d)))
-          ;                    (recur
-          ;                      (+ coord step))
-          ;                    coord)))))
-          ;old-screen-area (:screen-area old-in-use-model)
-          ;new-screen-area [(mapv #(search-fn % (first old-screen-area) viewport-begin-shift) (range (count viewport-begin)))
-          ;                 (mapv #(search-fn % (second old-screen-area) viewport-end-shift) (range (count viewport-end)))]
+          nx1 (first (first new-screen-area))
+          ny1 (second (first new-screen-area))
+          nx2 (first (second new-screen-area))
+          ny2 (second (second new-screen-area))
+          ox1 (first (first old-screen-area))
+          oy1 (second (first old-screen-area))
+          ox2 (first (second old-screen-area))
+          oy2 (second (second old-screen-area))
+          new-screen-rect {:x nx1 :y ny1 :w (- nx2 nx1) :h (- ny2 ny1)}
+          old-screen-rect {:x ox1 :y oy1 :w (- ox2 ox1) :h (- oy2 oy1)}
+          vacant-rects (r/rect- new-screen-rect old-screen-rect)
+          vacant-coords (rects->coords vacant-rects)
+          _ (println "---------------- vacant-coords" vacant-coords)
+          ;; TODO the below looks like extremely heavy and complex computation
+          to-be-free-rects (r/rect- old-screen-rect new-screen-rect)
+          to-be-free-coords (rects->coords to-be-free-rects)
+          _ (println "---------------- to-be-free-coords" to-be-free-coords)
+          ;_ (println "---------------- all cell ids" (map (fn [[k _v]] k) (get-property [:this] :children)))
+          old-cell-id->screen-coord (:cell-id->screen-coord old-in-use-model)
+          to-be-free-cell-ids (if to-be-free-coords
+                                (filter
+                                  (fn [e] (not (nil? e)))   ;TODO ?????
+                                  (map #(get (:screen-coord->cell-id old-in-use-model) %) to-be-free-coords))
+                                (list))
+
+          ;_ (println "--------- to-be-free-cell-ids" to-be-free-cell-ids)
+          all-unused-cell-ids (distinct (concat to-be-free-cell-ids (map (fn [[k _v]] k) (filter
+                                                                                           (fn [[k _v]] (not (k old-cell-id->screen-coord)))
+                                                                                           (get-property [:this] :children)))))
+          new-occupants  (if vacant-coords
+                           (loop [vcs vacant-coords
+                                  cids all-unused-cell-ids
+                                  noc {}]
+                             (if (not (empty? vcs))
+                               (recur
+                                 (next vcs)
+                                 (next cids)
+                                 (assoc noc (first cids) (first vcs)))
+                               noc))
+                           {})
+          to-be-free-cell-ids (filter #(not (% new-occupants)) to-be-free-cell-ids)
+          ;_ (println "--------- to-be-new-occupants" new-occupants)
+          cell-id->screen-coord (apply dissoc (merge old-cell-id->screen-coord new-occupants) to-be-free-cell-ids)
+          screen-coord->cell-id (into {} (map (fn [[k v]] [v k]) cell-id->screen-coord))
           ]
-      {:viewport-begin viewport-begin
-       :viewport-end viewport-end
-       :screen-area new-screen-area
-
-       ; TODO Use rect-, then see below
-       ;(def r [[1 3] [4 6]])
-       ;=> #'user/r
-       ;(mapv (fn [d] (range (nth (first r) d) (nth (second r) d))) (range (count (first r))))
-       ;=> [(1 2 3) (3 4 5)]
-       :vacant-screen-coords #{}
-       })
-
-    (= (count (get-reason)) 2)
-    (let [cell-id (second (get-reason))
-          in-use (get-property [:this cell-id] :in-use)]
-      (if in-use
-        (assoc
-          old-in-use-model
-          :vacant-screen-coords
-          (disj (:vacant-screen-coords old-in-use-model) (get-property [:this cell-id] :screen-coord)))
-        old-in-use-model))
-
-    :else
+      :in-use-model {:viewport-begin viewport-begin
+                     :viewport-end viewport-end
+                     :screen-area new-screen-area
+                     :screen-coord->cell-id screen-coord->cell-id
+                     :cell-id->screen-coord cell-id->screen-coord})
     old-in-use-model))
 
-(fg/defevolverfn :not-in-use
-  (if-let [cell-id (second (get-reason))]
-    (let [in-use (get-property [:this cell-id] :in-use)]
-      (if in-use
-        (disj old-not-in-use cell-id)
-        (conj old-not-in-use cell-id)))
-    old-not-in-use))
-
-;(fg/defevolverfn :screen-area
-; ;; binary search starting from last screen-area coords, checking if a coord of another screen cell is within visible area?
-;  )
-;
 (fg/defaccessorfn dummy-value-provider [component model-row model-col]
   (str (get-property [:this] :id) "-" model-row "-" model-col))
 
@@ -263,13 +242,19 @@ flatgui.widgets.table2.table
 
    :not-in-use #{}
    ;   :screen-area [[0 0] [1 1]]
-   :vacant-screen-coords #{}
    ;:bench {}
+
+   ;:in-use-model {:viewport-begin [0 0]
+   ;               :viewport-end [1 1]
+   ;               :screen-area [[0 0] [1 1]]
+   ;               :vacant-screen-coords {}}
 
    :in-use-model {:viewport-begin [0 0]
                   :viewport-end [1 1]
                   :screen-area [[0 0] [1 1]]
-                  :vacant-screen-coords #{}}
+                  :screen-coord->cell-id {}
+                  :cell-id->screen-coord {}}
+
 
    ;:in-use-model {:scr-area [[0 0] [1 1]]                ; visible area in terms of screen coords
    ;               :bench {}}                            ; cell ids (and possibly screen coords assigned) awaiting to be put in use
@@ -277,10 +262,12 @@ flatgui.widgets.table2.table
    :screen->model identity                              ; This coord vector translation fn may take into account sorting/filtering etc.
    :value-provider dummy-value-provider
    ;:children {:content-pane contentpane/tablecontentpane}
+   :cell-prototype cell/cell
    :evolvers {:physical-screen-size physical-screen-size-evolver ; may be turned off for better performance (but :physical-screen-size would need to be enough)
               :children children-evolver                ; maintains enough child cells to always cover :physical-screen-size area
               :header-model-pos header-model-pos-evolver
               :header-model-size header-model-size-evolver
-              :not-in-use not-in-use-evolver
+              ;:not-in-use not-in-use-evolver
+              ;:in-use-model in-use-model-evolver
               }}
   scrollpanel/scrollpanel)

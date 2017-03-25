@@ -14,7 +14,7 @@
             [flatgui.util.matrix :as m]
             [flatgui.util.rectmath :as r]))
 
-(def not-in-use-screen-coord [-1 -1])
+(def not-in-use-coord [-1 -1])
 
 (fg/defevolverfn :model-coord
   (let [screen->model (get-property [] :screen->model)]
@@ -22,7 +22,7 @@
 
 (fg/defevolverfn :clip-size
   (let [mc (get-property [:this] :model-coord)]
-    (if (not= mc not-in-use-screen-coord)
+    (if (not= mc not-in-use-coord)
       (apply m/defmxcol (concat
                           (mapv (fn [d] (get-in (get-property [] :header-model-size) [d (nth mc d)])) (range (count mc)))
                           ;Concat with [z 1] (where z==0) is done specifically because coord is 2-dimentional
@@ -31,7 +31,7 @@
 
 (fg/defevolverfn :position-matrix
   (let [mc (get-property [:this] :model-coord)]
-    (if (not= mc not-in-use-screen-coord)
+    (if (not= mc not-in-use-coord)
       (let [positions (get-property [] :header-model-pos)]
         ;;This works with two-argument version of m/translation
         (apply m/translation (mapv (fn [d] (get-in positions [d (nth mc d)])) (range (count mc)))))
@@ -42,13 +42,13 @@
     (if-let [sc (this-id (:cell-id->screen-coord (get-property [] :in-use-model)))] sc old-screen-coord)))
 
 (fg/defwidget "cell"
-  {:clip-size (m/defpoint 0 0)
+  {:clip-size       (m/defpoint 0 0)
    :position-matrix m/identity-matrix
    ;; Screen coord on the surface of the scrollable panel ("virtual" screen). These values are potentially unlimited
-   :screen-coord not-in-use-screen-coord
+   :screen-coord    not-in-use-coord
    ;; Model coords which are different from screen coords in case sorting/filtering/etc applied
-   :model-coord not-in-use-screen-coord
-   :evolvers {:clip-size clip-size-evolver
+   :model-coord     not-in-use-coord
+   :evolvers        {:clip-size clip-size-evolver
               :position-matrix position-matrix-evolver
               :model-coord model-coord-evolver
               :screen-coord screen-coord-evolver}}

@@ -46,29 +46,33 @@ flatgui.widgets.table2.table
 
 (fg/defevolverfn :header-model-pos
   (if-let [cell-id (second (get-reason))]
-    (let [pm (get-property [:this cell-id] :position-matrix)
-          pmt (dec (count pm))
-          model-coord (get-property [:this cell-id] :model-coord)]
-      (loop [d 0
-             positions old-header-model-pos]
-        (if (< d (count model-coord))
-          (recur
-            (inc d)
-            (assoc-in positions [d (nth model-coord d)] (m/mx-get pm d pmt)))
-          positions)))
+    (let [model-coord (get-property [:this cell-id] :model-coord)]
+      (if (not= model-coord cell/not-in-use-coord)
+        (let [pm (get-property [:this cell-id] :position-matrix)
+              pmt (dec (count pm))]
+          (loop [d 0
+                 positions old-header-model-pos]
+            (if (< d (count model-coord))
+              (recur
+                (inc d)
+                (assoc-in positions [d (nth model-coord d)] (m/mx-get pm d pmt)))
+              positions)))
+        old-header-model-pos))
     old-header-model-pos))
 
 (fg/defevolverfn :header-model-size
   (if-let [cell-id (second (get-reason))]
-    (let [cs (get-property [:this cell-id] :clip-size)
-          model-coord (get-property [:this cell-id] :model-coord)]
-      (loop [d 0
-             sizes old-header-model-size]
-        (if (< d (count model-coord))
-          (recur
-            (inc d)
-            (assoc-in sizes [d (nth model-coord d)] (m/mx-get cs d 0)))
-          sizes)))
+    (let [model-coord (get-property [:this cell-id] :model-coord)]
+      (if (not= model-coord cell/not-in-use-coord)
+        (let [cs (get-property [:this cell-id] :clip-size)]
+          (loop [d 0
+                 sizes old-header-model-size]
+            (if (< d (count model-coord))
+              (recur
+                (inc d)
+                (assoc-in sizes [d (nth model-coord d)] (m/mx-get cs d 0)))
+              sizes)))
+        old-old-header-model-size))
     old-header-model-size))
 
 (defn edge-search [range-size start pred]
@@ -199,7 +203,6 @@ flatgui.widgets.table2.table
   {:header-line-count [1 0]                             ; By default, 1 header row and 0 header columns
    :header-model-pos [[0] [0]]                          ; By default, 1 cell (1 row header) starting at 0,0 of size 1,1
    :header-model-size [[1] [1]]
-   :model-size [1 1]                                    ; By default, 1x1 (1 row header cell)
    :physical-screen-size [1 1]                          ; Determined by cell minimum size (a constant) and table clip size
    :min-cell-w 0.25
    :min-cell-h 0.25

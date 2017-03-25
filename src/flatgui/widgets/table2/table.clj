@@ -122,9 +122,11 @@ flatgui.widgets.table2.table
         (+ start (apply * dir-dist)))
       i)))
 
+;; Accepts inclusive coords as parameters
 (defn combine-ranges [s1 s2] (mapcat (fn [e1] (map (fn [e2] [e1 e2]) (range (first s2) (inc (second s2))))) (range (first s1) (inc (second s1)))))
 
-(defn rects->coords [rects] (mapcat (fn [vr] (combine-ranges [(:x vr) (+ (:x vr) (:w vr))] [(:y vr) (+ (:y vr) (:h vr))])) rects))
+;; Decrementing x+w and y+h to prepare for inclusive combine-ranges
+(defn rects->coords [rects] (mapcat (fn [vr] (combine-ranges [(:x vr) (dec (+ (:x vr) (:w vr)))] [(:y vr) (dec (+ (:y vr) (:h vr)))])) rects))
 
 (fg/defaccessorfn enough-cells? [component]
   (let [pss (get-property [:this] :physical-screen-size)
@@ -178,16 +180,20 @@ flatgui.widgets.table2.table
 
           nx1 (first (first new-screen-area))
           ny1 (second (first new-screen-area))
-          nx2 (first (second new-screen-area))
-          ny2 (second (second new-screen-area))
+          nx2 (inc (first (second new-screen-area)))        ; Incrementing ..2 coords because it's inclusive
+          ny2 (inc (second (second new-screen-area)))
           ox1 (first (first old-screen-area))
           oy1 (second (first old-screen-area))
-          ox2 (first (second old-screen-area))
-          oy2 (second (second old-screen-area))
+          ox2 (inc (first (second old-screen-area)))
+          oy2 (inc (second (second old-screen-area)))
           new-screen-rect {:x nx1 :y ny1 :w (- nx2 nx1) :h (- ny2 ny1)}
           old-screen-rect {:x ox1 :y oy1 :w (- ox2 ox1) :h (- oy2 oy1)}
+          ;new-screen-rect {:x nx1 :y ny1 :w (inc (- nx2 nx1)) :h (inc (- ny2 ny1))}
+          ;old-screen-rect {:x ox1 :y oy1 :w (inc (- ox2 ox1)) :h (inc (- oy2 oy1))}
           vacant-rects (r/rect- new-screen-rect old-screen-rect)
           vacant-coords (rects->coords vacant-rects)
+          _ (println "---------------- old new rects " old-screen-rect new-screen-rect)
+          _ (println "---------------- vacant-rects " vacant-rects)
           _ (println "---------------- vacant-coords" vacant-coords)
           ;; TODO the below looks like extremely heavy and complex computation
           to-be-free-rects (r/rect- old-screen-rect new-screen-rect)
@@ -239,35 +245,20 @@ flatgui.widgets.table2.table
    :physical-screen-size [1 1]                          ; Determined by cell minimum size (a constant) and table clip size
    :min-cell-w 0.25
    :min-cell-h 0.25
-
-   :not-in-use #{}
-   ;   :screen-area [[0 0] [1 1]]
-   ;:bench {}
-
-   ;:in-use-model {:viewport-begin [0 0]
-   ;               :viewport-end [1 1]
-   ;               :screen-area [[0 0] [1 1]]
-   ;               :vacant-screen-coords {}}
-
    :in-use-model {:viewport-begin [0 0]
                   :viewport-end [1 1]
                   :screen-area [[0 0] [1 1]]
                   :screen-coord->cell-id {}
                   :cell-id->screen-coord {}}
 
-
-   ;:in-use-model {:scr-area [[0 0] [1 1]]                ; visible area in terms of screen coords
-   ;               :bench {}}                            ; cell ids (and possibly screen coords assigned) awaiting to be put in use
-
    :screen->model identity                              ; This coord vector translation fn may take into account sorting/filtering etc.
    :value-provider dummy-value-provider
-   ;:children {:content-pane contentpane/tablecontentpane}
    :cell-prototype cell/cell
    :evolvers {:physical-screen-size physical-screen-size-evolver ; may be turned off for better performance (but :physical-screen-size would need to be enough)
               :children children-evolver                ; maintains enough child cells to always cover :physical-screen-size area
               :header-model-pos header-model-pos-evolver
               :header-model-size header-model-size-evolver
-              ;:not-in-use not-in-use-evolver
+
               ;:in-use-model in-use-model-evolver
               }}
   scrollpanel/scrollpanel)

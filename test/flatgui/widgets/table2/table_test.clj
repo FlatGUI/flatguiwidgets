@@ -401,10 +401,12 @@
         _ (println "============================ STARTING STEP 4 ===============================")
         _ (.evolve container-engine [:main] step-4)
         step4-result @results
+        step4-cell-state @cells-state
 
         _ (println "============================ STARTING STEP 5 ===============================")
         _ (.evolve container-engine [:main] step-5)
         step5-result @results
+        step5-cell-state @cells-state
 
         verify-cell (fn [scrx scry tx ty csx csy step-cell-state step-result step]
                       (let [cell-id (get (:screen-coord->cell-id step-result) [scrx scry])]
@@ -439,19 +441,52 @@
     (test/is (= [3.5 4.5] (:viewport-begin step3-result)))
     (test/is (= [7.5 7.5] (:viewport-end step3-result)))
     (test/is (= [[2 3] [5 3]] (:screen-area step3-result)))
-    (test/is (= (set (table/combine-ranges [2 5] [3 3])) (set (map (fn [[k _v]] k) (:screen-coord->cell-id step2-result)))))
+    (test/is (= (set (table/combine-ranges [2 5] [3 3])) (set (map (fn [[k _v]] k) (:screen-coord->cell-id step3-result)))))
     (verify-cell 2 3 3 4 1 4 step3-cell-state step3-result 3)
     (verify-cell 3 3 4 4 2 4 step3-cell-state step3-result 3)
     (verify-cell 4 3 6 4 1 4 step3-cell-state step3-result 3)
-    (verify-cell 5 3 4 4 3 4 step3-cell-state step3-result 3)
+    (verify-cell 5 3 7 4 3 4 step3-cell-state step3-result 3)
 
     (test/is (= [8.5 1.25] (:viewport-begin step4-result)))
     (test/is (= [9.5 1.75] (:viewport-end step4-result)))
     (test/is (= [[5 1] [5 1]] (:screen-area step4-result)))
+    (test/is (= #{[5 1]} (set (map (fn [[k _v]] k) (:screen-coord->cell-id step4-result)))))
+    (verify-cell 5 1 7 1 3 2 step4-cell-state step4-result 4)
 
     (test/is (= [0 0] (:viewport-begin step5-result)))
     (test/is (= [15 12] (:viewport-end step5-result)))
     (test/is (= [[0 0] [5 4]] (:screen-area step5-result)))
+    (test/is (= (set (table/combine-ranges [0 5] [0 4])) (set (map (fn [[k _v]] k) (:screen-coord->cell-id step5-result)))))
+    (verify-cell 0 0 0 0 2 1 step5-cell-state step5-result 5)
+    (verify-cell 1 0 2 0 1 1 step5-cell-state step5-result 5)
+    (verify-cell 2 0 3 0 1 1 step5-cell-state step5-result 5)
+    (verify-cell 3 0 4 0 2 1 step5-cell-state step5-result 5)
+    (verify-cell 4 0 6 0 1 1 step5-cell-state step5-result 5)
+    (verify-cell 5 0 7 0 3 1 step5-cell-state step5-result 5)
+    (verify-cell 0 1 0 1 2 2 step5-cell-state step5-result 5)
+    (verify-cell 1 1 2 1 1 2 step5-cell-state step5-result 5)
+    (verify-cell 2 1 3 1 1 2 step5-cell-state step5-result 5)
+    (verify-cell 3 1 4 1 2 2 step5-cell-state step5-result 5)
+    (verify-cell 4 1 6 1 1 2 step5-cell-state step5-result 5)
+    (verify-cell 5 1 7 1 3 2 step5-cell-state step5-result 5)
+    (verify-cell 0 2 0 3 2 1 step5-cell-state step5-result 5)
+    (verify-cell 1 2 2 3 1 1 step5-cell-state step5-result 5)
+    (verify-cell 2 2 3 3 1 1 step5-cell-state step5-result 5)
+    (verify-cell 3 2 4 3 2 1 step5-cell-state step5-result 5)
+    (verify-cell 4 2 6 3 1 1 step5-cell-state step5-result 5)
+    (verify-cell 5 2 7 3 3 1 step5-cell-state step5-result 5)
+    (verify-cell 0 3 0 4 2 4 step5-cell-state step5-result 5)
+    (verify-cell 1 3 2 4 1 4 step5-cell-state step5-result 5)
+    (verify-cell 2 3 3 4 1 4 step5-cell-state step5-result 5)
+    (verify-cell 3 3 4 4 2 4 step5-cell-state step5-result 5)
+    (verify-cell 4 3 6 4 1 4 step5-cell-state step5-result 5)
+    (verify-cell 5 3 7 4 3 4 step5-cell-state step5-result 5)
+    (verify-cell 0 4 0 8 2 2 step5-cell-state step5-result 5)
+    (verify-cell 1 4 2 8 1 2 step5-cell-state step5-result 5)
+    (verify-cell 2 4 3 8 1 2 step5-cell-state step5-result 5)
+    (verify-cell 3 4 4 8 2 2 step5-cell-state step5-result 5)
+    (verify-cell 4 4 6 8 1 2 step5-cell-state step5-result 5)
+    (verify-cell 5 4 7 8 3 2 step5-cell-state step5-result 5)
     ))
 
 ;;;

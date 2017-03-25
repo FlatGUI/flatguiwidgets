@@ -159,75 +159,6 @@
                  :cell-2-1 (m/defpoint 3 1)}
                 @cell-cs))))
 
-;(test/deftest in-use-test
-;  (let [not-in-use (atom nil)
-;        cell-in-use (atom {})
-;        result-collector (proxy [IResultCollector] []
-;                           (appendResult [_parentComponentUid, path, node, newValue]
-;                             (cond
-;                               (= :in-use (.getPropertyId node))
-;                               (swap! cell-in-use (fn [r] (assoc r (last path) newValue)))
-;                               (= :not-in-use (.getPropertyId node))
-;                               (swap! not-in-use (fn [_] newValue))))
-;                           (componentAdded [_parentComponentUid _componentUid])
-;                           (componentRemoved [_componentUid])
-;                           (postProcessAfterEvolveCycle [_a _m]))
-;        _ (fg/defevolverfn :viewport-matrix (if-let [vpm (:viewport-matrix (get-reason))] vpm old-viewport-matrix))
-;        init-w 1
-;        init-h 1
-;        init-cs (m/defpoint init-w init-h)
-;        init-pm-0 (mapv #(m/translation (* init-w %) 0) (range 3))
-;        init-pm-1 (mapv #(m/translation (* init-w %) init-h) (range 3))
-;        init-pm-2 (mapv #(m/translation (* init-w %) (* 2 init-h)) (range 3))
-;        cell-evolvers {:position-matrix cell/position-matrix-evolver :clip-size cell/clip-size-evolver :in-use cell/in-use-evolver}
-;        container (fg/defroot
-;                    {:id        :main
-;                     :screen->model identity
-;                     :header-model-pos [[0 1 2] [0 1 2]]
-;                     :header-model-size [[1 1 1] [1 1 1]]
-;                     :not-in-use #{}
-;                     :content-size (m/defpoint 3 3)
-;                     :clip-size (m/defpoint 1 1)
-;                     :viewport-matrix m/identity-matrix
-;                     :evolvers {:header-model-pos table/header-model-pos-evolver
-;                                :header-model-size table/header-model-size-evolver
-;                                :viewport-matrix viewport-matrix-evolver
-;                                :not-in-use table/not-in-use-evolver}
-;                     :children  {:cell-0 {:id :cell-0 :model-coord [0 0] :clip-size init-cs :position-matrix (nth init-pm-0 0) :evolvers cell-evolvers}
-;                                 :cell-1 {:id :cell-1 :model-coord [1 0] :clip-size init-cs :position-matrix (nth init-pm-0 1) :evolvers cell-evolvers}
-;                                 :cell-2 {:id :cell-2 :model-coord [2 0] :clip-size init-cs :position-matrix (nth init-pm-0 2) :evolvers cell-evolvers}
-;                                 :cell-3 {:id :cell-3 :model-coord [0 1] :clip-size init-cs :position-matrix (nth init-pm-1 0) :evolvers cell-evolvers}
-;                                 :cell-4 {:id :cell-4 :model-coord [1 1] :clip-size init-cs :position-matrix (nth init-pm-1 1) :evolvers cell-evolvers}
-;                                 :cell-5 {:id :cell-5 :model-coord [2 1] :clip-size init-cs :position-matrix (nth init-pm-1 2) :evolvers cell-evolvers}
-;                                 :cell-6 {:id :cell-6 :model-coord [0 2] :clip-size init-cs :position-matrix (nth init-pm-2 0) :evolvers cell-evolvers}
-;                                 :cell-7 {:id :cell-7 :model-coord [1 2] :clip-size init-cs :position-matrix (nth init-pm-2 1) :evolvers cell-evolvers}
-;                                 :cell-8 {:id :cell-8 :model-coord [2 2] :clip-size init-cs :position-matrix (nth init-pm-2 2) :evolvers cell-evolvers}}})
-;        container-engine (Container.
-;                           (ClojureContainerParser.)
-;                           result-collector
-;                           container)
-;        _ (.evolve container-engine [:main] {:viewport-matrix (m/translation 0.5 0.4)})
-;        cell-in-use0 @cell-in-use
-;        not-in-use0 @not-in-use
-;        _ (.evolve container-engine [:main] {:viewport-matrix (m/translation 1.5 1.5)})
-;        cell-in-use1 @cell-in-use
-;        not-in-use1 @not-in-use
-;        _ (.evolve container-engine [:main] {:viewport-matrix (m/translation 1.0 1.0)})
-;        cell-in-use2 @cell-in-use
-;        not-in-use2 @not-in-use]
-;    (test/is (= {:cell-0 true  :cell-1 true  :cell-2 false
-;                 :cell-3 true  :cell-4 true  :cell-5 false
-;                 :cell-6 false :cell-7 false :cell-8 false} cell-in-use0))
-;    (test/is (= #{:cell-2 :cell-5 :cell-6 :cell-7 :cell-8} not-in-use0))
-;    (test/is (= {:cell-0 false :cell-1 false :cell-2 false
-;                 :cell-3 false :cell-4 true  :cell-5 true
-;                 :cell-6 false :cell-7 true  :cell-8 true} cell-in-use1))
-;    (test/is (= #{:cell-0 :cell-1 :cell-2 :cell-3 :cell-6} not-in-use1))
-;    (test/is (= {:cell-0 false :cell-1 false :cell-2 false
-;                 :cell-3 false :cell-4 true  :cell-5 false
-;                 :cell-6 false :cell-7 false :cell-8 false} cell-in-use2))
-;    (test/is (= #{:cell-0 :cell-1 :cell-2 :cell-3 :cell-5 :cell-6 :cell-7 :cell-8} not-in-use2))))
-
 (test/deftest edge-search-test1
   (let [visit-track (atom [])
         pred (fn [i] (do (swap! visit-track (fn [s] (conj s i))) (= i 9)))
@@ -300,11 +231,6 @@
                                                 old-header-model-size))
         _ (fg/defevolverfn :viewport-matrix (if (get-reason) (:viewport-matrix (get-reason)) old-viewport-matrix))
         _ (fg/defevolverfn :clip-size (if (get-reason) (:clip-size (get-reason)) old-clip-size))
-        ;_ (fg/defevolverfn :in-use-coord (if (get-property [:this] :in-use)
-        ;                                   (let [           ;_ (println "IN-USE-COORD-TAKEN!! " (get-property [:this] :screen-coord))
-        ;                                         ]
-        ;
-        ;                                     (get-property [:this] :screen-coord))))
         container (fg/defroot
                     {:id :main
                      :physical-screen-size [1 1]
@@ -320,11 +246,7 @@
                                     :viewport-end [1 1]
                                     :screen-area [[0 0] [0 0]]
                                     :vacant-screen-coords {}}
-                     :cell-prototype (merge-with
-                                       fg/properties-merger
-                                       cell/cell
-                                       {                    ;:in-use-coord nil :evolvers {:in-use-coord in-use-coord-evolver}
-                                        })
+                     :cell-prototype cell/cell
                      :children {}
                      :evolvers {:physical-screen-size table/physical-screen-size-evolver
                                 :header-model-pos header-model-pos-evolver
@@ -340,74 +262,29 @@
                            (appendResult [_parentComponentUid, path, node, newValue]
                              (cond
                                (= :in-use-model (.getPropertyId node)) (reset! results newValue)
-                               ;(= :in-use-coord (.getPropertyId node)) (swap! cells-in-use (fn [a] (do
-                               ;                                                                      ;(println "CONJ-ing" newValue " -> " (conj a newValue))
-                               ;                                                                      (conj a newValue)
-                               ;                                                                      ;(conj a "a")
-                               ;
-                               ;                                                                      )))
-                               ;
-                               (= 2 (count path)) (swap! cells-state (fn [a]
-
-                                                                       (do
-                                                                         (if (and (= :cell-15-9 (second path)) (= :position-matrix (.getPropertyId node)))
-                                                                           (println "APPEND " (second path) (.getPropertyId node) newValue)
-                                                                           )
-                                                                         (assoc-in a [(second path) (.getPropertyId node)] newValue))
-
-                                                                       ))
-                               ))
+                               (= 2 (count path)) (swap! cells-state (fn [a] (assoc-in a [(second path) (.getPropertyId node)] newValue)))))
                            (componentAdded [_parentComponentUid _componentUid])
                            (componentRemoved [_componentUid])
                            (postProcessAfterEvolveCycle [_a _m]))
-        _ (println "============================ INITIALIZAING ===============================")
         container-engine (Container.
                            (ClojureContainerParser.)
                            result-collector
                            container)
-        ; TODO two bugs here
-        ; 1) newly added cells receive [-1 -1] screen coord initially, which means model coord is evolved to [-1 -1].
-        ;    This, in turn, means that cell's :clip-size stays [0 0], so :in-use stays false. Therefore this
-        ;      (and in-use (= old-screen-coord not-in-use-screen-coord))
-        ;    is not true, so new cell is never able to take vacant place
-        ; 2) when debugging Java Container between STEP 1 and STEP 2, there are components #0 (:main) and 3 newly added cells
-        ;    But I don't see first cell there (the one that was created during initialization)
-        ;
-        ; Therefore here idea is this:
-        ;  - in table, we have old and new screen rects.
-        ;  - new - old = what has to be covered but not-in-use cells
-        ;  - old - new = areas, cells of which have to be transferred into not-in-use state
-        ; so need quick way to map screen coord into cell id that occupies that coord.
-        ; Cells will get this data from table
-        ;
-
-
-        _ (println "============================ STARTING STEP 1 ===============================")
         _ (.evolve container-engine [:main] step-1)
         step1-result @results
         step1-cell-state @cells-state
-
-
-        _ (println "============================ STARTING STEP 2 ===============================")
         _ (.evolve container-engine [:main] step-2)
         step2-result @results
         step2-cell-state @cells-state
-
-        _ (println "============================ STARTING STEP 3 ===============================")
         _ (.evolve container-engine [:main] step-3)
         step3-result @results
         step3-cell-state @cells-state
-
-        _ (println "============================ STARTING STEP 4 ===============================")
         _ (.evolve container-engine [:main] step-4)
         step4-result @results
         step4-cell-state @cells-state
-
-        _ (println "============================ STARTING STEP 5 ===============================")
         _ (.evolve container-engine [:main] step-5)
         step5-result @results
         step5-cell-state @cells-state
-
         verify-cell (fn [scrx scry tx ty csx csy step-cell-state step-result step]
                       (let [cell-id (get (:screen-coord->cell-id step-result) [scrx scry])]
                         (test/is (= (m/translation tx ty) (get-in step-cell-state [cell-id :position-matrix])) (str "Cell " [scrx scry] " translation matrix failed on step " step))
@@ -486,8 +363,7 @@
     (verify-cell 2 4 3 8 1 2 step5-cell-state step5-result 5)
     (verify-cell 3 4 4 8 2 2 step5-cell-state step5-result 5)
     (verify-cell 4 4 6 8 1 2 step5-cell-state step5-result 5)
-    (verify-cell 5 4 7 8 3 2 step5-cell-state step5-result 5)
-    ))
+    (verify-cell 5 4 7 8 3 2 step5-cell-state step5-result 5)))
 
 ;;;
 ;;; Sorting

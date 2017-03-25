@@ -12,31 +12,10 @@ flatgui.widgets.table2.table
   (:require [flatgui.base :as fg]
             [flatgui.widgets.panel]
             [flatgui.widgets.scrollpanel :as scrollpanel]
-    ;[flatgui.widgets.table2.contentpane :as contentpane]
             [flatgui.widgets.table2.cell :as cell]
             [flatgui.util.matrix :as m]
             [flatgui.util.vecmath :as v]
-            [flatgui.util.rectmath :as r]
-            [clojure.set :as set])
-  (:import (java.util Collections)
-           (flatgui.core.engine GetPropertyStaticClojureFn GetDynPropertyClojureFn GetPropertyDynPathClojureFn GetDynPropertyDynPathClojureFn)))
-
-;;; Given
-;;; - col & row header positions and sizes
-;;; - scrollable vieport translation
-;;; calculate the map showing which screen coords are taken by phycisal screen areas.
-;;; Assign some child cells, hide those that are not needed to cover physical screen.
-;;; As a result, each child cell will have :screen-coord assigned. This algo will use
-;;; cells' :physical-screen-coord to iterate and cover all partially and fully visible
-;;; screen cells (meaning virtual screen where screen means on top of a scrollable
-;;; panel, not physically).
-;;;
-;;; No data size in table may depend on col/row count as k*N+b ?
-
-
-
-;(def dim-rows 0)
-;(def dim-cols 1)
+            [flatgui.util.rectmath :as r]))
 
 (defn gen-cell-id [& dim] (keyword (str "cell" (apply str (map #(str "-" %) dim)))))
 
@@ -47,33 +26,23 @@ flatgui.widgets.table2.table
 
 (fg/defevolverfn :children
   (if (not (nil? (get-reason)))
-    (let [                                                    ;in-use-model (get-property [:this] :in-use-model)
-          ;vacant-screen-coords (:vacant-screen-coords in-use-model)
-          ;not-in-use (get-property [:this] :not-in-use)
-          r (into {} (map (fn [coord]
-                            (let [cid (apply gen-cell-id coord)
-                                  c (cid old-children)]
-                              [cid (if c c (fg/defcomponent
-                                             (get-property [:this] :cell-prototype)
-                                             cid
-                                             {;:physical-screen-coord coord
-                                              }))]))
-                          (all-coords-2d (get-property [:this] :physical-screen-size))))
-          _ (println "SCR SIZE: " (get-property [:this] :physical-screen-size) " child count: " (count r))
-          ]
-      r)
+    (into {} (map (fn [coord]
+                    (let [cid (apply gen-cell-id coord)
+                          c (cid old-children)]
+                      [cid (if c c (fg/defcomponent
+                                     (get-property [:this] :cell-prototype)
+                                     cid
+                                     {;:physical-screen-coord coord
+                                      }))]))
+                  (all-coords-2d (get-property [:this] :physical-screen-size))))
     old-children))
 
 (fg/defevolverfn :physical-screen-size
   (let [min-physical-cells (if-let [pd (get-property [:this] :min-physical-cells)] pd [20 20])
         clip-size (get-property [:this] :clip-size)]
-    ;[(int (Math/ceil (double (/ (m/y clip-size) (get-property [:this] :min-cell-h)))))
-    ; (int (Math/ceil (double (/ (m/x clip-size) (get-property [:this] :min-cell-w)))))]
     ;; inc because for example screen size of 1.2 may actually occupy 3 cells of 1 (one partially for 0.1, one fully, and one last for 0.1)
     [(Math/max (int (inc (Math/ceil (double (/ (m/y clip-size) (get-property [:this] :min-cell-h)))))) (first min-physical-cells))
-     (Math/max (int (inc (Math/ceil (double (/ (m/x clip-size) (get-property [:this] :min-cell-w)))))) (second min-physical-cells))]
-
-    ))
+     (Math/max (int (inc (Math/ceil (double (/ (m/x clip-size) (get-property [:this] :min-cell-w)))))) (second min-physical-cells))]))
 
 (fg/defevolverfn :header-model-pos
   (if-let [cell-id (second (get-reason))]
@@ -188,26 +157,17 @@ flatgui.widgets.table2.table
           oy2 (inc (second (second old-screen-area)))
           new-screen-rect {:x nx1 :y ny1 :w (- nx2 nx1) :h (- ny2 ny1)}
           old-screen-rect {:x ox1 :y oy1 :w (- ox2 ox1) :h (- oy2 oy1)}
-          ;new-screen-rect {:x nx1 :y ny1 :w (inc (- nx2 nx1)) :h (inc (- ny2 ny1))}
-          ;old-screen-rect {:x ox1 :y oy1 :w (inc (- ox2 ox1)) :h (inc (- oy2 oy1))}
           vacant-rects (r/rect- new-screen-rect old-screen-rect)
           vacant-coords (rects->coords vacant-rects)
-          _ (println "---------------- old new rects " old-screen-rect new-screen-rect)
-          _ (println "---------------- vacant-rects " vacant-rects)
-          _ (println "---------------- vacant-coords" vacant-coords)
           ;; TODO the below looks like extremely heavy and complex computation
           to-be-free-rects (r/rect- old-screen-rect new-screen-rect)
           to-be-free-coords (rects->coords to-be-free-rects)
-          _ (println "---------------- to-be-free-coords" to-be-free-coords)
-          ;_ (println "---------------- all cell ids" (map (fn [[k _v]] k) (get-property [:this] :children)))
           old-cell-id->screen-coord (:cell-id->screen-coord old-in-use-model)
           to-be-free-cell-ids (if to-be-free-coords
                                 (filter
                                   (fn [e] (not (nil? e)))   ;TODO ?????
                                   (map #(get (:screen-coord->cell-id old-in-use-model) %) to-be-free-coords))
                                 (list))
-
-          ;_ (println "--------- to-be-free-cell-ids" to-be-free-cell-ids)
           all-unused-cell-ids (distinct (concat to-be-free-cell-ids (map (fn [[k _v]] k) (filter
                                                                                            (fn [[k _v]] (not (k old-cell-id->screen-coord)))
                                                                                            (get-property [:this] :children)))))
@@ -223,10 +183,8 @@ flatgui.widgets.table2.table
                                noc))
                            {})
           to-be-free-cell-ids (filter #(not (% new-occupants)) to-be-free-cell-ids)
-          ;_ (println "--------- to-be-new-occupants" new-occupants)
           cell-id->screen-coord (apply dissoc (merge old-cell-id->screen-coord new-occupants) to-be-free-cell-ids)
-          screen-coord->cell-id (into {} (map (fn [[k v]] [v k]) cell-id->screen-coord))
-          ]
+          screen-coord->cell-id (into {} (map (fn [[k v]] [v k]) cell-id->screen-coord))]
       :in-use-model {:viewport-begin viewport-begin
                      :viewport-end viewport-end
                      :screen-area new-screen-area
@@ -257,8 +215,5 @@ flatgui.widgets.table2.table
    :evolvers {:physical-screen-size physical-screen-size-evolver ; may be turned off for better performance (but :physical-screen-size would need to be enough)
               :children children-evolver                ; maintains enough child cells to always cover :physical-screen-size area
               :header-model-pos header-model-pos-evolver
-              :header-model-size header-model-size-evolver
-
-              ;:in-use-model in-use-model-evolver
-              }}
+              :header-model-size header-model-size-evolver}}
   scrollpanel/scrollpanel)

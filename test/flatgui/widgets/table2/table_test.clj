@@ -24,6 +24,7 @@
         container (fg/defroot
                     {:id :main
                      :physical-screen-size [0 0]
+                     :child-count-dim-margin 1
                      :clip-size (m/defpoint 10 5)
                      :screen->model identity
                      :viewport-matrix m/identity-matrix
@@ -45,31 +46,27 @@
                            (ClojureContainerParser.)
                            result-collector
                            container)
-        _ (.evolve container-engine [:main] {:r 3 :c 3})
-        res1 @results
         _ (.evolve container-engine [:main] {:r 2 :c 3})
+        res1 @results
+        _ (.evolve container-engine [:main] {:r 3 :c 3})
         res2 @results]
-    (test/is (= 9 (count res1)))
-    (test/is (= 6 (count res2)))
-    (test/is (=
-               #{:cell-0-0 :cell-0-1 :cell-0-2 :cell-1-0 :cell-1-1 :cell-1-2 :cell-2-0 :cell-2-1 :cell-2-2}
-               (set (map (fn [[k v]] (if (= k (:id v)) k)) res1))))
+    (test/is (= 6 (count res1)))
+    (test/is (= 9 (count res2)))
     (test/is (=
                #{:cell-0-0 :cell-0-1 :cell-0-2 :cell-1-0 :cell-1-1 :cell-1-2}
+               (set (map (fn [[k v]] (if (= k (:id v)) k)) res1))))
+    (test/is (=
+               #{:cell-0-0 :cell-0-1 :cell-0-2 :cell-1-0 :cell-1-1 :cell-1-2 :cell-2-0 :cell-2-1 :cell-2-2}
                (set (map (fn [[k v]] (if (= k (:id v)) k)) res2))))
-    ;(test/is (=
-    ;           #{[0 0] [0 1] [0 2] [1 0] [1 1] [1 2]}
-    ;           (set (map (fn [[_k v]] (:physical-screen-coord v)) res2))))
     (test/is (= '(0 1 2 3 4 5 6 7 8 9) (sort @added-uids)))
-    (test/is (= 3 (count @removed-uids)))))
+    (test/is (= 0 (count @removed-uids)))))
 
 (test/deftest physical-screen-size-test
   (let [container (fg/defroot
                     {:id        :main
                      :clip-size (m/defpoint 10 5)
-                     :min-cell-h 0.9
-                     :min-cell-w 3
-                     :min-physical-cells [1 1]
+                     :avg-min-cell-h 0.9
+                     :avg-min-cell-w 3
                      :evolvers {:physical-screen-size table/physical-screen-size-evolver}
                      :children  {}})
         res (fgtest/evolve container :physical-screen-size nil)]
@@ -245,8 +242,8 @@
         container (fg/defroot
                     {:id :main
                      :physical-screen-size [1 1]
-                     :min-cell-w 1
-                     :min-cell-h 1
+                     :avg-min-cell-w 1
+                     :avg-min-cell-h 1
                      :screen->model identity
                      :header-model-pos [[0] [0]]
                      :header-model-size [[1] [1]]
@@ -401,8 +398,8 @@
         container (fg/defroot
                     {:id :main
                      :physical-screen-size [1 1]
-                     :min-cell-w 1
-                     :min-cell-h 1
+                     :avg-min-cell-w 1
+                     :avg-min-cell-h 1
                      :screen->model identity
                      :header-model-pos [[0] [0]]
                      :header-model-size [[1] [1]]

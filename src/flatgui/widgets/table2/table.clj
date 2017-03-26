@@ -26,23 +26,32 @@ flatgui.widgets.table2.table
 
 (fg/defevolverfn :children
   (if (not (nil? (get-reason)))
-    (into {} (map (fn [coord]
-                    (let [cid (apply gen-cell-id coord)
-                          c (cid old-children)]
-                      [cid (if c c (fg/defcomponent
-                                     (get-property [:this] :cell-prototype)
-                                     cid
-                                     {;:physical-screen-coord coord
-                                      }))]))
-                  (all-coords-2d (get-property [:this] :physical-screen-size))))
+    (let [pss (get-property [:this] :physical-screen-size)
+          child-count (count (get-property [:this] :children))
+          needed-count (* (first pss) (second pss))]
+      (if (< child-count needed-count)
+        (merge
+          (into {} (map (fn [coord]
+                          (let [cid (apply gen-cell-id coord)
+                                c (cid old-children)]
+                            [cid (if c c (fg/defcomponent
+                                           (get-property [:this] :cell-prototype)
+                                           cid
+                                           {;:physical-screen-coord coord
+                                            }))]))
+                        ;; Multiply by margin to allow more children in advance and avoid adding
+                        ;; new children (expensive operation) too often
+                        (let [margin (if-let [m (get-property [:this] :child-count-dim-margin)] m 2)]
+                          (all-coords-2d (mapv #(* margin %) pss)))))
+          old-children)
+        old-children))
     old-children))
 
 (fg/defevolverfn :physical-screen-size
-  (let [min-physical-cells (if-let [pd (get-property [:this] :min-physical-cells)] pd [20 20])
-        clip-size (get-property [:this] :clip-size)]
+  (let [clip-size (get-property [:this] :clip-size)]
     ;; inc because for example screen size of 1.2 may actually occupy 3 cells of 1 (one partially for 0.1, one fully, and one last for 0.1)
-    [(Math/max (int (inc (Math/ceil (double (/ (m/y clip-size) (get-property [:this] :min-cell-h)))))) (first min-physical-cells))
-     (Math/max (int (inc (Math/ceil (double (/ (m/x clip-size) (get-property [:this] :min-cell-w)))))) (second min-physical-cells))]))
+    [(int (inc (Math/ceil (double (/ (m/y clip-size) (get-property [:this] :avg-min-cell-h))))))
+     (int (inc (Math/ceil (double (/ (m/x clip-size) (get-property [:this] :avg-min-cell-w))))))]))
 
 (fg/defevolverfn :header-model-pos
   (if-let [cell-id (second (get-reason))]
@@ -57,6 +66,7 @@ flatgui.widgets.table2.table
                 (inc d)
                 (assoc-in positions [d (nth model-coord d)] (m/mx-get pm d pmt)))
               positions)))
+        ;old-header-model-pos
         old-header-model-pos))
     old-header-model-pos))
 
@@ -76,13 +86,13 @@ flatgui.widgets.table2.table
     old-header-model-size))
 
 (fg/defevolverfn :content-size
-                 (let [header-model-pos (get-property [:this] :header-model-pos)
-                       header-model-size (get-property [:this] :header-model-size)
-                       last-col (dec (count (first header-model-pos)))
-                       last-row (dec (count (second header-model-pos)))]
-                   (m/defpoint
-                     (+ (nth (first header-model-pos) last-col) (nth (first header-model-size) last-col))
-                     (+ (nth (second header-model-pos) last-row) (nth (second header-model-size) last-row)))))
+  (let [header-model-pos (get-property [:this] :header-model-pos)
+        header-model-size (get-property [:this] :header-model-size)
+        last-col (dec (count (first header-model-pos)))
+        last-row (dec (count (second header-model-pos)))]
+    (m/defpoint
+      (+ (nth (first header-model-pos) last-col) (nth (first header-model-size) last-col))
+      (+ (nth (second header-model-pos) last-row) (nth (second header-model-size) last-row)))))
 
 (defn edge-search [range-size start pred]
   (loop [dir-dist [(if (< start (dec range-size)) 1 -1) 1]
@@ -170,13 +180,14 @@ flatgui.widgets.table2.table
           oy2 (inc (second (second old-screen-area)))
           new-screen-rect {:x nx1 :y ny1 :w (- nx2 nx1) :h (- ny2 ny1)}
           old-screen-rect {:x ox1 :y oy1 :w (- ox2 ox1) :h (- oy2 oy1)}
-          _ (println "old new screen rect" old-screen-rect new-screen-rect)
+          ;_ (println "old new screen rect" old-screen-rect new-screen-rect)
           vacant-rects (r/rect- new-screen-rect old-screen-rect)
           vacant-coords (rects->coords vacant-rects)
-          _ (println "vacant-coords" vacant-coords)
+          ;_ (println "vacant-coords" vacant-coords)
           ;; TODO the below looks like extremely heavy and complex computation
           to-be-free-rects (r/rect- old-screen-rect new-screen-rect)
           to-be-free-coords (rects->coords to-be-free-rects)
+          ;_ (println "to-be-free-coords" to-be-free-coords)
           old-cell-id->screen-coord (:cell-id->screen-coord old-in-use-model)
           to-be-free-cell-ids (if to-be-free-coords
                                 (filter
@@ -221,8 +232,9 @@ flatgui.widgets.table2.table
    :header-model-pos [[0] [0]]                          ; By default, 1 cell (1 row header) starting at 0,0 of size 1,1
    :header-model-size [[1] [1]]
    :physical-screen-size [1 1]                          ; Determined by cell minimum size (a constant) and table clip size
-   :min-cell-w 0.25
-   :min-cell-h 0.25
+   :avg-min-cell-w 0.75
+   :avg-min-cell-h 0.375
+   :child-count-dim-margin 2
    :in-use-model initial-in-use-model
    :screen->model identity                              ; This coord vector translation fn may take into account sorting/filtering etc.
    :value-provider dummy-value-provider

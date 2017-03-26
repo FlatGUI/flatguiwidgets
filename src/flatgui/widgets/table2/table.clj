@@ -11,7 +11,7 @@
 flatgui.widgets.table2.table
   (:require [flatgui.base :as fg]
             [flatgui.widgets.panel]
-            [flatgui.widgets.scrollpanel :as scrollpanel]
+            [flatgui.widgets.component :as component]
             [flatgui.widgets.table2.cell :as cell]
             [flatgui.util.matrix :as m]
             [flatgui.util.vecmath :as v]
@@ -72,8 +72,17 @@ flatgui.widgets.table2.table
                 (inc d)
                 (assoc-in sizes [d (nth model-coord d)] (m/mx-get cs d 0)))
               sizes)))
-        old-old-header-model-size))
+        old-header-model-size))
     old-header-model-size))
+
+(fg/defevolverfn :content-size
+                 (let [header-model-pos (get-property [:this] :header-model-pos)
+                       header-model-size (get-property [:this] :header-model-size)
+                       last-col (dec (count (first header-model-pos)))
+                       last-row (dec (count (second header-model-pos)))]
+                   (m/defpoint
+                     (+ (nth (first header-model-pos) last-col) (nth (first header-model-size) last-col))
+                     (+ (nth (second header-model-pos) last-row) (nth (second header-model-size) last-row)))))
 
 (defn edge-search [range-size start pred]
   (loop [dir-dist [(if (< start (dec range-size)) 1 -1) 1]
@@ -161,8 +170,10 @@ flatgui.widgets.table2.table
           oy2 (inc (second (second old-screen-area)))
           new-screen-rect {:x nx1 :y ny1 :w (- nx2 nx1) :h (- ny2 ny1)}
           old-screen-rect {:x ox1 :y oy1 :w (- ox2 ox1) :h (- oy2 oy1)}
+          _ (println "old new screen rect" old-screen-rect new-screen-rect)
           vacant-rects (r/rect- new-screen-rect old-screen-rect)
           vacant-coords (rects->coords vacant-rects)
+          _ (println "vacant-coords" vacant-coords)
           ;; TODO the below looks like extremely heavy and complex computation
           to-be-free-rects (r/rect- old-screen-rect new-screen-rect)
           to-be-free-coords (rects->coords to-be-free-rects)
@@ -199,6 +210,12 @@ flatgui.widgets.table2.table
 (fg/defaccessorfn dummy-value-provider [component model-row model-col]
   (str (get-property [:this] :id) "-" model-row "-" model-col))
 
+(def initial-in-use-model {:viewport-begin [0 0]
+                           :viewport-end [0 0]
+                           :screen-area [[0 0] [0 0]]
+                           :screen-coord->cell-id {[0 0] :cell-0-0}
+                           :cell-id->screen-coord {:cell-0-0 [0 0]}})
+
 (fg/defwidget "table"
   {:header-line-count [1 0]                             ; By default, 1 header row and 0 header columns
    :header-model-pos [[0] [0]]                          ; By default, 1 cell (1 row header) starting at 0,0 of size 1,1
@@ -206,17 +223,14 @@ flatgui.widgets.table2.table
    :physical-screen-size [1 1]                          ; Determined by cell minimum size (a constant) and table clip size
    :min-cell-w 0.25
    :min-cell-h 0.25
-   :in-use-model {:viewport-begin [0 0]
-                  :viewport-end [1 1]
-                  :screen-area [[0 0] [1 1]]
-                  :screen-coord->cell-id {}
-                  :cell-id->screen-coord {}}
-
+   :in-use-model initial-in-use-model
    :screen->model identity                              ; This coord vector translation fn may take into account sorting/filtering etc.
    :value-provider dummy-value-provider
    :cell-prototype cell/cell
    :evolvers {:physical-screen-size physical-screen-size-evolver ; may be turned off for better performance (but :physical-screen-size would need to be enough)
               :children children-evolver                ; maintains enough child cells to always cover :physical-screen-size area
+              :content-size content-size-evolver
               :header-model-pos header-model-pos-evolver
-              :header-model-size header-model-size-evolver}}
-  scrollpanel/scrollpanel)
+              :header-model-size header-model-size-evolver
+              :in-use-model in-use-model-evolver}}
+  component/component)

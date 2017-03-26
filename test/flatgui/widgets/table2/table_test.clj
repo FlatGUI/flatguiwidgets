@@ -198,6 +198,17 @@
   (test/is (= (list [1 3] [1 4] [2 3] [2 4]) (table/combine-ranges [1 2] [3 4])))
   (test/is (= (list [1 5] [1 6] [1 7] [2 5] [2 6] [2 7] [3 5] [3 6] [3 7] [4 5] [4 6] [4 7]) (table/combine-ranges [1 4] [5 7]))))
 
+;;
+;; :in-use-model test
+;;
+
+(defn verify-cell [scrx scry tx ty csx csy step-cell-state step-result step]
+  (let [cell-id (get (:screen-coord->cell-id step-result) [scrx scry])]
+    (test/is (= (m/translation tx ty) (get-in step-cell-state [cell-id :position-matrix])) (str "Cell " [scrx scry] " translation matrix failed on step " step))
+    (test/is (= (m/defpoint csx csy) (get-in step-cell-state [cell-id :clip-size])) (str "Cell " [scrx scry] " clip size failed on step " step))))
+
+(defn verify-maps-consistent [step-result] (test/is (nil? (some (complement nil?) (map (fn [[k v]] (if (= k (v (:cell-id->screen-coord step-result))) nil [k v])) (:screen-coord->cell-id step-result))))))
+
 (test/deftest in-use-model-test
   (let [init-header-model-pos  [[0 2 3 4 6 8]
                                 [0 1 3 4 7]]
@@ -253,7 +264,6 @@
                                 :header-model-size header-model-size-evolver
                                 :viewport-matrix viewport-matrix-evolver
                                 :clip-size clip-size-evolver
-                                ;:not-in-use table/not-in-use-evolver
                                 :in-use-model table/in-use-model-evolver
                                 :children table/children-evolver}})
         results (atom {})
@@ -284,16 +294,12 @@
         step4-cell-state @cells-state
         _ (.evolve container-engine [:main] step-5)
         step5-result @results
-        step5-cell-state @cells-state
-        verify-cell (fn [scrx scry tx ty csx csy step-cell-state step-result step]
-                      (let [cell-id (get (:screen-coord->cell-id step-result) [scrx scry])]
-                        (test/is (= (m/translation tx ty) (get-in step-cell-state [cell-id :position-matrix])) (str "Cell " [scrx scry] " translation matrix failed on step " step))
-                        (test/is (= (m/defpoint csx csy) (get-in step-cell-state [cell-id :clip-size])) (str "Cell " [scrx scry] " clip size failed on step " step))))]
+        step5-cell-state @cells-state]
     (test/is (= [2.5 2.5] (:viewport-begin step1-result)))
     (test/is (= [4.5 4.5] (:viewport-end step1-result)))
     (test/is (= [[1 1] [3 3]] (:screen-area step1-result)))
     (test/is (= (set (list [1 1] [2 1] [3 1] [1 2] [2 2] [3 2] [1 3] [2 3] [3 3])) (set (map (fn [[k _v]] k) (:screen-coord->cell-id step1-result)))))
-    (test/is (nil?  (some (complement nil?) (map (fn [[k v]]   (if (= k (v (:cell-id->screen-coord step1-result))) nil [k v])) (:screen-coord->cell-id step1-result)))))
+    (verify-maps-consistent step1-result)
     (verify-cell 1 1 2 1 1 2 step1-cell-state step1-result 1)
     (verify-cell 2 1 3 1 1 2 step1-cell-state step1-result 1)
     (verify-cell 3 1 4 1 2 2 step1-cell-state step1-result 1)
@@ -308,6 +314,7 @@
     (test/is (= [7.5 7.5] (:viewport-end step2-result)))
     (test/is (= [[2 3] [4 4]] (:screen-area step2-result)))
     (test/is (= (set (table/combine-ranges [2 4] [3 4])) (set (map (fn [[k _v]] k) (:screen-coord->cell-id step2-result)))))
+    (verify-maps-consistent step2-result)
     (verify-cell 2 3 3 4 1 3 step2-cell-state step2-result 2)
     (verify-cell 3 3 4 4 2 3 step2-cell-state step2-result 2)
     (verify-cell 4 3 6 4 2 3 step2-cell-state step2-result 2)
@@ -319,6 +326,7 @@
     (test/is (= [7.5 7.5] (:viewport-end step3-result)))
     (test/is (= [[2 3] [5 3]] (:screen-area step3-result)))
     (test/is (= (set (table/combine-ranges [2 5] [3 3])) (set (map (fn [[k _v]] k) (:screen-coord->cell-id step3-result)))))
+    (verify-maps-consistent step3-result)
     (verify-cell 2 3 3 4 1 4 step3-cell-state step3-result 3)
     (verify-cell 3 3 4 4 2 4 step3-cell-state step3-result 3)
     (verify-cell 4 3 6 4 1 4 step3-cell-state step3-result 3)
@@ -328,12 +336,14 @@
     (test/is (= [9.5 1.75] (:viewport-end step4-result)))
     (test/is (= [[5 1] [5 1]] (:screen-area step4-result)))
     (test/is (= #{[5 1]} (set (map (fn [[k _v]] k) (:screen-coord->cell-id step4-result)))))
+    (verify-maps-consistent step4-result)
     (verify-cell 5 1 7 1 3 2 step4-cell-state step4-result 4)
 
     (test/is (= [0 0] (:viewport-begin step5-result)))
     (test/is (= [15 12] (:viewport-end step5-result)))
     (test/is (= [[0 0] [5 4]] (:screen-area step5-result)))
     (test/is (= (set (table/combine-ranges [0 5] [0 4])) (set (map (fn [[k _v]] k) (:screen-coord->cell-id step5-result)))))
+    (verify-maps-consistent step5-result)
     (verify-cell 0 0 0 0 2 1 step5-cell-state step5-result 5)
     (verify-cell 1 0 2 0 1 1 step5-cell-state step5-result 5)
     (verify-cell 2 0 3 0 1 1 step5-cell-state step5-result 5)
@@ -364,6 +374,133 @@
     (verify-cell 3 4 4 8 2 2 step5-cell-state step5-result 5)
     (verify-cell 4 4 6 8 1 2 step5-cell-state step5-result 5)
     (verify-cell 5 4 7 8 3 2 step5-cell-state step5-result 5)))
+
+(test/deftest in-use-model-scroll-test
+  (let [init-header-model-pos  [[0 2 3 4 6 8]
+                                [0 1 3 4 7]]
+        init-header-model-size [[2 1 1 2 2 2]
+                                [1 2 1 3 3]]
+        init-viewport-matrix m/identity-matrix
+        init-clip-size (m/defpoint 4.0 2.0)
+        step-1 {:header-model-pos init-header-model-pos
+                :header-model-size init-header-model-size
+                :viewport-matrix init-viewport-matrix
+                :clip-size init-clip-size}
+        step-2 (assoc step-1 :viewport-matrix (m/translation 0 -0.5))
+        step-3 (assoc step-2 :viewport-matrix (m/translation 0 -1))
+        step-4 (assoc step-3 :viewport-matrix (m/translation 0 -2))
+        step-5 (assoc step-4 :viewport-matrix (m/translation 0 -3.5))
+        _ (fg/defevolverfn :header-model-pos (if (get-reason)
+                                               (:header-model-pos (get-reason))
+                                               old-header-model-pos))
+        _ (fg/defevolverfn :header-model-size (if (get-reason)
+                                                (:header-model-size (get-reason))
+                                                old-header-model-size))
+        _ (fg/defevolverfn :viewport-matrix (if (get-reason) (:viewport-matrix (get-reason)) old-viewport-matrix))
+        _ (fg/defevolverfn :clip-size (if (get-reason) (:clip-size (get-reason)) old-clip-size))
+        container (fg/defroot
+                    {:id :main
+                     :physical-screen-size [1 1]
+                     :min-cell-w 1
+                     :min-cell-h 1
+                     :screen->model identity
+                     :header-model-pos [[0] [0]]
+                     :header-model-size [[1] [1]]
+                     :viewport-matrix m/identity-matrix
+                     :clip-size (m/defpoint 1 1)
+                     :not-in-use #{}
+                     :in-use-model table/initial-in-use-model
+                     :cell-prototype cell/cell
+                     :children {}
+                     :evolvers {:physical-screen-size table/physical-screen-size-evolver
+                                :header-model-pos header-model-pos-evolver
+                                :header-model-size header-model-size-evolver
+                                :viewport-matrix viewport-matrix-evolver
+                                :clip-size clip-size-evolver
+                                :in-use-model table/in-use-model-evolver
+                                :children table/children-evolver}})
+        results (atom {})
+        cells-state (atom {})
+        result-collector (proxy [IResultCollector] []
+                           (appendResult [_parentComponentUid, path, node, newValue]
+                             (cond
+                               (= :in-use-model (.getPropertyId node)) (reset! results newValue)
+                               (= 2 (count path)) (swap! cells-state (fn [a] (assoc-in a [(second path) (.getPropertyId node)] newValue)))))
+                           (componentAdded [_parentComponentUid _componentUid])
+                           (componentRemoved [_componentUid])
+                           (postProcessAfterEvolveCycle [_a _m]))
+        container-engine (Container.
+                           (ClojureContainerParser.)
+                           result-collector
+                           container)
+        _ (.evolve container-engine [:main] step-1)
+        step1-result @results
+        step1-cell-state @cells-state
+        _ (.evolve container-engine [:main] step-2)
+        step2-result @results
+        step2-cell-state @cells-state
+        _ (.evolve container-engine [:main] step-3)
+        step3-result @results
+        step3-cell-state @cells-state
+        _ (.evolve container-engine [:main] step-4)
+        step4-result @results
+        step4-cell-state @cells-state
+        _ (.evolve container-engine [:main] step-5)
+        step5-result @results
+        step5-cell-state @cells-state]
+    (test/is (= [0 0] (:viewport-begin step1-result)))
+    (test/is (= [4.0 2.0] (:viewport-end step1-result)))
+    (test/is (= [[0 0] [2 1]] (:screen-area step1-result)))
+    (test/is (= (set (table/combine-ranges [0 2] [0 1])) (set (map (fn [[k _v]] k) (:screen-coord->cell-id step1-result)))))
+    (verify-maps-consistent step1-result)
+    (verify-cell 0 0 0 0 2 1 step1-cell-state step1-result 1)
+    (verify-cell 1 0 2 0 1 1 step1-cell-state step1-result 1)
+    (verify-cell 2 0 3 0 1 1 step1-cell-state step1-result 1)
+    (verify-cell 0 1 0 1 2 2 step1-cell-state step1-result 1)
+    (verify-cell 1 1 2 1 1 2 step1-cell-state step1-result 1)
+    (verify-cell 2 1 3 1 1 2 step1-cell-state step1-result 1)
+
+    (test/is (= [0 0.5] (:viewport-begin step2-result)))
+    (test/is (= [4.0 2.5] (:viewport-end step2-result)))
+    (test/is (= [[0 0] [2 1]] (:screen-area step2-result)))
+    (test/is (= (set (table/combine-ranges [0 2] [0 1])) (set (map (fn [[k _v]] k) (:screen-coord->cell-id step2-result)))))
+    (verify-maps-consistent step2-result)
+    (verify-cell 0 0 0 0 2 1 step2-cell-state step2-result 2)
+    (verify-cell 1 0 2 0 1 1 step2-cell-state step2-result 2)
+    (verify-cell 2 0 3 0 1 1 step2-cell-state step2-result 2)
+    (verify-cell 0 1 0 1 2 2 step2-cell-state step2-result 2)
+    (verify-cell 1 1 2 1 1 2 step2-cell-state step2-result 2)
+    (verify-cell 2 1 3 1 1 2 step2-cell-state step2-result 2)
+
+    (test/is (= [0 1] (:viewport-begin step3-result)))
+    (test/is (= [4.0 3.0] (:viewport-end step3-result)))
+    (test/is (= [[0 1] [2 1]] (:screen-area step3-result)))
+    (verify-maps-consistent step3-result)
+    (verify-cell 0 1 0 1 2 2 step3-cell-state step3-result 3)
+    (verify-cell 1 1 2 1 1 2 step3-cell-state step3-result 3)
+    (verify-cell 2 1 3 1 1 2 step3-cell-state step3-result 3)
+
+    (test/is (= [0 2] (:viewport-begin step4-result)))
+    (test/is (= [4.0 4.0] (:viewport-end step4-result)))
+    (test/is (= [[0 1] [2 2]] (:screen-area step4-result)))
+    (verify-maps-consistent step4-result)
+    (verify-cell 0 1 0 1 2 2 step4-cell-state step4-result 4)
+    (verify-cell 1 1 2 1 1 2 step4-cell-state step4-result 4)
+    (verify-cell 2 1 3 1 1 2 step4-cell-state step4-result 4)
+    (verify-cell 0 2 0 3 2 1 step4-cell-state step4-result 4)
+    (verify-cell 1 2 2 3 1 1 step4-cell-state step4-result 4)
+    (verify-cell 2 2 3 3 1 1 step4-cell-state step4-result 4)
+
+    (test/is (= [0 3.5] (:viewport-begin step5-result)))
+    (test/is (= [4.0 5.5] (:viewport-end step5-result)))
+    (test/is (= [[0 2] [2 3]] (:screen-area step5-result)))
+    (verify-maps-consistent step5-result)
+    (verify-cell 0 2 0 3 2 1 step5-cell-state step5-result 4)
+    (verify-cell 1 2 2 3 1 1 step5-cell-state step5-result 4)
+    (verify-cell 2 2 3 3 1 1 step5-cell-state step5-result 4)
+    (verify-cell 0 3 0 4 2 3 step5-cell-state step5-result 4)
+    (verify-cell 1 3 2 4 1 3 step5-cell-state step5-result 4)
+    (verify-cell 2 3 3 4 1 3 step5-cell-state step5-result 4)))
 
 ;;;
 ;;; Sorting

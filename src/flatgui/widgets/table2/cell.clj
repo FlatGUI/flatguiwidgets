@@ -21,35 +21,51 @@
     (screen->model (get-property [:this] :screen-coord))))
 
 (fg/defevolverfn :clip-size
-  (let [mc (get-property [:this] :model-coord)]
+  (let [mc (get-property [:this] :model-coord)
+        ]
     (if (not= mc not-in-use-coord)
-      (apply m/defmxcol (concat
-                          (mapv (fn [d] (get-in (get-property [] :header-model-size) [d (nth mc d)])) (range (count mc)))
-                          ;Concat with [z 1] (where z==0) is done specifically because coord is 2-dimentional
-                          [0 1]))
+      (let [r (apply m/defmxcol (concat
+                                  (mapv (fn [d] (get-in (get-property [] :header-model-size) [d (nth mc d)])) (range (count mc)))
+                                  ;Concat with [z 1] (where z==0) is done specifically because coord is 2-dimentional
+                                  [0 1]))
+            ;_ (println (:id component) "Cell clip-size -- " mc old-clip-size "->" r " hms" (get-property [] :header-model-size))
+            ;_ (println r)
+            ]
+        r)
       old-clip-size)))
 
 (fg/defevolverfn :position-matrix
-  (let [mc (get-property [:this] :model-coord)]
+  (let [mc (get-property [:this] :model-coord)
+        ;_ (println (:id component) "Cell position-matrix --------------------- " mc)
+        ]
     (if (not= mc not-in-use-coord)
       (let [positions (get-property [] :header-model-pos)]
         ;;This works with two-argument version of m/translation
-        (apply m/translation (mapv (fn [d] (get-in positions [d (nth mc d)])) (range (count mc)))))
+        (let [r (apply m/translation (mapv (fn [d] (get-in positions [d (nth mc d)])) (range (count mc))))
+              ;_ (println (:id component) "Cell position-matrix ---- " mc old-position-matrix "->" (m/mx-x r) (m/mx-y r) (get-property [] :header-model-pos))
+              ]
+          r))
       old-position-matrix)))
 
 (fg/defevolverfn :screen-coord
   (let [this-id (:id component)]
     (if-let [sc (this-id (:cell-id->screen-coord (get-property [] :in-use-model)))] sc old-screen-coord)))
 
+(fg/defevolverfn :visible
+  (and
+    (component/visible-evolver component)
+    (not= not-in-use-coord (get-property [:this] :model-coord))))
+
 (fg/defwidget "cell"
-  {:clip-size       (m/defpoint 0 0)
+  {:clip-size       (m/defpoint 1 1)
    :position-matrix m/identity-matrix
    ;; Screen coord on the surface of the scrollable panel ("virtual" screen). These values are potentially unlimited
    :screen-coord    not-in-use-coord
    ;; Model coords which are different from screen coords in case sorting/filtering/etc applied
    :model-coord     not-in-use-coord
-   :evolvers        {:clip-size clip-size-evolver
-              :position-matrix position-matrix-evolver
-              :model-coord model-coord-evolver
-              :screen-coord screen-coord-evolver}}
+   :evolvers        {:visible visible-evolver
+                     :clip-size clip-size-evolver
+                     :position-matrix position-matrix-evolver
+                     :model-coord model-coord-evolver
+                     :screen-coord screen-coord-evolver}}
   component/component)

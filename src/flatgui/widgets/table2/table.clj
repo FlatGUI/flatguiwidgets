@@ -55,10 +55,10 @@ flatgui.widgets.table2.table
 
 (fg/defevolverfn :header-model-pos
   (if-let [cell-id (second (get-reason))]
-    (let [model-coord (get-property [:this cell-id] :model-coord)]
-      (if (not= model-coord cell/not-in-use-coord)
-        (let [pm (get-property [:this cell-id] :position-matrix)
-              pmt (dec (count pm))]
+    (let [model-coord (get-property [:this cell-id] :model-coord)
+          pm (get-property [:this cell-id] :position-matrix)]
+      (if (and (not= pm cell/not-in-use-matrix) (not= model-coord cell/not-in-use-coord))
+        (let [pmt (dec (count pm))]
           (loop [d 0
                  positions old-header-model-pos]
             (if (< d (count model-coord))
@@ -66,22 +66,21 @@ flatgui.widgets.table2.table
                 (inc d)
                 (assoc-in positions [d (nth model-coord d)] (m/mx-get pm d pmt)))
               positions)))
-        ;old-header-model-pos
         old-header-model-pos))
     old-header-model-pos))
 
 (fg/defevolverfn :header-model-size
   (if-let [cell-id (second (get-reason))]
-    (let [model-coord (get-property [:this cell-id] :model-coord)]
-      (if (not= model-coord cell/not-in-use-coord)
-        (let [cs (get-property [:this cell-id] :clip-size)]
-          (loop [d 0
-                 sizes old-header-model-size]
-            (if (< d (count model-coord))
-              (recur
-                (inc d)
-                (assoc-in sizes [d (nth model-coord d)] (m/mx-get cs d 0)))
-              sizes)))
+    (let [model-coord (get-property [:this cell-id] :model-coord)
+          cs (get-property [:this cell-id] :clip-size)]
+      (if (and (not= cs cell/not-in-use-point) (not= model-coord cell/not-in-use-coord))
+        (loop [d 0
+               sizes old-header-model-size]
+          (if (< d (count model-coord))
+            (recur
+              (inc d)
+              (assoc-in sizes [d (nth model-coord d)] (m/mx-get cs d 0)))
+            sizes))
         old-header-model-size))
     old-header-model-size))
 

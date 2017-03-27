@@ -15,10 +15,15 @@
             [flatgui.util.rectmath :as r]))
 
 (def not-in-use-coord [-1 -1])
+(def not-in-use-point (m/defpoint -1 -1))
+(def not-in-use-matrix (m/translation -1 -1))
 
 (fg/defevolverfn :model-coord
-  (let [screen->model (get-property [] :screen->model)]
-    (screen->model (get-property [:this] :screen-coord))))
+  (let [sc (get-property [:this] :screen-coord)]
+    (if (not= sc not-in-use-coord)
+      (let [screen->model (get-property [] :screen->model)]
+        (screen->model sc))
+      not-in-use-coord)))
 
 (fg/defevolverfn :clip-size
   (let [mc (get-property [:this] :model-coord)
@@ -32,7 +37,7 @@
             ;_ (println r)
             ]
         r)
-      old-clip-size)))
+      not-in-use-point)))
 
 (fg/defevolverfn :position-matrix
   (let [mc (get-property [:this] :model-coord)
@@ -45,11 +50,13 @@
               ;_ (println (:id component) "Cell position-matrix ---- " mc old-position-matrix "->" (m/mx-x r) (m/mx-y r) (get-property [] :header-model-pos))
               ]
           r))
-      old-position-matrix)))
+      not-in-use-matrix)))
 
 (fg/defevolverfn :screen-coord
   (let [this-id (:id component)]
-    (if-let [sc (this-id (:cell-id->screen-coord (get-property [] :in-use-model)))] sc old-screen-coord)))
+    (if-let [sc (this-id (:cell-id->screen-coord (get-property [] :in-use-model)))]
+      sc
+      not-in-use-coord)))
 
 (fg/defevolverfn :visible
   (and
@@ -57,8 +64,8 @@
     (not= not-in-use-coord (get-property [:this] :model-coord))))
 
 (fg/defwidget "cell"
-  {:clip-size       (m/defpoint 1 1)
-   :position-matrix m/identity-matrix
+  {:clip-size       not-in-use-point                        ;(m/defpoint 1 1)
+   :position-matrix not-in-use-matrix;m/identity-matrix
    ;; Screen coord on the surface of the scrollable panel ("virtual" screen). These values are potentially unlimited
    :screen-coord    not-in-use-coord
    ;; Model coords which are different from screen coords in case sorting/filtering/etc applied

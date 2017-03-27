@@ -55,8 +55,9 @@ flatgui.widgets.table2.table
 
 (fg/defevolverfn :header-model-pos
   (if-let [cell-id (second (get-reason))]
-    (let [model-coord (get-property [:this cell-id] :model-coord)
-          pm (get-property [:this cell-id] :position-matrix)]
+    (let [as (get-property [:this cell-id] :atomic-state)
+          model-coord (:model-coord as)
+          pm (:position-matrix as)]
       (if (and (not= pm cell/not-in-use-matrix) (not= model-coord cell/not-in-use-coord))
         (let [pmt (dec (count pm))]
           (loop [d 0
@@ -71,8 +72,9 @@ flatgui.widgets.table2.table
 
 (fg/defevolverfn :header-model-size
   (if-let [cell-id (second (get-reason))]
-    (let [model-coord (get-property [:this cell-id] :model-coord)
-          cs (get-property [:this cell-id] :clip-size)]
+    (let [as (get-property [:this cell-id] :atomic-state)
+          model-coord (:model-coord as)
+          cs (:clip-size as)]
       (if (and (not= cs cell/not-in-use-point) (not= model-coord cell/not-in-use-coord))
         (loop [d 0
                sizes old-header-model-size]

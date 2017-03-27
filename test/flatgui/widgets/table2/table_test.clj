@@ -90,9 +90,24 @@
         init-cs (m/defpoint init-w init-h)
         init-pm-0 (mapv #(m/translation (* init-w %) 0) (range 3))
         init-pm-1 (mapv #(m/translation (* init-w %) init-h) (range 3))
-        _ (fg/defevolverfn :position-matrix (if-let [pm (:position-matrix (get-reason))] pm (cell/position-matrix-evolver component)))
-        _ (fg/defevolverfn :clip-size (if-let [cs (:clip-size (get-reason))] cs (cell/clip-size-evolver component)))
-        cell-evolvers {:position-matrix position-matrix-evolver :clip-size clip-size-evolver}
+        _ (fg/defevolverfn :atomic-state (if-let [as (:atomic-state (get-reason))]
+                                           (merge old-atomic-state as)
+                                           (merge
+                                             old-atomic-state
+                                             (let [mc (get-property [:this] :model-coord)
+                                                   cs (cell/calc-clip-size component mc)
+                                                   pm (cell/calc-position-matrix component mc)]
+                                               {:clip-size       cs
+                                                :position-matrix pm}))))
+        cell-evolvers {:atomic-state atomic-state-evolver
+                       :position-matrix cell/position-matrix-evolver
+                       :clip-size cell/clip-size-evolver}
+        cell-0-0-state {:model-coord [0 0] :screen-coord [0 0] :clip-size init-cs :position-matrix (nth init-pm-0 0)}
+        cell-1-0-state {:model-coord [1 0] :screen-coord [1 0] :clip-size init-cs :position-matrix (nth init-pm-0 1)}
+        cell-2-0-state {:model-coord [2 0] :screen-coord [2 0] :clip-size init-cs :position-matrix (nth init-pm-0 2)}
+        cell-0-1-state {:model-coord [0 1] :screen-coord [0 1] :clip-size init-cs :position-matrix (nth init-pm-1 0)}
+        cell-1-1-state {:model-coord [1 1] :screen-coord [1 1] :clip-size init-cs :position-matrix (nth init-pm-1 1)}
+        cell-2-1-state {:model-coord [2 1] :screen-coord [2 1] :clip-size init-cs :position-matrix (nth init-pm-1 2)}
         container (fg/defroot
                     {:id        :main
                      :screen->model identity
@@ -100,29 +115,29 @@
                      :header-model-size [[2 2 2] [1 1]]
                      :evolvers {:header-model-pos table/header-model-pos-evolver
                                 :header-model-size table/header-model-size-evolver}
-                     :children  {:cell-0-0 {:id :cell-0-0 :model-coord [0 0] :clip-size init-cs :position-matrix (nth init-pm-0 0) :evolvers cell-evolvers}
-                                 :cell-1-0 {:id :cell-1-0 :model-coord [1 0] :clip-size init-cs :position-matrix (nth init-pm-0 1) :evolvers cell-evolvers}
-                                 :cell-2-0 {:id :cell-2-0 :model-coord [2 0] :clip-size init-cs :position-matrix (nth init-pm-0 2) :evolvers cell-evolvers}
-                                 :cell-0-1 {:id :cell-0-1 :model-coord [0 1] :clip-size init-cs :position-matrix (nth init-pm-1 0) :evolvers cell-evolvers}
-                                 :cell-1-1 {:id :cell-1-1 :model-coord [1 1] :clip-size init-cs :position-matrix (nth init-pm-1 1) :evolvers cell-evolvers}
-                                 :cell-2-1 {:id :cell-2-1 :model-coord [2 1] :clip-size init-cs :position-matrix (nth init-pm-1 2) :evolvers cell-evolvers}}})
+                     :children  {:cell-0-0 (merge {:id :cell-0-0 :atomic-state cell-0-0-state :evolvers cell-evolvers} cell-0-0-state)
+                                 :cell-1-0 (merge {:id :cell-1-0 :atomic-state cell-1-0-state :evolvers cell-evolvers} cell-1-0-state)
+                                 :cell-2-0 (merge {:id :cell-2-0 :atomic-state cell-2-0-state :evolvers cell-evolvers} cell-2-0-state)
+                                 :cell-0-1 (merge {:id :cell-0-1 :atomic-state cell-0-1-state :evolvers cell-evolvers} cell-0-1-state)
+                                 :cell-1-1 (merge {:id :cell-1-1 :atomic-state cell-1-1-state :evolvers cell-evolvers} cell-1-1-state)
+                                 :cell-2-1 (merge {:id :cell-2-1 :atomic-state cell-2-1-state :evolvers cell-evolvers} cell-2-1-state)}})
         container-engine (Container.
                            (ClojureContainerParser.)
                            result-collector
                            container)
         retain (fn [m & keys] (into {} (map (fn [k] [k (k m)]) keys)))
         get-result (fn [] (retain @results :header-model-pos :header-model-size))
-        _ (.evolve container-engine [:main :cell-1-0] {:clip-size (m/defpoint 3 1)})
+        _ (.evolve container-engine [:main :cell-1-0] {:atomic-state {:clip-size (m/defpoint 3 1)}})
         res0 (get-result)
-        _ (.evolve container-engine [:main :cell-1-0] {:clip-size (m/defpoint 3 2)})
+        _ (.evolve container-engine [:main :cell-1-0] {:atomic-state {:clip-size (m/defpoint 3 2)}})
         res1 (get-result)
-        _ (.evolve container-engine [:main :cell-1-0] {:clip-size (m/defpoint 4 3)})
+        _ (.evolve container-engine [:main :cell-1-0] {:atomic-state {:clip-size (m/defpoint 4 3)}})
         res2 (get-result)
-        _ (.evolve container-engine [:main :cell-2-0] {:position-matrix (m/translation 6 0) :clip-size (m/defpoint 3 2)})
+        _ (.evolve container-engine [:main :cell-2-0] {:atomic-state {:position-matrix (m/translation 6 0) :clip-size (m/defpoint 3 2)}})
         res3 (get-result)
-        _ (.evolve container-engine [:main :cell-2-0] {:position-matrix (m/translation 7 0)})
+        _ (.evolve container-engine [:main :cell-2-0] {:atomic-state {:position-matrix (m/translation 7 0)}})
         res4 (get-result)
-        _ (.evolve container-engine [:main :cell-0-1] {:position-matrix (m/translation 0 2)})
+        _ (.evolve container-engine [:main :cell-0-1] {:atomic-state {:position-matrix (m/translation 0 2)}})
         res5 (get-result)]
     (test/is (= {:header-model-pos [[0 2 4] [0 1]]
                  :header-model-size [[2 3 2] [1 1]]}

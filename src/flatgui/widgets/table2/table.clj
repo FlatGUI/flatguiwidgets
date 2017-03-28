@@ -53,42 +53,58 @@ flatgui.widgets.table2.table
     [(int (inc (Math/ceil (double (/ (m/y clip-size) (get-property [:this] :avg-min-cell-h))))))
      (int (inc (Math/ceil (double (/ (m/x clip-size) (get-property [:this] :avg-min-cell-w))))))]))
 
-(fg/defevolverfn :header-model-pos
+(fg/defevolverfn :header-model-loc
+ (if-let [cell-id (second (get-reason))]
+   (let [as (get-property [:this cell-id] :atomic-state)
+         model-coord (:model-coord as)
+         cs (:clip-size as)
+         pm (:position-matrix as)
+         pmt (dec (count pm))]
+     (if (not= model-coord cell/not-in-use-coord)
+       (loop [d 0
+              sizes (:sizes old-header-model-loc)
+              positions (:positions old-header-model-loc)]
+         (if (< d (count model-coord))
+           (recur
+             (inc d)
+             (assoc-in sizes [d (nth model-coord d)] (m/mx-get cs d 0))
+             (assoc-in positions [d (nth model-coord d)] (m/mx-get pm d pmt)))
+           {:positions positions
+            :sizes sizes}))
+       old-header-model-loc))
+   old-header-model-loc))
+
+(fg/defevolverfn shift-header-model-loc-evolver :header-model-loc
   (if-let [cell-id (second (get-reason))]
     (let [as (get-property [:this cell-id] :atomic-state)
-          model-coord (:model-coord as)
-          pm (:position-matrix as)]
-      (if (and (not= pm cell/not-in-use-matrix) (not= model-coord cell/not-in-use-coord))
-        (let [pmt (dec (count pm))]
+          model-coord (:model-coord as)]
+      (if (not= model-coord cell/not-in-use-coord)
+        (let [new-header-model-loc (header-model-loc-evolver component)]
           (loop [d 0
-                 positions old-header-model-pos]
+                 positions (:positions new-header-model-loc)]
             (if (< d (count model-coord))
               (recur
                 (inc d)
-                (assoc-in positions [d (nth model-coord d)] (m/mx-get pm d pmt)))
-              positions)))
-        old-header-model-pos))
-    old-header-model-pos))
-
-(fg/defevolverfn :header-model-size
-  (if-let [cell-id (second (get-reason))]
-    (let [as (get-property [:this cell-id] :atomic-state)
-          model-coord (:model-coord as)
-          cs (:clip-size as)]
-      (if (and (not= cs cell/not-in-use-point) (not= model-coord cell/not-in-use-coord))
-        (loop [d 0
-               sizes old-header-model-size]
-          (if (< d (count model-coord))
-            (recur
-              (inc d)
-              (assoc-in sizes [d (nth model-coord d)] (m/mx-get cs d 0)))
-            sizes))
-        old-header-model-size))
-    old-header-model-size))
+                (let [dim-coord (nth model-coord d)
+                      shift (-
+                              (get-in (:sizes new-header-model-loc) [d dim-coord])
+                              (get-in (:sizes old-header-model-loc) [d dim-coord]))]
+                  (if (not= 0 shift)
+                    (loop [i (inc dim-coord)
+                           p positions]
+                      (if (< i (count (nth p d)))
+                        (recur
+                          (inc i)
+                          (update-in p [d i] + shift))
+                        p))
+                    positions)))
+              (assoc new-header-model-loc :positions positions))))
+        old-header-model-loc))
+    old-header-model-loc))
 
 (fg/defevolverfn :content-size
-  (let [header-model-pos (get-property [:this] :header-model-pos)
-        header-model-size (get-property [:this] :header-model-size)
+  (let [header-model-pos (:positions (get-property [:this] :header-model-loc))
+        header-model-size (:sizes (get-property [:this] :header-model-loc))
         last-col (dec (count (first header-model-pos)))
         last-row (dec (count (second header-model-pos)))]
     (m/defpoint
@@ -127,17 +143,17 @@ flatgui.widgets.table2.table
         needed-count (* (first pss) (second pss))]
     (>= child-count needed-count)))
 
-;; TODO This means :header-model-pos and :header-model-size should be combined in one property
-(fg/defaccessorfn dimension-headers-consistent? [component]
-  (let [header-model-pos (get-property [:this] :header-model-pos)
-        header-model-size (get-property [:this] :header-model-size)]
-    (= (map count header-model-pos) (map count header-model-size))))
+;;; TODO This means :header-model-pos and :header-model-size should be combined in one property
+;(fg/defaccessorfn dimension-headers-consistent? [component]
+;  (let [header-model-pos (get-property [:this] :header-model-pos)
+;        header-model-size (get-property [:this] :header-model-size)]
+;    (= (map count header-model-pos) (map count header-model-size))))
 
 (fg/defevolverfn :in-use-model
-  (if (and (enough-cells? component) (dimension-headers-consistent? component))
+  (if (enough-cells? component);(and (enough-cells? component) (dimension-headers-consistent? component))
     (let [cs (get-property [:this] :clip-size)
-          header-model-pos (get-property [:this] :header-model-pos)
-          header-model-size (get-property [:this] :header-model-size)
+          header-model-pos (:positions (get-property [:this] :header-model-loc))
+          header-model-size (:sizes (get-property [:this] :header-model-loc))
           vpm (get-property [:this] :viewport-matrix)
           viewport-begin (mapv (fn [a] (* -1 a)) (v/mxtransf->vec vpm 2)) ;2-dimensional
           viewport-end (v/-mxtransf+point->vec vpm cs 2) ;2-dimensional
@@ -230,8 +246,8 @@ flatgui.widgets.table2.table
 
 (fg/defwidget "table"
   {:header-line-count [1 0]                             ; By default, 1 header row and 0 header columns
-   :header-model-pos [[0] [0]]                          ; By default, 1 cell (1 row header) starting at 0,0 of size 1,1
-   :header-model-size [[1] [1]]
+   :header-model-loc {:positions [[0] [0]]       ; By default, 1 cell (1 row header) starting at 0,0 of size 1,1
+                      :sizes [[1] [1]]}
    :physical-screen-size [1 1]                          ; Determined by cell minimum size (a constant) and table clip size
    :avg-min-cell-w 0.75
    :avg-min-cell-h 0.375
@@ -243,7 +259,6 @@ flatgui.widgets.table2.table
    :evolvers {:physical-screen-size physical-screen-size-evolver ; may be turned off for better performance (but :physical-screen-size would need to be enough)
               :children children-evolver                ; maintains enough child cells to always cover :physical-screen-size area
               :content-size content-size-evolver
-              :header-model-pos header-model-pos-evolver
-              :header-model-size header-model-size-evolver
+              :header-model-loc header-model-loc-evolver
               :in-use-model in-use-model-evolver}}
   component/component)

@@ -111,10 +111,9 @@
         container (fg/defroot
                     {:id        :main
                      :screen->model identity
-                     :header-model-pos [[0 2 4] [0 1]]
-                     :header-model-size [[2 2 2] [1 1]]
-                     :evolvers {:header-model-pos table/header-model-pos-evolver
-                                :header-model-size table/header-model-size-evolver}
+                     :header-model-loc {:positions [[0 2 4] [0 1]]
+                                        :sizes [[2 2 2] [1 1]]}
+                     :evolvers {:header-model-loc table/header-model-loc-evolver}
                      :children  {:cell-0-0 (merge {:id :cell-0-0 :atomic-state cell-0-0-state :evolvers cell-evolvers} cell-0-0-state)
                                  :cell-1-0 (merge {:id :cell-1-0 :atomic-state cell-1-0-state :evolvers cell-evolvers} cell-1-0-state)
                                  :cell-2-0 (merge {:id :cell-2-0 :atomic-state cell-2-0-state :evolvers cell-evolvers} cell-2-0-state)
@@ -126,7 +125,7 @@
                            result-collector
                            container)
         retain (fn [m & keys] (into {} (map (fn [k] [k (k m)]) keys)))
-        get-result (fn [] (retain @results :header-model-pos :header-model-size))
+        get-result (fn [] (retain @results :header-model-loc))
         _ (.evolve container-engine [:main :cell-1-0] {:atomic-state {:clip-size (m/defpoint 3 1)}})
         res0 (get-result)
         _ (.evolve container-engine [:main :cell-1-0] {:atomic-state {:clip-size (m/defpoint 3 2)}})
@@ -139,23 +138,23 @@
         res4 (get-result)
         _ (.evolve container-engine [:main :cell-0-1] {:atomic-state {:position-matrix (m/translation 0 2)}})
         res5 (get-result)]
-    (test/is (= {:header-model-pos [[0 2 4] [0 1]]
-                 :header-model-size [[2 3 2] [1 1]]}
+    (test/is (= {:header-model-loc {:positions [[0 2 4] [0 1]]
+                                    :sizes [[2 3 2] [1 1]]}}
                 res0))
-    (test/is (= {:header-model-pos [[0 2 4] [0 1]]
-                 :header-model-size [[2 3 2] [2 1]]}
+    (test/is (= {:header-model-loc {:positions [[0 2 4] [0 1]]
+                                    :sizes [[2 3 2] [2 1]]}}
                 res1))
-    (test/is (= {:header-model-pos [[0 2 4] [0 1]]
-                 :header-model-size [[2 4 2] [3 1]]}
+    (test/is (= {:header-model-loc {:positions [[0 2 4] [0 1]]
+                                    :sizes [[2 4 2] [3 1]]}}
                 res2))
-    (test/is (= {:header-model-pos [[0 2 6] [0 1]]
-                 :header-model-size [[2 4 3] [2 1]]}
+    (test/is (= {:header-model-loc {:positions [[0 2 6] [0 1]]
+                                    :sizes [[2 4 3] [2 1]]}}
                 res3))
-    (test/is (= {:header-model-pos [[0 2 7] [0 1]]
-                 :header-model-size [[2 4 3] [2 1]]}
+    (test/is (= {:header-model-loc {:positions [[0 2 7] [0 1]]
+                                    :sizes [[2 4 3] [2 1]]}}
                 res4))
-    (test/is (= {:header-model-pos [[0 2 7] [0 2]]
-                 :header-model-size [[2 4 3] [2 1]]}
+    (test/is (= {:header-model-loc {:positions [[0 2 7] [0 2]]
+                                    :sizes [[2 4 3] [2 1]]}}
                 res5))
     (test/is (= (m/translation 0 0) (:cell-0-0 @cell-pms)))
     (test/is (= (m/translation 2 0) (:cell-1-0 @cell-pms)))
@@ -169,6 +168,94 @@
                  :cell-0-1 (m/defpoint 2 1)
                  :cell-1-1 (m/defpoint 4 1)
                  :cell-2-1 (m/defpoint 3 1)}
+                @cell-cs))))
+
+(test/deftest shift-header-model-pos-size-test
+  (let [results (atom {})
+        cell-pms (atom {})
+        cell-cs (atom {})
+        result-collector (proxy [IResultCollector] []
+                           (appendResult [_parentComponentUid, path, node, newValue]
+                             (condp = (.getPropertyId node)
+                               :position-matrix (swap! cell-pms (fn [r] (assoc r (last path) newValue)))
+                               :clip-size (swap! cell-cs (fn [r] (assoc r (last path) newValue)))
+                               (swap! results (fn [r] (assoc r (.getPropertyId node) newValue)))))
+                           (componentAdded [_parentComponentUid _componentUid])
+                           (componentRemoved [_componentUid])
+                           (postProcessAfterEvolveCycle [_a _m]))
+        init-w 2
+        init-h 1
+        init-cs (m/defpoint init-w init-h)
+        init-pm-0 (mapv #(m/translation (* init-w %) 0) (range 3))
+        init-pm-1 (mapv #(m/translation (* init-w %) init-h) (range 3))
+        _ (fg/defevolverfn :atomic-state (if-let [as (:atomic-state (get-reason))]
+                                           (merge old-atomic-state as)
+                                           (merge
+                                             old-atomic-state
+                                             (let [mc (get-property [:this] :model-coord)
+                                                   cs (cell/calc-clip-size component mc)
+                                                   pm (cell/calc-position-matrix component mc)]
+                                               {:clip-size       cs
+                                                :position-matrix pm}))))
+        cell-evolvers {:atomic-state atomic-state-evolver
+                       :position-matrix cell/position-matrix-evolver
+                       :clip-size cell/clip-size-evolver}
+        cell-0-0-state {:model-coord [0 0] :screen-coord [0 0] :clip-size init-cs :position-matrix (nth init-pm-0 0)}
+        cell-1-0-state {:model-coord [1 0] :screen-coord [1 0] :clip-size init-cs :position-matrix (nth init-pm-0 1)}
+        cell-2-0-state {:model-coord [2 0] :screen-coord [2 0] :clip-size init-cs :position-matrix (nth init-pm-0 2)}
+        cell-0-1-state {:model-coord [0 1] :screen-coord [0 1] :clip-size init-cs :position-matrix (nth init-pm-1 0)}
+        cell-1-1-state {:model-coord [1 1] :screen-coord [1 1] :clip-size init-cs :position-matrix (nth init-pm-1 1)}
+        cell-2-1-state {:model-coord [2 1] :screen-coord [2 1] :clip-size init-cs :position-matrix (nth init-pm-1 2)}
+        container (fg/defroot
+                    {:id        :main
+                     :screen->model identity
+                     :header-model-loc {:positions [[0 2 4] [0 1]]
+                                        :sizes [[2 2 2] [1 1]]}
+                     :evolvers {:header-model-loc table/shift-header-model-loc-evolver}
+                     :children  {:cell-0-0 (merge {:id :cell-0-0 :atomic-state cell-0-0-state :evolvers cell-evolvers} cell-0-0-state)
+                                 :cell-1-0 (merge {:id :cell-1-0 :atomic-state cell-1-0-state :evolvers cell-evolvers} cell-1-0-state)
+                                 :cell-2-0 (merge {:id :cell-2-0 :atomic-state cell-2-0-state :evolvers cell-evolvers} cell-2-0-state)
+                                 :cell-0-1 (merge {:id :cell-0-1 :atomic-state cell-0-1-state :evolvers cell-evolvers} cell-0-1-state)
+                                 :cell-1-1 (merge {:id :cell-1-1 :atomic-state cell-1-1-state :evolvers cell-evolvers} cell-1-1-state)
+                                 :cell-2-1 (merge {:id :cell-2-1 :atomic-state cell-2-1-state :evolvers cell-evolvers} cell-2-1-state)}})
+        container-engine (Container.
+                           (ClojureContainerParser.)
+                           result-collector
+                           container)
+        retain (fn [m & keys] (into {} (map (fn [k] [k (k m)]) keys)))
+        get-result (fn [] (retain @results :header-model-loc))
+        _ (.evolve container-engine [:main :cell-1-0] {:atomic-state {:clip-size (m/defpoint 2 2)}})
+        res0 (get-result)
+        _ (.evolve container-engine [:main :cell-0-1] {:atomic-state {:clip-size (m/defpoint 3 1)}})
+        res1 (get-result)
+        _ (.evolve container-engine [:main :cell-1-1] {:atomic-state {:clip-size (m/defpoint 4 1)}})
+        res2 (get-result)
+        _ (.evolve container-engine [:main :cell-0-1] {:atomic-state {:clip-size (m/defpoint 1 1)}})
+        res3 (get-result)]
+    (test/is (= {:header-model-loc {:positions [[0 2 4] [0 2]]
+                                    :sizes [[2 2 2] [2 1]]}}
+                res0))
+    (test/is (= {:header-model-loc {:positions [[0 3 5] [0 2]]
+                                    :sizes [[3 2 2] [2 1]]}}
+                res1))
+    (test/is (= {:header-model-loc {:positions [[0 3 7] [0 2]]
+                                    :sizes [[3 4 2] [2 1]]}}
+                res2))
+    (test/is (= {:header-model-loc {:positions [[0 1 5] [0 2]]
+                                    :sizes [[1 4 2] [2 1]]}}
+                res3))
+    (test/is (= (m/translation 0 0) (:cell-0-0 @cell-pms)))
+    (test/is (= (m/translation 1 0) (:cell-1-0 @cell-pms)))
+    (test/is (= (m/translation 5 0) (:cell-2-0 @cell-pms)))
+    (test/is (= (m/translation 0 2) (:cell-0-1 @cell-pms)))
+    (test/is (= (m/translation 1 2) (:cell-1-1 @cell-pms)))
+    (test/is (= (m/translation 5 2) (:cell-2-1 @cell-pms)))
+    (test/is (= {:cell-0-0 (m/defpoint 1 2)
+                 :cell-1-0 (m/defpoint 4 2)
+                 :cell-2-0 (m/defpoint 2 2)
+                 :cell-0-1 (m/defpoint 1 1)
+                 :cell-1-1 (m/defpoint 4 1)
+                 :cell-2-1 (m/defpoint 2 1)}
                 @cell-cs))))
 
 (test/deftest edge-search-test1
@@ -228,30 +315,27 @@
                                 [1 2 1 3 3]]
         init-viewport-matrix (m/translation -2.5 -2.5)
         init-clip-size (m/defpoint 2.0 2.0)
-        step-1 {:header-model-pos init-header-model-pos
-                :header-model-size init-header-model-size
+        step-1 {:header-model-loc {:positions init-header-model-pos
+                                   :sizes init-header-model-size}
                 :viewport-matrix init-viewport-matrix
                 :clip-size init-clip-size}
         step-2 (assoc step-1
                  :viewport-matrix (m/translation -3.5 -4.5)
                  :clip-size (m/defpoint 4.0 3.0))
         step-3 (assoc step-2
-                 :header-model-pos [[0 2 3 4 6 7]
-                                    [0 1 3 4 8]]
-                 :header-model-size [[2 1 1 2 1 3]
-                                     [1 2 1 4 2]])
+                 :header-model-loc {:positions [[0 2 3 4 6 7]
+                                                [0 1 3 4 8]]
+                                    :sizes [[2 1 1 2 1 3]
+                                            [1 2 1 4 2]]})
         step-4 (assoc step-3
                  :viewport-matrix (m/translation -8.5 -1.25)
                  :clip-size (m/defpoint 1.0 0.5))
         step-5 (assoc step-4
                  :viewport-matrix (m/translation 0 0)
                  :clip-size (m/defpoint 15 12))
-        _ (fg/defevolverfn :header-model-pos (if (get-reason)
-                                               (:header-model-pos (get-reason))
-                                               old-header-model-pos))
-        _ (fg/defevolverfn :header-model-size (if (get-reason)
-                                                (:header-model-size (get-reason))
-                                                old-header-model-size))
+        _ (fg/defevolverfn :header-model-loc (if (get-reason)
+                                               (:header-model-loc (get-reason))
+                                               old-header-model-loc))
         _ (fg/defevolverfn :viewport-matrix (if (get-reason) (:viewport-matrix (get-reason)) old-viewport-matrix))
         _ (fg/defevolverfn :clip-size (if (get-reason) (:clip-size (get-reason)) old-clip-size))
         container (fg/defroot
@@ -260,8 +344,8 @@
                      :avg-min-cell-w 1
                      :avg-min-cell-h 1
                      :screen->model identity
-                     :header-model-pos [[0] [0]]
-                     :header-model-size [[1] [1]]
+                     :header-model-loc {:positions [[0] [0]]
+                                        :sizes [[1] [1]]}
                      :viewport-matrix m/identity-matrix
                      :clip-size (m/defpoint 1 1)
                      :not-in-use #{}
@@ -272,8 +356,7 @@
                      :cell-prototype cell/cell
                      :children {}
                      :evolvers {:physical-screen-size table/physical-screen-size-evolver
-                                :header-model-pos header-model-pos-evolver
-                                :header-model-size header-model-size-evolver
+                                :header-model-loc header-model-loc-evolver
                                 :viewport-matrix viewport-matrix-evolver
                                 :clip-size clip-size-evolver
                                 :in-use-model table/in-use-model-evolver
@@ -394,20 +477,17 @@
                                 [1 2 1 3 3]]
         init-viewport-matrix m/identity-matrix
         init-clip-size (m/defpoint 4.0 2.0)
-        step-1 {:header-model-pos init-header-model-pos
-                :header-model-size init-header-model-size
+        step-1 {:header-model-loc {:positions init-header-model-pos
+                                   :sizes init-header-model-size}
                 :viewport-matrix init-viewport-matrix
                 :clip-size init-clip-size}
         step-2 (assoc step-1 :viewport-matrix (m/translation 0 -0.5))
         step-3 (assoc step-2 :viewport-matrix (m/translation 0 -1))
         step-4 (assoc step-3 :viewport-matrix (m/translation 0 -2))
         step-5 (assoc step-4 :viewport-matrix (m/translation 0 -3.5))
-        _ (fg/defevolverfn :header-model-pos (if (get-reason)
-                                               (:header-model-pos (get-reason))
-                                               old-header-model-pos))
-        _ (fg/defevolverfn :header-model-size (if (get-reason)
-                                                (:header-model-size (get-reason))
-                                                old-header-model-size))
+        _ (fg/defevolverfn :header-model-loc (if (get-reason)
+                                               (:header-model-loc (get-reason))
+                                               old-header-model-loc))
         _ (fg/defevolverfn :viewport-matrix (if (get-reason) (:viewport-matrix (get-reason)) old-viewport-matrix))
         _ (fg/defevolverfn :clip-size (if (get-reason) (:clip-size (get-reason)) old-clip-size))
         container (fg/defroot
@@ -416,8 +496,8 @@
                      :avg-min-cell-w 1
                      :avg-min-cell-h 1
                      :screen->model identity
-                     :header-model-pos [[0] [0]]
-                     :header-model-size [[1] [1]]
+                     :header-model-loc {:positions [[0] [0]]
+                                        :sizes [[1] [1]]}
                      :viewport-matrix m/identity-matrix
                      :clip-size (m/defpoint 1 1)
                      :not-in-use #{}
@@ -425,8 +505,7 @@
                      :cell-prototype cell/cell
                      :children {}
                      :evolvers {:physical-screen-size table/physical-screen-size-evolver
-                                :header-model-pos header-model-pos-evolver
-                                :header-model-size header-model-size-evolver
+                                :header-model-loc header-model-loc-evolver
                                 :viewport-matrix viewport-matrix-evolver
                                 :clip-size clip-size-evolver
                                 :in-use-model table/in-use-model-evolver

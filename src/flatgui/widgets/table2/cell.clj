@@ -26,14 +26,14 @@
 (fg/defaccessorfn calc-clip-size [component mc]
   (if (not= mc not-in-use-coord)
     (apply m/defmxcol (concat
-                        (mapv (fn [d] (get-in (get-property [] :header-model-size) [d (nth mc d)])) (range (count mc)))
+                        (mapv (fn [d] (get-in (:sizes (get-property [] :header-model-loc)) [d (nth mc d)])) (range (count mc)))
                         ;Concat with [z 1] (where z==0) is done specifically because coord is 2-dimentional
                         [0 1]))
     not-in-use-point))
 
 (fg/defaccessorfn calc-position-matrix [component mc]
   (if (not= mc not-in-use-coord)
-    (let [positions (get-property [] :header-model-pos)]
+    (let [positions (:positions (get-property [] :header-model-loc))]
       ;;This works with two-argument version of m/translation
       (apply m/translation (mapv (fn [d] (get-in positions [d (nth mc d)])) (range (count mc)))))
     not-in-use-matrix))

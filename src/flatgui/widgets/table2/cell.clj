@@ -11,6 +11,8 @@
  flatgui.widgets.table2.cell
   (:require [flatgui.base :as fg]
             [flatgui.widgets.component :as component]
+            [flatgui.focus :as focus]
+            [flatgui.layout :as layout]
             [flatgui.util.matrix :as m]))
 
 (def not-in-use-coord [-1 -1])
@@ -72,6 +74,7 @@
                            :screen-coord    not-in-use-coord
                            :model-coord     not-in-use-coord})
 
+;; Note: inherited from componentbase and not from component for performance reasons
 (fg/defwidget "cell"
   {:clip-size       not-in-use-point
    :position-matrix not-in-use-matrix
@@ -80,10 +83,40 @@
    ;; Model coords which are different from screen coords in case sorting/filtering/etc applied
    :model-coord     not-in-use-coord
    :atomic-state    initial-atomic-state
+   ;;; Below properties are what component has in addition to componentbase
+   :h-margin 0.0625
+   :v-margin 0.0625
+   :icon-to-text-pos :left
+   :exterior-top 0
+   :exterior-left 0
+   :exterior-bottom 0
+   :exterior-right 0
+   :has-mouse false
+   :accepts-focus? false
+   :focus-traversal-order nil
+   :focus-state focus/clean-state
+   :layout nil
+   :coord-map nil
    :evolvers        {:visible visible-evolver
                      :atomic-state atomic-state-evolver
                      :clip-size clip-size-evolver
                      :position-matrix position-matrix-evolver
                      :model-coord model-coord-evolver
-                     :screen-coord screen-coord-evolver}}
-  component/component)
+                     :screen-coord screen-coord-evolver
+
+                     ;; Below is everything component has except
+                     ;;  - :focus-traversal-order which is slow. Focus management basically works with it but just without good order -
+                     ;;     this is good enough for most table cell use cases
+                     ;;  - layout's :clip-size which makes no sence since parent (a table) does not use layout for its cells
+                     :enabled component/enabled-evolver
+                     :has-mouse component/has-mouse-evolver
+                     :content-size component/default-content-size-evolver
+
+                     :accepts-focus? focus/accepts-focus-evolver
+                     :focus-state focus/focus-state-evolver
+
+                     :coord-map layout/coord-map-evolver
+
+                     :preferred-size component/preferred-size-evolver
+                     }}
+  component/componentbase)

@@ -13,6 +13,8 @@ flatgui.widgets.table2.table
             [flatgui.widgets.panel]
             [flatgui.widgets.component :as component]
             [flatgui.widgets.table2.cell :as cell]
+            [flatgui.focus :as focus]
+            [flatgui.layout :as layout]
             [flatgui.util.matrix :as m]
             [flatgui.util.vecmath :as v]
             [flatgui.util.rectmath :as r]))
@@ -256,9 +258,27 @@ flatgui.widgets.table2.table
    :screen->model identity                              ; This coord vector translation fn may take into account sorting/filtering etc.
    :value-provider dummy-value-provider
    :cell-prototype cell/cell
+   ;; Features of component
+   :has-mouse false
+   :accepts-focus? false
+   :focus-traversal-order nil
+   :focus-state focus/clean-state
+   :layout nil
+   :coord-map nil
    :evolvers {:physical-screen-size physical-screen-size-evolver ; may be turned off for better performance (but :physical-screen-size would need to be enough)
               :children children-evolver                ; maintains enough child cells to always cover :physical-screen-size area
               :content-size content-size-evolver
               :header-model-loc header-model-loc-evolver
-              :in-use-model in-use-model-evolver}}
-  component/component)
+              :in-use-model in-use-model-evolver
+
+              ;; Features of component that make sense here
+              :visible component/visible-evolver
+              :enabled component/enabled-evolver
+              :has-mouse component/has-mouse-evolver
+
+              :accepts-focus? focus/accepts-focus-evolver
+              :focus-state focus/focus-state-evolver
+
+              :clip-size layout/clip-size-evolver
+              :position-matrix layout/position-matrix-evolver}}
+  component/componentbase)

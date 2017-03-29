@@ -20,7 +20,7 @@
             [flatgui.comlogic :as fgc]))
 
 
-(def default-scroll-bar-thickness 0.125)
+(def default-scroll-bar-thickness 0.1875)
 
 
 (fg/defevolverfn scrollpanelcontent-clip-size-evolver :clip-size

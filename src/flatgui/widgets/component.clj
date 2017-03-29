@@ -207,89 +207,40 @@ flatgui.widgets.component
             (+ h-margin icon-h h-margin)))))))
 
 (fg/defwidget "component"
-  (array-map
-;     :visible true
-;     :enabled true
-     ;:clip-size (m/defpoint 1 1 0)
-     ;:content-size (m/defpoint 1 1 0)
-;     :z-position 0
-;     :position-matrix IDENTITY-MATRIX
-;     :viewport-matrix IDENTITY-MATRIX
-;     :theme DEFAULT-SKIN
-;     :background :default
-;     ;    :focusable false
-;     ;    :requests-focus nil
-;     ;    :throws-focus nil
-;     ;    :has-focus false
-;     ;    :focus-owner-id nil
-;     ;    :is-focus-cycle-root nil
-;     ;    :closed-focus-root false
-;     ;    :last-focus-owner-id nil
-;     ;    :focus-cycle nil
-;     ;    :children-z-order nil
-;     :children nil
-;     :look component-look
+  {:h-margin 0.0625
+   :v-margin 0.0625
+   :icon-to-text-pos :left
+   ;; :exterior- parameters define outer area that is not a part of container where components are layed out
+   ;; For example, window is a container but window header is an outer space
+   :exterior-top 0
+   :exterior-left 0
+   :exterior-bottom 0
+   :exterior-right 0
 
-    :h-margin 0.0625
-    :v-margin 0.0625
+   :has-mouse false
 
-    :icon-to-text-pos :left
-    ;; :exterior- parameters define outer area that is not a part of container where components are layed out
-    ;; For example, window is a container but window header is an outer space
-    :exterior-top 0
-    :exterior-left 0
-    :exterior-bottom 0
-    :exterior-right 0
+   :accepts-focus? false
 
-;    ;@todo move this one to componentbase
-;     :default-properties-to-evolve-provider default-properties-to-evolve-provider
-;     :consumes? (fn [cmpnt] true)
-      :has-mouse false
+   :focus-traversal-order nil
+   :focus-state focus/clean-state
 
-    ;; - TODO -
-    ;; I had to make this true by default for Focus sample where it does not seem to initialize properly
-    ;; and stays false until the first opportunity to evolve. This should not be normally needed.
-    :accepts-focus? true
+   :layout nil
+   :coord-map nil
 
-    :focus-traversal-order nil
-    :focus-state focus/clean-state
+   :evolvers {:visible visible-evolver
+              :enabled enabled-evolver
 
-    :layout nil
-    :coord-map nil
+              :has-mouse has-mouse-evolver
 
-     :evolvers (array-map
+              :content-size default-content-size-evolver
 
-                 :visible visible-evolver
-                 :enabled enabled-evolver
+              :accepts-focus? focus/accepts-focus-evolver
+              :focus-state focus/focus-state-evolver
+              :focus-traversal-order focus/focus-traversal-order-evolver
 
-                 :has-mouse has-mouse-evolver
+              :coord-map layout/coord-map-evolver
+              :clip-size layout/clip-size-evolver
+              :position-matrix layout/position-matrix-evolver
 
-                 :content-size default-content-size-evolver
-
-                 :accepts-focus? focus/accepts-focus-evolver
-                 :focus-state focus/focus-state-evolver
-                 :focus-traversal-order focus/focus-traversal-order-evolver
-
-                 :coord-map layout/coord-map-evolver
-                 :clip-size layout/clip-size-evolver
-                 :position-matrix layout/position-matrix-evolver
-
-                 :preferred-size preferred-size-evolver
-
-                 ; Nov 26 2014 moving this to componentbase since table cells will also need this as an optimization for web
-                 ; It was previosly moved out of there for performance reasons. Though now it does not seem to hurt performance
-                 ;:abs-position-matrix abs-position-matrix-evolver
-
-                 ;                :requests-focus requests-focus-evolver
-                 ;                :has-focus has-focus-evolver
-                 ;                :throws-focus throws-focus-evolver
-                 ;                :is-focus-cycle-root is-focus-cycle-root-evolver
-                 ;                :focus-cycle focus-cycle-evolver
-                 ;                :last-focus-owner-id last-focus-owner-id-evolver
-                 ;                :children-z-order children-z-order-evolver
-                 ;                :focus-owner-id focus-owner-id-evolver
-                 )
-;     :initializers {
-;                     :z-position z-position-evolver
-;                     }
-     ) componentbase)
+              :preferred-size preferred-size-evolver}}
+  componentbase)

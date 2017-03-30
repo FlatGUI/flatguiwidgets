@@ -9,9 +9,7 @@
 (ns ^{:doc    "Base type for all FlatGUI widgets"
       :author "Denys Lebediev"}
 flatgui.widgets.component
-  (:use flatgui.comlogic
-    ;flatgui.widgets.componentbase
-        )
+  (:use flatgui.comlogic)
   (:require [flatgui.awt :as awt]
             [flatgui.base :as fg]
             [flatgui.paint :as fgp]
@@ -21,8 +19,7 @@ flatgui.widgets.component
             [flatgui.theme]
             [flatgui.skins.skinbase]
             [flatgui.skins.flat]
-            [flatgui.inputchannels.mouse :as mouse]
-            [flatgui.dependency :as dep])
+            [flatgui.inputchannels.mouse :as mouse])
   (:import (flatgui.core.awt FGDummyInteropUtil)))
 
 
@@ -64,13 +61,6 @@ flatgui.widgets.component
   (let [parent (get-property component [] :font)]
     (if parent parent old-font)))
 
-;(fg/defevolverfn :abs-position-matrix
-;  (let [ parent-pm (get-property component [] :abs-position-matrix)
-;         this-pm (get-property component [:this] :position-matrix)]
-;    (if parent-pm
-;      (m/mx* parent-pm this-pm)
-;      this-pm)))
-
 (fg/defevolverfn :mouse-down (mouse/mouse-left? component))
 
 (fg/defevolverfn :has-mouse
@@ -83,38 +73,6 @@ flatgui.widgets.component
   (and
     (get-property [:this] :visible)
     (get-property [:this] :popup)))
-
-(defn get-channel-to-propery-map-list [p evolvers]
-  (map
-    (fn [ch] {ch (list p)})
-    (dep/get-input-channel-dependencies (p evolvers))))
-
-;; TODO worked wrond when removing componentes feature has been added; probably this is not needed at all
-;(fg/defevolverfn :input-channel-subscribers
-;  (let [id (:id component)
-;        channel-to-properties (let [evolvers (:evolvers component)
-;                                    all-properties (for [[k _v] evolvers] k)]
-;                                (apply
-;                                  merge-with
-;                                  concat
-;                                  (mapcat (fn [p] (get-channel-to-propery-map-list p evolvers)) all-properties)))]
-;    (concat
-;      (list [[id] channel-to-properties])
-;      (let [child-ids (for [[k _] (get-property [:this] :children)] k)]
-;        (map
-;          (fn [[child-id-path child-ch-to-props]] [(vec (concat [id] child-id-path)) child-ch-to-props])
-;          (mapcat
-;            (fn [k] (get-property [:this k] :input-channel-subscribers))
-;            child-ids))))))
-(fg/defevolverfn :input-channel-subscribers old-input-channel-subscribers)
-
-(defn- default-properties-to-evolve-provider [container target-cell-ids reason]
-  (fn [component]
-    (let [ exclusions #{:look :evolvers}
-           key-order (filter (fn [k] (not (contains? exclusions k))) (for [[k v] (:evolvers component)] k))]
-      key-order)
-;    (:evolving-properties component)
-    ))
 
 (fg/defwidget "componentbase"
   (array-map
@@ -140,8 +98,6 @@ flatgui.widgets.component
     :z-position 0
     :children-z-order nil
 
-    :input-channel-subscribers nil
-
     :position-matrix m/IDENTITY-MATRIX
     :viewport-matrix m/IDENTITY-MATRIX
     :abs-position-matrix m/IDENTITY-MATRIX
@@ -151,29 +107,21 @@ flatgui.widgets.component
 
     :children nil
     :skin-key [:component]
-    :default-properties-to-evolve-provider default-properties-to-evolve-provider
+
     :consumes? (fn [_] true)
     :evolvers {:interop interop-evolver
                :theme theme-evolver
                :skin skin-evolver
                :font font-evolver
                :look flatgui.skins.skinbase/skin-look-evolver
-               ;:abs-position-matrix abs-position-matrix-evolver
 
                :_visible-popup _visible-popup-evolver
 
-               :input-channel-subscribers input-channel-subscribers-evolver
                :z-position z-position-evolver
                :children-z-order children-z-order-evolver}))
 
-;[:main :tiket :ticket-panel :aggr-slider]
-
 (fg/defevolverfn default-content-size-evolver :content-size
-  (let [
-         ;_ (if (= (:id component) :app-panel)
-         ;   (println "Evolving content size for " (:id component) (get-property component [:this] :clip-size)  " reason: " (fg/get-reason)) )
-        ]
-    (get-property component [:this] :clip-size)))
+  (get-property component [:this] :clip-size))
 
 (fg/defevolverfn :preferred-size
   (let [text (get-property [:this] :text)

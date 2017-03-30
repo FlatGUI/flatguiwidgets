@@ -274,10 +274,15 @@ flatgui.widgets.table2.table
               ;; Features of component that make sense here
               :visible component/visible-evolver
               :enabled component/enabled-evolver
-              :has-mouse component/has-mouse-evolver
+              :has-mouse nil
 
-              :accepts-focus? focus/accepts-focus-evolver
+              :accepts-focus? focus/simple-accepts-focus-evolver
               :focus-state focus/focus-state-evolver
+              :focus-traversal-order nil
+
+              :coord-map nil
+
+              :preferred-size nil
 
               :clip-size layout/clip-size-evolver
               :position-matrix layout/position-matrix-evolver}}

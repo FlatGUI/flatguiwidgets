@@ -112,11 +112,14 @@
                      :has-mouse component/has-mouse-evolver
                      :content-size component/default-content-size-evolver
 
-                     :accepts-focus? focus/accepts-focus-evolver
+                     :accepts-focus? focus/simple-accepts-focus-evolver
                      :focus-state focus/focus-state-evolver
+                     :focus-traversal-order nil
+
+                     :children-z-order nil
 
                      :coord-map layout/coord-map-evolver
 
-                     :preferred-size component/preferred-size-evolver
+                     :preferred-size nil
                      }}
   component/componentbase)

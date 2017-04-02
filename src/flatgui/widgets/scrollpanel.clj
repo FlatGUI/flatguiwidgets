@@ -14,6 +14,7 @@
             [flatgui.util.decimal :as d]
             [flatgui.awt :as awt]
             [flatgui.inputchannels.mouse :as mouse]
+            [flatgui.inputchannels.mousewheel :as mousewheel]
             [flatgui.util.matrix :as m]
             [flatgui.widgets.panel]
             [flatgui.widgets.scrollbar]
@@ -55,12 +56,12 @@
           (m/mx-set m/IDENTITY-MATRIX 0 3 (- (* h-scroll-pos (m/x extra-size))))
           1 3
           mxy))
-      (mouse/mouse-wheel? component)
-      (let [ old-y (m/mx-y old-viewport-matrix)]
+      (mousewheel/mouse-wheel? component)
+      (let [old-y (m/mx-y old-viewport-matrix)]
         ;
         ;@todo  keep range
         ;
-        (m/mx-set old-viewport-matrix 1 3 (- old-y (* (:wheel-rotation-step-y component) (mouse/get-wheel-rotation component)))))
+        (m/mx-set old-viewport-matrix 1 3 (- old-y (* (:wheel-rotation-step-y component) (mousewheel/get-wheel-rotation component)))))
       :else old-viewport-matrix)))
 
 

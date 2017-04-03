@@ -13,6 +13,7 @@ flatgui.widgets.table2.table
             [flatgui.widgets.panel]
             [flatgui.widgets.component :as component]
             [flatgui.widgets.table2.cell :as cell]
+            [flatgui.widgets.table2.sorting :as sorting]
             [flatgui.focus :as focus]
             [flatgui.layout :as layout]
             [flatgui.util.matrix :as m]
@@ -55,6 +56,13 @@ flatgui.widgets.table2.table
     [(int (inc (Math/ceil (double (/ (m/y clip-size) (get-property [:this] :avg-min-cell-h))))))
      (int (inc (Math/ceil (double (/ (m/x clip-size) (get-property [:this] :avg-min-cell-w))))))]))
 
+(fg/defaccessorfn support-order [component old-header-model-loc header-model-loc do-sort]
+  (if-let [old-order (:order old-header-model-loc)]
+    (assoc
+      header-model-loc
+      :order (if do-sort (sorting/tablesort component old-order) old-order))
+    header-model-loc))
+
 (fg/defevolverfn :header-model-loc
  (if-let [cell-id (second (get-reason))]
    (let [as (get-property [:this cell-id] :atomic-state)
@@ -71,10 +79,10 @@ flatgui.widgets.table2.table
              (inc d)
              (assoc-in sizes [d (nth model-coord d)] (m/mx-get cs d 0))
              (assoc-in positions [d (nth model-coord d)] (m/mx-get pm d pmt)))
-           {:positions positions
-            :sizes sizes}))
+           ;; Do not resort if processing for a cell reason
+           (support-order component old-header-model-loc {:positions positions :sizes sizes} false)))
        old-header-model-loc))
-   old-header-model-loc))
+   (support-order component old-header-model-loc old-header-model-loc true)))
 
 (fg/defevolverfn shift-header-model-loc-evolver :header-model-loc
   (if-let [cell-id (second (get-reason))]
@@ -101,8 +109,8 @@ flatgui.widgets.table2.table
                         p))
                     positions)))
               (assoc new-header-model-loc :positions positions))))
-        old-header-model-loc))
-    old-header-model-loc))
+        (header-model-loc-evolver component)))
+    (header-model-loc-evolver component)))
 
 (fg/defevolverfn :content-size
   (let [header-model-pos (:positions (get-property [:this] :header-model-loc))
@@ -145,30 +153,25 @@ flatgui.widgets.table2.table
         needed-count (* (first pss) (second pss))]
     (>= child-count needed-count)))
 
-;;; TODO This means :header-model-pos and :header-model-size should be combined in one property
-;(fg/defaccessorfn dimension-headers-consistent? [component]
-;  (let [header-model-pos (get-property [:this] :header-model-pos)
-;        header-model-size (get-property [:this] :header-model-size)]
-;    (= (map count header-model-pos) (map count header-model-size))))
-
 (fg/defevolverfn :in-use-model
-  (if (enough-cells? component);(and (enough-cells? component) (dimension-headers-consistent? component))
+  (if (enough-cells? component)
     (let [cs (get-property [:this] :clip-size)
           header-model-pos (:positions (get-property [:this] :header-model-loc))
           header-model-size (:sizes (get-property [:this] :header-model-loc))
           vpm (get-property [:this] :viewport-matrix)
           viewport-begin (mapv (fn [a] (* -1 a)) (v/mxtransf->vec vpm 2)) ;2-dimensional
           viewport-end (v/-mxtransf+point->vec vpm cs 2) ;2-dimensional
+          screen->model (get-property [:this] :screen->model)
           search-fn (fn [d start for-begin]
                       (let [header-model-pos-d (nth header-model-pos d)
                             header-model-size-d (nth header-model-size d)
                             dim-range-size (count header-model-pos-d)
                             visible-screen-coord? (fn [coord]
                                                     (if (and (and (>= coord 0) (< coord dim-range-size)))
-                                                      (let [screen-point-from (nth header-model-pos-d coord)
+                                                      (let [screen-point-from (nth header-model-pos-d (screen->model coord))
                                                             screen-point-to (+
-                                                                              (nth header-model-pos-d coord)
-                                                                              (nth header-model-size-d coord))]
+                                                                              (nth header-model-pos-d (screen->model coord))
+                                                                              (nth header-model-size-d (screen->model coord)))]
                                                         (r/line&
                                                           (nth viewport-begin d) (nth viewport-end d)
                                                           screen-point-from screen-point-to))))
@@ -247,7 +250,7 @@ flatgui.widgets.table2.table
                            :cell-id->screen-coord {:cell-0-0 [0 0]}})
 
 (fg/defwidget "table"
-  {:header-line-count [1 0]                             ; By default, 1 header row and 0 header columns
+  {;:header-line-count [1 0] not implemented yet                             ; By default, 1 header row and 0 header columns
    :header-model-loc {:positions [[0] [0]]       ; By default, 1 cell (1 row header) starting at 0,0 of size 1,1
                       :sizes [[1] [1]]}
    :physical-screen-size [1 1]                          ; Determined by cell minimum size (a constant) and table clip size

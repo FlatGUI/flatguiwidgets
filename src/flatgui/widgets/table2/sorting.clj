@@ -6,20 +6,60 @@
 ; the terms of this license.
 ; You must not remove this notice, or any other, from this software.
 
-(ns ^{:doc "Sorting support for table"
+(ns ^{:doc    "Sorting support for table"
       :author "Denys Lebediev"}
-  flatgui.widgets.table2.sorting
-  (:require [flatgui.base :as fg]))
+flatgui.widgets.table2.sorting
+  (:require [flatgui.base :as fg]
+            [flatgui.util.vecmath :as vecmath])
+  (:import (java.util Comparator Arrays)))
 
-;(def modes [:none :asc :desc])
-;
-;(def empty-sorting-mode {:mode :node
-;                         :degree 0})
-;
-;(fg/defevolverfn header-cell-sorting-mode-evolver :sorting-mode)
-;
-;(fg/defevolverfn table-sorting-state-evolver :sorting-state
-;
-;  )
+(defn create-comparator [value-provider coord d-index mode]
+  (proxy [Comparator] []
+    (compare [d1 d2]
+      (let [o1 (value-provider (assoc coord d-index d1))
+            o2 (value-provider (assoc coord d-index d2))]
+        (if (and (nil? o1) (nil? o2))
+          0
+          (let [o1n (if (nil? o1) (if (number? o2) Double/NaN "") o1)
+                o2n (if (nil? o2) (if (number? o1) Double/NaN "") o2)]
+            (if (= mode :desc) (.compareTo o2n o1n) (.compareTo o1n o2n))))))))
 
+(defn sort-dim [order-arr comparators dvps key-ind range-start range-end]
+  (let [comparator (nth comparators key-ind)
+        _ (Arrays/sort order-arr range-start range-end comparator)
+        sorted order-arr
+        subranges (vecmath/find-subranges (mapv (nth dvps key-ind) (vec sorted)))
+        next-key-ind (inc key-ind)]
+    (if (< next-key-ind (count comparators))
+      (loop [o sorted
+             i 0]
+        (if (< i (count subranges))
+          (recur
+            (let [sr (nth subranges i)] (sort-dim order-arr comparators dvps (inc key-ind) (nth sr 0) (+ (nth sr 0) (nth sr 1))))
+            (inc i))
+          o))
+      sorted)))
 
+(fg/defaccessorfn tablesort [component order]
+  (if (get-property [:this] :resort?)
+    (let [keys (get-property [:this] :keys)
+          vp (get-property [:this] :value-provider)]
+      (map
+        (fn [d] (if-let [order-d (nth order d)]
+                  (let [keys-d (nth keys d)
+                        ;; This is good only for 2-dim sorting by columns
+                        comparators (mapv (fn [k] (create-comparator vp [(nth k 0) nil] 1 (nth k 1))) keys-d)
+                        dvps (mapv (fn [k] (fn [dimcoord] (vp [(nth k 0) dimcoord]))) keys-d)]
+                    (vec (sort-dim (to-array order-d) comparators dvps 0 0 (count order-d))))))
+        (range (count order))))
+    order))
+
+(fg/defevolverfn resort? true)
+
+(def sorting
+  {:header-model-loc {:order [[0] [0]]}
+   :keys [[] []] ; Model coords by which sorting should be performed
+   :screen->model nil;TODO according to :order
+   :value-provider (fn [model-coord] (throw (UnsupportedOperationException. (str "Not implemented " model-coord))))
+   :resort? false
+   :evolvers {:resort? resort?-evolver}})

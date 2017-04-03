@@ -64,20 +64,6 @@
             (apply-fn component prev-header-ids (nth header-list-sorted cnt) result modes)
             (conj prev-header-ids (nth header-list-sorted cnt)))))))
 
-(defn find-subranges [v]
-  (let [v-size (count v)]
-  (loop [begin 0
-         v-rest v
-         result []]
-    (if (= begin v-size)
-      result
-      (let [sub-range (take-while (fn [e] (= e (first v-rest))) v-rest)
-            sub-range-size (count sub-range)]
-        (recur
-          (+ begin sub-range-size)
-          (take-last (- (count v-rest) (count sub-range)) v-rest)
-          (conj result [begin sub-range-size])))))))
-
 (defn get-new-mode [component]
   (let [ old-mode (:mode component)
          mode-vec (:mode-vec component)]

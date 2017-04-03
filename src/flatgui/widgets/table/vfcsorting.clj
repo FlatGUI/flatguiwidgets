@@ -11,7 +11,8 @@
   flatgui.widgets.table.vfcsorting
   (:require [flatgui.base :as fg]
             [flatgui.widgets.table.commons :as tcom]
-            [flatgui.widgets.table.vfc :as vfc])
+            [flatgui.widgets.table.vfc :as vfc]
+            [flatgui.util.vecmath :as vecmath])
   (:import [java.util Collections Comparator]))
 
 
@@ -68,7 +69,7 @@
                      (vfc/get-value-from-col component row-order-item header-id))
             sub-ranges (if (nil? prev-header-ids)
                          [[0 row-count]]
-                           (vfc/find-subranges
+                           (vecmath/find-subranges
                              (for [screen-row (range 0 row-count)]
                                (map
                                  (fn [prev-header-id] (vfc/get-value-from-col

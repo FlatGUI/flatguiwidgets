@@ -597,3 +597,44 @@
 ;;; Sorting
 ;;;
 
+(test/deftest sort-test
+  (let [data-model [["z" "a" "x" "b" "y" "y" "a" "a" "b" "b" "z"]
+                    [ 2   1   4   1   4   3   3   2   2   3   1 ]]
+        exp-order  [["a" "a" "a" "b" "b" "b" "x" "y" "y" "z" "z"]
+                    [ 3   2   1   3   2   1   4   4   3   2   1]]
+        keys [nil [[0 :asc] [1 :desc]]]
+        vp (fn [coord] (nth (nth data-model (first coord)) (second coord)))
+        init-header-model-pos  [[0 1]
+                                [0 1 2 3 4 5 6 7 8 9 10]]
+        init-header-model-size [[1 1]
+                                [1 1 1 1 1 1 1 1 1 1 1]]
+        container (fg/defroot
+                    (fg/defcomponent table/table :main
+                      {:header-model-loc {:positions init-header-model-pos
+                                          :sizes init-header-model-size
+                                          :order [nil [0 1 2 3 4 5 6 7 8 9 10]]}
+                       :keys keys
+                       :value-provider vp
+                       :resort? true
+                       :avg-min-cell-w 1
+                       :avg-min-cell-h 1
+                       :child-count-dim-margin 1
+                       :viewport-matrix m/identity-matrix
+                       :clip-size (m/defpoint 2 11)}))
+        results (atom {})
+        result-collector (proxy [IResultCollector] []
+                           (appendResult [_parentComponentUid, _path, node, newValue]
+                             (cond
+                               (= :header-model-loc (.getPropertyId node)) (reset! results newValue)))
+                           (componentAdded [_parentComponentUid _componentUid])
+                           (componentRemoved [_componentUid])
+                           (postProcessAfterEvolveCycle [_a _m]))
+        container-engine (Container.
+                           (ClojureContainerParser.)
+                           result-collector
+                           container)
+        _ (.evolve container-engine [:main] {})
+        order (second (:order @results))
+        actual-order [(mapv #(vp [0 %]) order)
+                      (mapv #(vp [1 %]) order)]]
+    (test/is (= exp-order actual-order))))

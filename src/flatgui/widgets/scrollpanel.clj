@@ -36,7 +36,8 @@
           (if (pos? v-scrollbar-w) (get-property [:this] :right-scrollbar-margin) 0)))))
 
 (fg/defevolverfn scrollpanelcontent-viewport-matrix-evolver :viewport-matrix
-  (let [reason (get-reason)]
+  (let [reason (get-reason)
+        extra-size (m/point-op - (get-property component [:this] :content-size) (get-property component [:this] :clip-size))]
     ; In case of other reasons re-evolving is not needed actually. Since it may
     ; introcude precision impediment, let's avoid extra evolving
     (cond
@@ -48,20 +49,16 @@
             h-scroller-x (m/mx-get (get-property component [:h-scrollbar :scroller] :position-matrix) 0 3)
             h-scroller-w (m/x (get-property component [:h-scrollbar :scroller] :clip-size))
             v-scroll-pos (if (== v-scrollbar-h v-scroller-h) 0 (/ v-scroller-y (- v-scrollbar-h v-scroller-h)))
-            h-scroll-pos (if (== h-scrollbar-w h-scroller-w) 0 (/ h-scroller-x (- h-scrollbar-w h-scroller-w)))
-            extra-size (m/point-op - (get-property component [:this] :content-size) (get-property component [:this] :clip-size))
-            mxy (fgc/round-to (- (* v-scroll-pos (m/y extra-size))) (flatgui.awt/px))]
-        ;@todo use translation-matrix function here instead of mx-set
-        (m/mx-set
-          (m/mx-set m/IDENTITY-MATRIX 0 3 (- (* h-scroll-pos (m/x extra-size))))
-          1 3
-          mxy))
+            h-scroll-pos (if (== h-scrollbar-w h-scroller-w) 0 (/ h-scroller-x (- h-scrollbar-w h-scroller-w)))]
+        (m/translation
+          (- (* h-scroll-pos (m/x extra-size)))
+          (fgc/round-to (- (* v-scroll-pos (m/y extra-size))) (flatgui.awt/px))))
       (mousewheel/mouse-wheel? component)
-      (let [old-y (m/mx-y old-viewport-matrix)]
-        ;
-        ;@todo  keep range
-        ;
-        (m/mx-set old-viewport-matrix 1 3 (- old-y (* (:wheel-rotation-step-y component) (mousewheel/get-wheel-rotation component)))))
+      (let [old-y (m/mx-y old-viewport-matrix)
+            vpy (- old-y (* (:wheel-rotation-step-y component) (mousewheel/get-wheel-rotation component)))]
+        (m/mx-set old-viewport-matrix 1 3 (if (neg? vpy)
+                                            (max (- (m/y extra-size)) vpy)
+                                            0)))
       :else old-viewport-matrix)))
 
 

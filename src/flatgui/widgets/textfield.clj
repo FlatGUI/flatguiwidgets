@@ -15,6 +15,7 @@
             [flatgui.widgets.scrollpanel]
             [flatgui.inputchannels.keyboard :as keyboard]
             [flatgui.inputchannels.mouse :as mouse]
+            [flatgui.inputchannels.mousewheel :as mousewheel]
             [flatgui.inputchannels.timer :as timer]
             [flatgui.inputchannels.clipboard :as clipboard]
             [flatgui.inputchannels.awtbase :as inputbase]
@@ -334,11 +335,13 @@
                 :else (- vmy))))
           cs
           (get-property [:this] :content-size)))
-      (if (and
-            (vector? reason)
-            (= 2 (count reason))
-            (= :scroller (nth reason 1))
-            (get-property [(nth reason 0) :scroller] :mouse-capture))
+      (if (or
+            (and
+              (vector? reason)
+              (= 2 (count reason))
+              (= :scroller (nth reason 1))
+              (get-property [(nth reason 0) :scroller] :mouse-capture))
+            (mousewheel/mouse-wheel? component))
         (flatgui.widgets.scrollpanel/scrollpanelcontent-viewport-matrix-evolver component)
         old-viewport-matrix))))
 

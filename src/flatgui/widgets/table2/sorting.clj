@@ -56,10 +56,22 @@ flatgui.widgets.table2.sorting
 
 (fg/defevolverfn resort? true)
 
+(fg/defevolverfn :screen->model
+  (if-let [order (:order (get-property [:this] :header-model-loc))]
+    (fn [sc]
+      (mapv
+        (fn [d] (let [order-d (nth order d)
+                      d-coord (nth sc d)]
+                  (if (and order-d (>= d-coord 0) (< d-coord (count order-d)))
+                    (nth order-d d-coord)
+                    d-coord)))
+        (range 0 (count sc))))
+    identity))
+
 (def sorting
   {:header-model-loc {:order [[0] [0]]}
    :keys [[] []] ; Model coords by which sorting should be performed
-   :screen->model nil;TODO according to :order
    :value-provider (fn [model-coord] (throw (UnsupportedOperationException. (str "Not implemented " model-coord))))
    :resort? false
-   :evolvers {:resort? resort?-evolver}})
+   :evolvers {:resort? resort?-evolver
+              :screen->model screen->model-evolver}})

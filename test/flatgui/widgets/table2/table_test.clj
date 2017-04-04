@@ -10,6 +10,7 @@
   (:require [flatgui.base :as fg]
             [flatgui.widgets.table2.table :as table]
             [flatgui.widgets.table2.cell :as cell]
+            [flatgui.widgets.table2.sorting :as sorting]
             [clojure.test :as test]
             [flatgui.test :as fgtest]
             [flatgui.util.matrix :as m])
@@ -305,6 +306,13 @@
   (let [cell-id (get (:screen-coord->cell-id step-result) [scrx scry])]
     (test/is (= (m/translation tx ty) (get-in step-cell-state [cell-id :position-matrix])) (str "Cell " [scrx scry] " translation matrix failed on step " step))
     (test/is (= (m/defpoint csx csy) (get-in step-cell-state [cell-id :clip-size])) (str "Cell " [scrx scry] " clip size failed on step " step))))
+
+(defn verify-cell-coords [scrx scry mx my step-cell-state step-result step]
+  (let [cell-id (get (:screen-coord->cell-id step-result) [scrx scry])
+        sc (get-in step-cell-state [cell-id :atomic-state :screen-coord])
+        mc (get-in step-cell-state [cell-id :atomic-state :model-coord])]
+    (test/is (= [scrx scry] sc) (str "Cell scr " [scrx scry] " coords do not match " step))
+    (test/is (= [mx my] mc) (str "Cell sc=" [scrx scry] "mc=" [mx my] " coords do not match " step))))
 
 (defn verify-maps-consistent [step-result] (test/is (nil? (some (complement nil?) (map (fn [[k v]] (if (= k (v (:cell-id->screen-coord step-result))) nil [k v])) (:screen-coord->cell-id step-result))))))
 
@@ -638,3 +646,74 @@
         actual-order [(mapv #(vp [0 %]) order)
                       (mapv #(vp [1 %]) order)]]
     (test/is (= exp-order actual-order))))
+
+(test/deftest sort-test1
+  (let [data-model [["c" "a" "b"]
+                    [ 3   1   2 ]]
+        exp-order  [["a" "b" "c"]
+                    [ 1   2   3 ]]
+        keys [nil [[0 :asc]]]
+        vp (fn [coord] (nth (nth data-model (first coord)) (second coord)))
+        init-header-model-pos  [[0 1]
+                                [0 1 2]]
+        init-header-model-size [[1 1]
+                                [1 1 1]]
+        _ (fg/defevolverfn :header-model-loc (if-let [r (:header-model-loc (get-reason))]
+                                               (merge old-header-model-loc r)
+                                               (table/shift-header-model-loc-evolver component)))
+        container (fg/defroot
+                    (fg/defcomponent table/table :main
+                                     {:header-model-loc {:positions init-header-model-pos
+                                                         :sizes init-header-model-size
+                                                         :order [nil [0 1 2]]}
+                                      :keys keys
+                                      :value-provider vp
+                                      :resort? true
+                                      :avg-min-cell-w 1
+                                      :avg-min-cell-h 1
+                                      :child-count-dim-margin 1
+                                      :viewport-matrix m/identity-matrix
+                                      :clip-size (m/defpoint 2 11)
+                                      :evolvers {:header-model-loc header-model-loc-evolver
+                                                 :screen->model sorting/screen->model-evolver}}))
+        header-model-loc-state (atom {})
+        in-use-model-state (atom {})
+        cells-state (atom {})
+        result-collector (proxy [IResultCollector] []
+                           (appendResult [_parentComponentUid, path, node, newValue]
+                             (cond
+                               (= :header-model-loc (.getPropertyId node)) (reset! header-model-loc-state newValue)
+                               (= :in-use-model (.getPropertyId node)) (reset! in-use-model-state newValue)
+                               (= 2 (count path)) (swap! cells-state (fn [a] (assoc-in a [(second path) (.getPropertyId node)] newValue)))))
+                           (componentAdded [_parentComponentUid _componentUid])
+                           (componentRemoved [_componentUid])
+                           (postProcessAfterEvolveCycle [_a _m]))
+        container-engine (Container.
+                           (ClojureContainerParser.)
+                           result-collector
+                           container)
+        _ (.evolve container-engine [:main] {:header-model-loc {:positions  [[0 1]
+                                                                             [0 2 3]]
+                                                                :sizes [[1 1]
+                                                                        [2 1 1]]}})
+        order (second (:order @header-model-loc-state))
+        ordered-positions (:ordered-positions @header-model-loc-state)
+        actual-order [(mapv #(vp [0 %]) order)
+                      (mapv #(vp [1 %]) order)]
+        in-use-model-step1 @in-use-model-state
+        cell-step1 @cells-state]
+    (test/is (= exp-order actual-order))
+    (test/is (= ordered-positions [[0 1] [2.0 0.0 1.0]]))
+    (verify-maps-consistent in-use-model-step1)
+    (verify-cell 0 0 0 0.0 1 1 cell-step1 in-use-model-step1 1)
+    (verify-cell 1 0 1 0.0 1 1 cell-step1 in-use-model-step1 1)
+    (verify-cell 0 1 0 1.0 1 1 cell-step1 in-use-model-step1 1)
+    (verify-cell 1 1 1 1.0 1 1 cell-step1 in-use-model-step1 1)
+    (verify-cell 0 2 0 2.0 1 2 cell-step1 in-use-model-step1 1)
+    (verify-cell 1 2 1 2.0 1 2 cell-step1 in-use-model-step1 1)
+    (verify-cell-coords 0 0 0 1 cell-step1 in-use-model-step1 1)
+    (verify-cell-coords 1 0 1 1 cell-step1 in-use-model-step1 1)
+    (verify-cell-coords 0 1 0 2 cell-step1 in-use-model-step1 1)
+    (verify-cell-coords 1 1 1 2 cell-step1 in-use-model-step1 1)
+    (verify-cell-coords 0 2 0 0 cell-step1 in-use-model-step1 1)
+    (verify-cell-coords 1 2 1 0 cell-step1 in-use-model-step1 1)))

@@ -58,9 +58,34 @@ flatgui.widgets.table2.table
 
 (fg/defaccessorfn support-order [component old-header-model-loc header-model-loc do-sort]
   (if-let [old-order (:order old-header-model-loc)]
-    (assoc
-      header-model-loc
-      :order (if do-sort (sorting/tablesort component old-order) old-order))
+    (let [new-order (if do-sort (sorting/tablesort component old-order) old-order)
+          sizes (:sizes header-model-loc)
+          positions (:positions header-model-loc)
+          ordered-positions (mapv
+                              (fn [d]
+                                (let [new-order-d (nth new-order d)]
+                                  (if new-order-d
+                                    (let [sizes-d (nth sizes d)
+                                          cnt-d (count sizes-d)
+                                          ordered-positions-d (loop [sp (make-array Double cnt-d)
+                                                                     pos 0
+                                                                     i 0]
+                                                                (if (< i cnt-d)
+                                                                  (let [model-i (nth new-order-d i)]
+                                                                    (recur
+                                                                      (do (aset sp model-i (Double/valueOf (double pos))) sp)
+                                                                      (+ pos (nth sizes-d model-i))
+                                                                      (inc i)))
+                                                                  sp))
+                                          ]
+                                      (vec ordered-positions-d))
+                                    (nth positions d))))
+                                (range (count sizes)))
+          _ (println "new-order" new-order "positions" positions "ordered-positions" ordered-positions)]
+      (assoc
+        header-model-loc
+        :order new-order
+        :ordered-positions ordered-positions))
     header-model-loc))
 
 (fg/defevolverfn :header-model-loc
@@ -162,25 +187,29 @@ flatgui.widgets.table2.table
           viewport-begin (mapv (fn [a] (* -1 a)) (v/mxtransf->vec vpm 2)) ;2-dimensional
           viewport-end (v/-mxtransf+point->vec vpm cs 2) ;2-dimensional
           screen->model (get-property [:this] :screen->model)
+          dimensions (range (count viewport-begin))
+          empty-coord (mapv (fn [_] 0) dimensions)
           search-fn (fn [d start for-begin]
                       (let [header-model-pos-d (nth header-model-pos d)
                             header-model-size-d (nth header-model-size d)
                             dim-range-size (count header-model-pos-d)
-                            visible-screen-coord? (fn [coord]
-                                                    (if (and (and (>= coord 0) (< coord dim-range-size)))
-                                                      (let [screen-point-from (nth header-model-pos-d (screen->model coord))
-                                                            screen-point-to (+
-                                                                              (nth header-model-pos-d (screen->model coord))
-                                                                              (nth header-model-size-d (screen->model coord)))]
-                                                        (r/line&
-                                                          (nth viewport-begin d) (nth viewport-end d)
-                                                          screen-point-from screen-point-to))))
-                            viewport-begin-pred (fn [coord] (and
-                                                              (not (visible-screen-coord? (dec coord)))
-                                                              (visible-screen-coord? coord)))
-                            viewport-end-pred (fn [coord] (and
-                                                            (visible-screen-coord? coord)
-                                                            (not (visible-screen-coord? (inc coord)))))
+                            visible-screen-coord? (fn [scr-coord]
+                                                    (let [  ;_ (println "SC" (assoc empty-coord d scr-coord) "MC" (screen->model (assoc empty-coord d scr-coord)) "d" d)
+                                                          model-coord (nth (screen->model (assoc empty-coord d scr-coord)) d)]
+                                                      (if (and (and (>= model-coord 0) (< model-coord dim-range-size)))
+                                                        (let [screen-point-from (nth header-model-pos-d model-coord)
+                                                              screen-point-to (+
+                                                                                (nth header-model-pos-d model-coord)
+                                                                                (nth header-model-size-d model-coord))]
+                                                          (r/line&
+                                                            (nth viewport-begin d) (nth viewport-end d)
+                                                            screen-point-from screen-point-to)))))
+                            viewport-begin-pred (fn [scr-coord] (and
+                                                              (not (visible-screen-coord? (dec scr-coord)))
+                                                              (visible-screen-coord? scr-coord)))
+                            viewport-end-pred (fn [scr-coord] (and
+                                                            (visible-screen-coord? scr-coord)
+                                                            (not (visible-screen-coord? (inc scr-coord)))))
                             search-result (edge-search dim-range-size start (if for-begin viewport-begin-pred viewport-end-pred))]
                         (cond
                           (< search-result 0) 0
@@ -188,7 +217,6 @@ flatgui.widgets.table2.table
                           :else search-result)))
 
           old-screen-area (:screen-area old-in-use-model)
-          dimensions (range (count viewport-begin))
           new-screen-area [(mapv #(search-fn % (nth (first old-screen-area) %) true) dimensions)
                            (mapv #(search-fn % (nth (second old-screen-area) %) false) dimensions)]
 

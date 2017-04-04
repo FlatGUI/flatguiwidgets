@@ -661,6 +661,9 @@
         _ (fg/defevolverfn :header-model-loc (if-let [r (:header-model-loc (get-reason))]
                                                (merge old-header-model-loc r)
                                                (table/shift-header-model-loc-evolver component)))
+        _ (fg/defevolverfn cell-atomic-state-evolver :atomic-state (if-let [as (:atomic-state (get-reason))]
+                                           (merge old-atomic-state as)
+                                           (cell/atomic-state-evolver component)))
         container (fg/defroot
                     (fg/defcomponent table/table :main
                                      {:header-model-loc {:positions init-header-model-pos
@@ -672,6 +675,7 @@
                                       :avg-min-cell-w 1
                                       :avg-min-cell-h 1
                                       :child-count-dim-margin 1
+                                      :cell-prototype (assoc-in cell/cell [:evolvers :atomic-state] cell-atomic-state-evolver)
                                       :viewport-matrix m/identity-matrix
                                       :clip-size (m/defpoint 2 11)
                                       :evolvers {:header-model-loc header-model-loc-evolver
@@ -692,18 +696,34 @@
                            (ClojureContainerParser.)
                            result-collector
                            container)
+
         _ (.evolve container-engine [:main] {:header-model-loc {:positions  [[0 1]
                                                                              [0 2 3]]
                                                                 :sizes [[1 1]
                                                                         [2 1 1]]}})
-        order (second (:order @header-model-loc-state))
-        ordered-positions (:ordered-positions @header-model-loc-state)
-        actual-order [(mapv #(vp [0 %]) order)
-                      (mapv #(vp [1 %]) order)]
+        header-model-loc-step1 @header-model-loc-state
+        order-step1 (second (:order header-model-loc-step1))
+        ordered-positions-step1 (:ordered-positions header-model-loc-step1)
+        sizes-step1 (:sizes header-model-loc-step1)
+        actual-order-step1 [(mapv #(vp [0 %]) order-step1)
+                            (mapv #(vp [1 %]) order-step1)]
         in-use-model-step1 @in-use-model-state
-        cell-step1 @cells-state]
-    (test/is (= exp-order actual-order))
-    (test/is (= ordered-positions [[0 1] [2.0 0.0 1.0]]))
+        cell-step1 @cells-state
+
+        cell-scr00-id (get (:screen-coord->cell-id in-use-model-step1) [0 0])
+        _ (.evolve container-engine [:main cell-scr00-id] {:atomic-state {:clip-size (m/defpoint 1 3)}})
+        header-model-loc-step2 @header-model-loc-state
+        order-step2 (second (:order header-model-loc-step2))
+        actual-order-step2 [(mapv #(vp [0 %]) order-step2)
+                            (mapv #(vp [1 %]) order-step2)]
+        ordered-positions-step2 (:ordered-positions header-model-loc-step2)
+        sizes-step2 (:sizes header-model-loc-step2)
+        in-use-model-step2 @in-use-model-state
+        cell-step2 @cells-state
+        ]
+    (test/is (= exp-order actual-order-step1))
+    (test/is (= ordered-positions-step1 [[0 1] [2.0 0.0 1.0]]))
+    (test/is (= sizes-step1 [[1 1] [2 1 1]]))
     (verify-maps-consistent in-use-model-step1)
     (verify-cell 0 0 0 0.0 1 1 cell-step1 in-use-model-step1 1)
     (verify-cell 1 0 1 0.0 1 1 cell-step1 in-use-model-step1 1)
@@ -716,4 +736,23 @@
     (verify-cell-coords 0 1 0 2 cell-step1 in-use-model-step1 1)
     (verify-cell-coords 1 1 1 2 cell-step1 in-use-model-step1 1)
     (verify-cell-coords 0 2 0 0 cell-step1 in-use-model-step1 1)
-    (verify-cell-coords 1 2 1 0 cell-step1 in-use-model-step1 1)))
+    (verify-cell-coords 1 2 1 0 cell-step1 in-use-model-step1 1)
+
+    (test/is (= exp-order actual-order-step2))
+    (test/is (= ordered-positions-step2 [[0 1] [4.0 0.0 3.0]]))
+    (test/is (= sizes-step2 [[1 1] [2 3 1]]))
+    (verify-maps-consistent in-use-model-step2)
+    (verify-cell 0 0 0 0.0 1 3 cell-step2 in-use-model-step2 2)
+    (verify-cell 1 0 1 0.0 1 3 cell-step2 in-use-model-step2 2)
+    (verify-cell 0 1 0 3.0 1 1 cell-step2 in-use-model-step2 2)
+    (verify-cell 1 1 1 3.0 1 1 cell-step2 in-use-model-step2 2)
+    (verify-cell 0 2 0 4.0 1 2 cell-step2 in-use-model-step2 2)
+    (verify-cell 1 2 1 4.0 1 2 cell-step2 in-use-model-step2 2)
+    (verify-cell-coords 0 0 0 1 cell-step2 in-use-model-step2 2)
+    (verify-cell-coords 1 0 1 1 cell-step2 in-use-model-step2 2)
+    (verify-cell-coords 0 1 0 2 cell-step2 in-use-model-step2 2)
+    (verify-cell-coords 1 1 1 2 cell-step2 in-use-model-step2 2)
+    (verify-cell-coords 0 2 0 0 cell-step2 in-use-model-step2 2)
+    (verify-cell-coords 1 2 1 0 cell-step2 in-use-model-step2 2)
+
+    ))

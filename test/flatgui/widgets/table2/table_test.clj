@@ -661,6 +661,7 @@
         _ (fg/defevolverfn :header-model-loc (if-let [r (:header-model-loc (get-reason))]
                                                (merge old-header-model-loc r)
                                                (table/shift-header-model-loc-evolver component)))
+        _ (fg/defevolverfn :keys (if-let [k (:keys (get-reason))] k old-keys))
         _ (fg/defevolverfn cell-atomic-state-evolver :atomic-state (if-let [as (:atomic-state (get-reason))]
                                            (merge old-atomic-state as)
                                            (cell/atomic-state-evolver component)))
@@ -679,7 +680,8 @@
                                       :viewport-matrix m/identity-matrix
                                       :clip-size (m/defpoint 2 11)
                                       :evolvers {:header-model-loc header-model-loc-evolver
-                                                 :screen->model sorting/screen->model-evolver}}))
+                                                 :screen->model sorting/screen->model-evolver
+                                                 :keys keys-evolver}}))
         header-model-loc-state (atom {})
         in-use-model-state (atom {})
         cells-state (atom {})
@@ -720,6 +722,16 @@
         sizes-step2 (:sizes header-model-loc-step2)
         in-use-model-step2 @in-use-model-state
         cell-step2 @cells-state
+
+        _ (.evolve container-engine [:main] {:keys [nil nil]})
+        header-model-loc-step3 @header-model-loc-state
+        order-step3 (second (:order header-model-loc-step3))
+        positions-step3 (:positions header-model-loc-step3)
+        ordered-positions-step3 (:ordered-positions header-model-loc-step3)
+        sizes-step3 (:sizes header-model-loc-step3)
+        in-use-model-step3 @in-use-model-state
+        cell-step3 @cells-state
+
         ]
     (test/is (= exp-order actual-order-step1))
     (test/is (= ordered-positions-step1 [[0 1] [2.0 0.0 1.0]]))
@@ -754,5 +766,23 @@
     (verify-cell-coords 1 1 1 2 cell-step2 in-use-model-step2 2)
     (verify-cell-coords 0 2 0 0 cell-step2 in-use-model-step2 2)
     (verify-cell-coords 1 2 1 0 cell-step2 in-use-model-step2 2)
+
+    (test/is (nil? order-step3))
+    ;(test/is (= positions-step3 [[0 1] [0 2 3]]))
+    (test/is (nil? ordered-positions-step3))
+    (test/is (= sizes-step3 [[1 1] [2 3 1]]))
+    (verify-maps-consistent in-use-model-step3)
+    ;(verify-cell 0 0 0 0 1 2 cell-step3 in-use-model-step3 3)
+    ;(verify-cell 1 0 1 0 1 2 cell-step3 in-use-model-step3 3)
+    ;(verify-cell 0 1 0 2 1 3 cell-step3 in-use-model-step3 3)
+    ;(verify-cell 1 1 1 2 1 3 cell-step3 in-use-model-step3 3)
+    ;(verify-cell 0 2 0 5 1 1 cell-step3 in-use-model-step3 3)
+    ;(verify-cell 1 2 1 5 1 1 cell-step3 in-use-model-step3 3)
+    (verify-cell-coords 0 0 0 0 cell-step3 in-use-model-step3 3)
+    (verify-cell-coords 1 0 1 0 cell-step3 in-use-model-step3 3)
+    (verify-cell-coords 0 1 0 1 cell-step3 in-use-model-step3 3)
+    (verify-cell-coords 1 1 1 1 cell-step3 in-use-model-step3 3)
+    (verify-cell-coords 0 2 0 2 cell-step3 in-use-model-step3 3)
+    (verify-cell-coords 1 2 1 2 cell-step3 in-use-model-step3 3)
 
     ))

@@ -40,13 +40,13 @@ flatgui.widgets.table2.sorting
           o))
       sorted)))
 
-(fg/defaccessorfn tablesort [component order]
+(fg/defaccessorfn tablesort [component order dim-counts]
   (if (get-property [:this] :resort?)
     (let [keys (get-property [:this] :keys)
           vp (get-property [:this] :value-provider)]
       (map
-        (fn [d] (if-let [order-d (nth order d)]
-                  (let [keys-d (nth keys d)
+        (fn [d] (if-let [keys-d (nth keys d)]
+                  (let [order-d (if-let [o (nth order d)] o (range (nth dim-counts d)))
                         ;; This is good only for 2-dim sorting by columns
                         comparators (mapv (fn [k] (create-comparator vp [(nth k 0) nil] 1 (nth k 1))) keys-d)
                         dvps (mapv (fn [k] (fn [dimcoord] (vp [(nth k 0) dimcoord]))) keys-d)]

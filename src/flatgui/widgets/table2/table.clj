@@ -58,34 +58,36 @@ flatgui.widgets.table2.table
 
 (fg/defaccessorfn support-order [component old-header-model-loc header-model-loc do-sort]
   (if-let [old-order (:order old-header-model-loc)]
-    (let [new-order (if do-sort (sorting/tablesort component old-order) old-order)
-          sizes (:sizes header-model-loc)
+    (let [sizes (:sizes header-model-loc)
           positions (:positions header-model-loc)
-          ordered-positions (mapv
-                              (fn [d]
-                                (let [new-order-d (nth new-order d)]
-                                  (if new-order-d
-                                    (let [sizes-d (nth sizes d)
-                                          cnt-d (count sizes-d)
-                                          ordered-positions-d (loop [sp (make-array Double cnt-d)
-                                                                     pos 0
-                                                                     i 0]
-                                                                (if (< i cnt-d)
-                                                                  (let [model-i (nth new-order-d i)]
-                                                                    (recur
-                                                                      (do (aset sp model-i (Double/valueOf (double pos))) sp)
-                                                                      (+ pos (nth sizes-d model-i))
-                                                                      (inc i)))
-                                                                  sp))
-                                          ]
-                                      (vec ordered-positions-d))
-                                    (nth positions d))))
-                                (range (count sizes)))
-          _ (println "new-order" new-order "positions" positions "ordered-positions" ordered-positions)]
-      (assoc
-        header-model-loc
-        :order new-order
-        :ordered-positions ordered-positions))
+          new-order (if do-sort (sorting/tablesort component old-order (mapv count sizes)) old-order)]
+      (if (some #(not (nil? %)) new-order)
+        (let [ordered-positions (mapv
+                                  (fn [d]
+                                    (let [new-order-d (nth new-order d)]
+                                      (if new-order-d
+                                        (let [sizes-d (nth sizes d)
+                                              cnt-d (count sizes-d)
+                                              ordered-positions-d (loop [sp (make-array Double cnt-d)
+                                                                         pos 0
+                                                                         i 0]
+                                                                    (if (< i cnt-d)
+                                                                      (let [model-i (nth new-order-d i)]
+                                                                        (recur
+                                                                          (do (aset sp model-i (Double/valueOf (double pos))) sp)
+                                                                          (+ pos (nth sizes-d model-i))
+                                                                          (inc i)))
+                                                                      sp))
+                                              ]
+                                          (vec ordered-positions-d))
+                                        (nth positions d))))
+                                  (range (count sizes)))
+              _ (println "new-order" new-order "positions" positions "ordered-positions" ordered-positions)]
+          (assoc
+            header-model-loc
+            :order new-order
+            :ordered-positions ordered-positions))
+        (dissoc header-model-loc :order :ordered-positions)))
     header-model-loc))
 
 (fg/defevolverfn :header-model-loc

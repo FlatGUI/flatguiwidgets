@@ -730,9 +730,7 @@
         ordered-positions-step3 (:ordered-positions header-model-loc-step3)
         sizes-step3 (:sizes header-model-loc-step3)
         in-use-model-step3 @in-use-model-state
-        cell-step3 @cells-state
-
-        ]
+        cell-step3 @cells-state]
     (test/is (= exp-order actual-order-step1))
     (test/is (= ordered-positions-step1 [[0 1] [2.0 0.0 1.0]]))
     (test/is (= sizes-step1 [[1 1] [2 1 1]]))
@@ -768,21 +766,19 @@
     (verify-cell-coords 1 2 1 0 cell-step2 in-use-model-step2 2)
 
     (test/is (nil? order-step3))
-    ;(test/is (= positions-step3 [[0 1] [0 2 3]]))
+    (test/is (= positions-step3 [[0 1] [0.0 2.0 5.0]]))
     (test/is (nil? ordered-positions-step3))
     (test/is (= sizes-step3 [[1 1] [2 3 1]]))
     (verify-maps-consistent in-use-model-step3)
-    ;(verify-cell 0 0 0 0 1 2 cell-step3 in-use-model-step3 3)
-    ;(verify-cell 1 0 1 0 1 2 cell-step3 in-use-model-step3 3)
-    ;(verify-cell 0 1 0 2 1 3 cell-step3 in-use-model-step3 3)
-    ;(verify-cell 1 1 1 2 1 3 cell-step3 in-use-model-step3 3)
-    ;(verify-cell 0 2 0 5 1 1 cell-step3 in-use-model-step3 3)
-    ;(verify-cell 1 2 1 5 1 1 cell-step3 in-use-model-step3 3)
+    (verify-cell 0 0 0 0.0 1 2 cell-step3 in-use-model-step3 3)
+    (verify-cell 1 0 1 0.0 1 2 cell-step3 in-use-model-step3 3)
+    (verify-cell 0 1 0 2.0 1 3 cell-step3 in-use-model-step3 3)
+    (verify-cell 1 1 1 2.0 1 3 cell-step3 in-use-model-step3 3)
+    (verify-cell 0 2 0 5.0 1 1 cell-step3 in-use-model-step3 3)
+    (verify-cell 1 2 1 5.0 1 1 cell-step3 in-use-model-step3 3)
     (verify-cell-coords 0 0 0 0 cell-step3 in-use-model-step3 3)
     (verify-cell-coords 1 0 1 0 cell-step3 in-use-model-step3 3)
     (verify-cell-coords 0 1 0 1 cell-step3 in-use-model-step3 3)
     (verify-cell-coords 1 1 1 1 cell-step3 in-use-model-step3 3)
     (verify-cell-coords 0 2 0 2 cell-step3 in-use-model-step3 3)
-    (verify-cell-coords 1 2 1 2 cell-step3 in-use-model-step3 3)
-
-    ))
+    (verify-cell-coords 1 2 1 2 cell-step3 in-use-model-step3 3)))

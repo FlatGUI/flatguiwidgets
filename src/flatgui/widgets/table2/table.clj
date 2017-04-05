@@ -56,33 +56,34 @@ flatgui.widgets.table2.table
     [(int (inc (Math/ceil (double (/ (m/y clip-size) (get-property [:this] :avg-min-cell-h))))))
      (int (inc (Math/ceil (double (/ (m/x clip-size) (get-property [:this] :avg-min-cell-w))))))]))
 
+(defn compute-positions-d [sizes-d order-d]
+  (let [cnt-d (count sizes-d)]
+    (loop [sp (make-array Double cnt-d)
+           pos 0
+           i 0]
+      (if (< i cnt-d)
+        (let [model-i (if order-d (nth order-d i) i)]
+          (recur
+            (do (aset sp model-i (Double/valueOf (double pos))) sp)
+            (+ pos (nth sizes-d model-i))
+            (inc i)))
+        (vec sp)))))
+
+(defn compute-positions [sizes positions order]
+  (mapv
+    (fn [d]
+      (if-let [order-d (nth order d)]
+        (compute-positions-d (nth sizes d) order-d)
+        (nth positions d)))
+    (range (count sizes))))
+
 (fg/defaccessorfn support-order [component old-header-model-loc header-model-loc do-sort]
   (if-let [old-order (:order old-header-model-loc)]
     (let [sizes (:sizes header-model-loc)
           positions (:positions header-model-loc)
           new-order (if do-sort (sorting/tablesort component old-order (mapv count sizes)) old-order)]
       (if (some #(not (nil? %)) new-order)
-        (let [ordered-positions (mapv
-                                  (fn [d]
-                                    (let [new-order-d (nth new-order d)]
-                                      (if new-order-d
-                                        (let [sizes-d (nth sizes d)
-                                              cnt-d (count sizes-d)
-                                              ordered-positions-d (loop [sp (make-array Double cnt-d)
-                                                                         pos 0
-                                                                         i 0]
-                                                                    (if (< i cnt-d)
-                                                                      (let [model-i (nth new-order-d i)]
-                                                                        (recur
-                                                                          (do (aset sp model-i (Double/valueOf (double pos))) sp)
-                                                                          (+ pos (nth sizes-d model-i))
-                                                                          (inc i)))
-                                                                      sp))
-                                              ]
-                                          (vec ordered-positions-d))
-                                        (nth positions d))))
-                                  (range (count sizes)))
-              _ (println "new-order" new-order "positions" positions "ordered-positions" ordered-positions)]
+        (let [ordered-positions (compute-positions sizes positions new-order)]
           (assoc
             header-model-loc
             :order new-order
@@ -92,7 +93,8 @@ flatgui.widgets.table2.table
 
 (fg/defevolverfn :header-model-loc
  (if-let [cell-id (second (get-reason))]
-   (let [as (get-property [:this cell-id] :atomic-state)
+   (let [no-order? (fn [d] (nil? (nth (:order old-header-model-loc) d)))
+         as (get-property [:this cell-id] :atomic-state)
          model-coord (:model-coord as)
          cs (:clip-size as)
          pm (:position-matrix as)
@@ -105,7 +107,9 @@ flatgui.widgets.table2.table
            (recur
              (inc d)
              (assoc-in sizes [d (nth model-coord d)] (m/mx-get cs d 0))
-             (assoc-in positions [d (nth model-coord d)] (m/mx-get pm d pmt)))
+             (if (no-order? d)
+               (assoc-in positions [d (nth model-coord d)] (m/mx-get pm d pmt))
+               (assoc positions d (compute-positions-d (nth sizes d) nil))))
            ;; Do not resort if processing for a cell reason
            (support-order component old-header-model-loc {:positions positions :sizes sizes} false)))
        old-header-model-loc))

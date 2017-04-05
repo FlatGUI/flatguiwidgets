@@ -36,8 +36,7 @@
 (fg/defaccessorfn calc-position-matrix [component mc]
   (if (not= mc not-in-use-coord)
     (let [hml (get-property [] :header-model-loc)
-          positions (if-let [ordered (:ordered-positions hml)] ordered (:positions hml))
-          _ (println "Cell positions" (:positions hml) "ordered-pos" (:ordered-positions hml))]
+          positions (if-let [ordered (:ordered-positions hml)] ordered (:positions hml))]
       ;;This works with two-argument version of m/translation
       (apply m/translation (mapv (fn [d] (get-in positions [d (nth mc d)])) (range (count mc)))))
     not-in-use-matrix))

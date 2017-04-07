@@ -9,9 +9,7 @@
 (ns ^{:doc    "Base type for all FlatGUI widgets"
       :author "Denys Lebediev"}
 flatgui.widgets.component
-  (:use flatgui.comlogic
-    ;flatgui.widgets.componentbase
-        )
+  (:use flatgui.comlogic)
   (:require [flatgui.awt :as awt]
             [flatgui.base :as fg]
             [flatgui.paint :as fgp]
@@ -21,8 +19,7 @@ flatgui.widgets.component
             [flatgui.theme]
             [flatgui.skins.skinbase]
             [flatgui.skins.flat]
-            [flatgui.inputchannels.mouse :as mouse]
-            [flatgui.dependency :as dep])
+            [flatgui.inputchannels.mouse :as mouse])
   (:import (flatgui.core.awt FGDummyInteropUtil)))
 
 
@@ -64,13 +61,6 @@ flatgui.widgets.component
   (let [parent (get-property component [] :font)]
     (if parent parent old-font)))
 
-;(fg/defevolverfn :abs-position-matrix
-;  (let [ parent-pm (get-property component [] :abs-position-matrix)
-;         this-pm (get-property component [:this] :position-matrix)]
-;    (if parent-pm
-;      (m/mx* parent-pm this-pm)
-;      this-pm)))
-
 (fg/defevolverfn :mouse-down (mouse/mouse-left? component))
 
 (fg/defevolverfn :has-mouse
@@ -83,38 +73,6 @@ flatgui.widgets.component
   (and
     (get-property [:this] :visible)
     (get-property [:this] :popup)))
-
-(defn get-channel-to-propery-map-list [p evolvers]
-  (map
-    (fn [ch] {ch (list p)})
-    (dep/get-input-channel-dependencies (p evolvers))))
-
-;; TODO worked wrond when removing componentes feature has been added; probably this is not needed at all
-;(fg/defevolverfn :input-channel-subscribers
-;  (let [id (:id component)
-;        channel-to-properties (let [evolvers (:evolvers component)
-;                                    all-properties (for [[k _v] evolvers] k)]
-;                                (apply
-;                                  merge-with
-;                                  concat
-;                                  (mapcat (fn [p] (get-channel-to-propery-map-list p evolvers)) all-properties)))]
-;    (concat
-;      (list [[id] channel-to-properties])
-;      (let [child-ids (for [[k _] (get-property [:this] :children)] k)]
-;        (map
-;          (fn [[child-id-path child-ch-to-props]] [(vec (concat [id] child-id-path)) child-ch-to-props])
-;          (mapcat
-;            (fn [k] (get-property [:this k] :input-channel-subscribers))
-;            child-ids))))))
-(fg/defevolverfn :input-channel-subscribers old-input-channel-subscribers)
-
-(defn- default-properties-to-evolve-provider [container target-cell-ids reason]
-  (fn [component]
-    (let [ exclusions #{:look :evolvers}
-           key-order (filter (fn [k] (not (contains? exclusions k))) (for [[k v] (:evolvers component)] k))]
-      key-order)
-;    (:evolving-properties component)
-    ))
 
 (fg/defwidget "componentbase"
   (array-map
@@ -140,8 +98,6 @@ flatgui.widgets.component
     :z-position 0
     :children-z-order nil
 
-    :input-channel-subscribers nil
-
     :position-matrix m/IDENTITY-MATRIX
     :viewport-matrix m/IDENTITY-MATRIX
     :abs-position-matrix m/IDENTITY-MATRIX
@@ -151,29 +107,21 @@ flatgui.widgets.component
 
     :children nil
     :skin-key [:component]
-    :default-properties-to-evolve-provider default-properties-to-evolve-provider
+
     :consumes? (fn [_] true)
     :evolvers {:interop interop-evolver
                :theme theme-evolver
                :skin skin-evolver
                :font font-evolver
                :look flatgui.skins.skinbase/skin-look-evolver
-               ;:abs-position-matrix abs-position-matrix-evolver
 
                :_visible-popup _visible-popup-evolver
 
-               :input-channel-subscribers input-channel-subscribers-evolver
                :z-position z-position-evolver
                :children-z-order children-z-order-evolver}))
 
-;[:main :tiket :ticket-panel :aggr-slider]
-
 (fg/defevolverfn default-content-size-evolver :content-size
-  (let [
-         ;_ (if (= (:id component) :app-panel)
-         ;   (println "Evolving content size for " (:id component) (get-property component [:this] :clip-size)  " reason: " (fg/get-reason)) )
-        ]
-    (get-property component [:this] :clip-size)))
+  (get-property component [:this] :clip-size))
 
 (fg/defevolverfn :preferred-size
   (let [text (get-property [:this] :text)
@@ -207,89 +155,40 @@ flatgui.widgets.component
             (+ h-margin icon-h h-margin)))))))
 
 (fg/defwidget "component"
-  (array-map
-;     :visible true
-;     :enabled true
-     ;:clip-size (m/defpoint 1 1 0)
-     ;:content-size (m/defpoint 1 1 0)
-;     :z-position 0
-;     :position-matrix IDENTITY-MATRIX
-;     :viewport-matrix IDENTITY-MATRIX
-;     :theme DEFAULT-SKIN
-;     :background :default
-;     ;    :focusable false
-;     ;    :requests-focus nil
-;     ;    :throws-focus nil
-;     ;    :has-focus false
-;     ;    :focus-owner-id nil
-;     ;    :is-focus-cycle-root nil
-;     ;    :closed-focus-root false
-;     ;    :last-focus-owner-id nil
-;     ;    :focus-cycle nil
-;     ;    :children-z-order nil
-;     :children nil
-;     :look component-look
+  {:h-margin 0.0625
+   :v-margin 0.0625
+   :icon-to-text-pos :left
+   ;; :exterior- parameters define outer area that is not a part of container where components are layed out
+   ;; For example, window is a container but window header is an outer space
+   :exterior-top 0
+   :exterior-left 0
+   :exterior-bottom 0
+   :exterior-right 0
 
-    :h-margin 0.0625
-    :v-margin 0.0625
+   :has-mouse false
 
-    :icon-to-text-pos :left
-    ;; :exterior- parameters define outer area that is not a part of container where components are layed out
-    ;; For example, window is a container but window header is an outer space
-    :exterior-top 0
-    :exterior-left 0
-    :exterior-bottom 0
-    :exterior-right 0
+   :accepts-focus? false
 
-;    ;@todo move this one to componentbase
-;     :default-properties-to-evolve-provider default-properties-to-evolve-provider
-;     :consumes? (fn [cmpnt] true)
-      :has-mouse false
+   :focus-traversal-order nil
+   :focus-state focus/clean-state
 
-    ;; - TODO -
-    ;; I had to make this true by default for Focus sample where it does not seem to initialize properly
-    ;; and stays false until the first opportunity to evolve. This should not be normally needed.
-    :accepts-focus? true
+   :layout nil
+   :coord-map nil
 
-    :focus-traversal-order nil
-    :focus-state focus/clean-state
+   :evolvers {:visible visible-evolver
+              :enabled enabled-evolver
 
-    :layout nil
-    :coord-map nil
+              :has-mouse has-mouse-evolver
 
-     :evolvers (array-map
+              :content-size default-content-size-evolver
 
-                 :visible visible-evolver
-                 :enabled enabled-evolver
+              :accepts-focus? focus/accepts-focus-evolver
+              :focus-state focus/focus-state-evolver
+              :focus-traversal-order focus/focus-traversal-order-evolver
 
-                 :has-mouse has-mouse-evolver
+              :coord-map layout/coord-map-evolver
+              :clip-size layout/clip-size-evolver
+              :position-matrix layout/position-matrix-evolver
 
-                 :content-size default-content-size-evolver
-
-                 :accepts-focus? focus/accepts-focus-evolver
-                 :focus-state focus/focus-state-evolver
-                 :focus-traversal-order focus/focus-traversal-order-evolver
-
-                 :coord-map layout/coord-map-evolver
-                 :clip-size layout/clip-size-evolver
-                 :position-matrix layout/position-matrix-evolver
-
-                 :preferred-size preferred-size-evolver
-
-                 ; Nov 26 2014 moving this to componentbase since table cells will also need this as an optimization for web
-                 ; It was previosly moved out of there for performance reasons. Though now it does not seem to hurt performance
-                 ;:abs-position-matrix abs-position-matrix-evolver
-
-                 ;                :requests-focus requests-focus-evolver
-                 ;                :has-focus has-focus-evolver
-                 ;                :throws-focus throws-focus-evolver
-                 ;                :is-focus-cycle-root is-focus-cycle-root-evolver
-                 ;                :focus-cycle focus-cycle-evolver
-                 ;                :last-focus-owner-id last-focus-owner-id-evolver
-                 ;                :children-z-order children-z-order-evolver
-                 ;                :focus-owner-id focus-owner-id-evolver
-                 )
-;     :initializers {
-;                     :z-position z-position-evolver
-;                     }
-     ) componentbase)
+              :preferred-size preferred-size-evolver}}
+  componentbase)

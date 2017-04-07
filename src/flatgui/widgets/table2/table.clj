@@ -11,8 +11,11 @@
 flatgui.widgets.table2.table
   (:require [flatgui.base :as fg]
             [flatgui.widgets.panel]
-            [flatgui.widgets.scrollpanel :as scrollpanel]
+            [flatgui.widgets.component :as component]
             [flatgui.widgets.table2.cell :as cell]
+            [flatgui.widgets.table2.sorting :as sorting]
+            [flatgui.focus :as focus]
+            [flatgui.layout :as layout]
             [flatgui.util.matrix :as m]
             [flatgui.util.vecmath :as v]
             [flatgui.util.rectmath :as r]))
@@ -26,50 +29,128 @@ flatgui.widgets.table2.table
 
 (fg/defevolverfn :children
   (if (not (nil? (get-reason)))
-    (into {} (map (fn [coord]
-                    (let [cid (apply gen-cell-id coord)
-                          c (cid old-children)]
-                      [cid (if c c (fg/defcomponent
-                                     (get-property [:this] :cell-prototype)
-                                     cid
-                                     {;:physical-screen-coord coord
-                                      }))]))
-                  (all-coords-2d (get-property [:this] :physical-screen-size))))
+    (let [pss (get-property [:this] :physical-screen-size)
+          child-count (count (get-property [:this] :children))
+          needed-count (* (first pss) (second pss))]
+      (if (< child-count needed-count)
+        (merge
+          (into {} (map (fn [coord]
+                          (let [cid (apply gen-cell-id coord)
+                                c (cid old-children)]
+                            [cid (if c c (fg/defcomponent
+                                           (get-property [:this] :cell-prototype)
+                                           cid
+                                           {;:physical-screen-coord coord
+                                            }))]))
+                        ;; Multiply by margin to allow more children in advance and avoid adding
+                        ;; new children (expensive operation) too often
+                        (let [margin (if-let [m (get-property [:this] :child-count-dim-margin)] m 2)]
+                          (all-coords-2d (mapv #(* margin %) pss)))))
+          old-children)
+        old-children))
     old-children))
 
 (fg/defevolverfn :physical-screen-size
-  (let [min-physical-cells (if-let [pd (get-property [:this] :min-physical-cells)] pd [20 20])
-        clip-size (get-property [:this] :clip-size)]
+  (let [clip-size (get-property [:this] :clip-size)]
     ;; inc because for example screen size of 1.2 may actually occupy 3 cells of 1 (one partially for 0.1, one fully, and one last for 0.1)
-    [(Math/max (int (inc (Math/ceil (double (/ (m/y clip-size) (get-property [:this] :min-cell-h)))))) (first min-physical-cells))
-     (Math/max (int (inc (Math/ceil (double (/ (m/x clip-size) (get-property [:this] :min-cell-w)))))) (second min-physical-cells))]))
+    [(int (inc (Math/ceil (double (/ (m/y clip-size) (get-property [:this] :avg-min-cell-h))))))
+     (int (inc (Math/ceil (double (/ (m/x clip-size) (get-property [:this] :avg-min-cell-w))))))]))
 
-(fg/defevolverfn :header-model-pos
-  (if-let [cell-id (second (get-reason))]
-    (let [pm (get-property [:this cell-id] :position-matrix)
-          pmt (dec (count pm))
-          model-coord (get-property [:this cell-id] :model-coord)]
-      (loop [d 0
-             positions old-header-model-pos]
-        (if (< d (count model-coord))
+(defn compute-positions-d [sizes-d order-d]
+  (let [cnt-d (count sizes-d)]
+    (loop [sp (make-array Double cnt-d)
+           pos 0
+           i 0]
+      (if (< i cnt-d)
+        (let [model-i (if order-d (nth order-d i) i)]
           (recur
-            (inc d)
-            (assoc-in positions [d (nth model-coord d)] (m/mx-get pm d pmt)))
-          positions)))
-    old-header-model-pos))
+            (do (aset sp model-i (Double/valueOf (double pos))) sp)
+            (+ pos (nth sizes-d model-i))
+            (inc i)))
+        (vec sp)))))
 
-(fg/defevolverfn :header-model-size
+(defn compute-positions [sizes positions order]
+  (mapv
+    (fn [d]
+      (if-let [order-d (nth order d)]
+        (compute-positions-d (nth sizes d) order-d)
+        (nth positions d)))
+    (range (count sizes))))
+
+(fg/defaccessorfn support-order [component old-header-model-loc header-model-loc do-sort]
+  (if-let [old-order (:order old-header-model-loc)]
+    (let [sizes (:sizes header-model-loc)
+          positions (:positions header-model-loc)
+          new-order (if do-sort (sorting/tablesort component old-order (mapv count sizes)) old-order)]
+      (if (some #(not (nil? %)) new-order)
+        (let [ordered-positions (compute-positions sizes positions new-order)]
+          (assoc
+            header-model-loc
+            :order new-order
+            :ordered-positions ordered-positions))
+        (dissoc header-model-loc :order :ordered-positions)))
+    header-model-loc))
+
+(fg/defevolverfn :header-model-loc
+ (if-let [cell-id (second (get-reason))]
+   (let [no-order? (fn [d] (nil? (nth (:order old-header-model-loc) d)))
+         as (get-property [:this cell-id] :atomic-state)
+         model-coord (:model-coord as)
+         cs (:clip-size as)
+         pm (:position-matrix as)
+         pmt (dec (count pm))]
+     (if (not= model-coord cell/not-in-use-coord)
+       (loop [d 0
+              sizes (:sizes old-header-model-loc)
+              positions (:positions old-header-model-loc)]
+         (if (< d (count model-coord))
+           (recur
+             (inc d)
+             (assoc-in sizes [d (nth model-coord d)] (m/mx-get cs d 0))
+             (if (no-order? d)
+               (assoc-in positions [d (nth model-coord d)] (m/mx-get pm d pmt))
+               (assoc positions d (compute-positions-d (nth sizes d) nil))))
+           ;; Do not resort if processing for a cell reason
+           (support-order component old-header-model-loc {:positions positions :sizes sizes} false)))
+       old-header-model-loc))
+   (support-order component old-header-model-loc old-header-model-loc true)))
+
+(fg/defevolverfn shift-header-model-loc-evolver :header-model-loc
   (if-let [cell-id (second (get-reason))]
-    (let [cs (get-property [:this cell-id] :clip-size)
-          model-coord (get-property [:this cell-id] :model-coord)]
-      (loop [d 0
-             sizes old-header-model-size]
-        (if (< d (count model-coord))
-          (recur
-            (inc d)
-            (assoc-in sizes [d (nth model-coord d)] (m/mx-get cs d 0)))
-          sizes)))
-    old-header-model-size))
+    (let [as (get-property [:this cell-id] :atomic-state)
+          model-coord (:model-coord as)]
+      (if (not= model-coord cell/not-in-use-coord)
+        (let [new-header-model-loc (header-model-loc-evolver component)]
+          (loop [d 0
+                 positions (:positions new-header-model-loc)]
+            (if (< d (count model-coord))
+              (recur
+                (inc d)
+                (let [dim-coord (nth model-coord d)
+                      shift (-
+                              (get-in (:sizes new-header-model-loc) [d dim-coord])
+                              (get-in (:sizes old-header-model-loc) [d dim-coord]))]
+                  (if (not= 0 shift)
+                    (loop [i (inc dim-coord)
+                           p positions]
+                      (if (< i (count (nth p d)))
+                        (recur
+                          (inc i)
+                          (update-in p [d i] + shift))
+                        p))
+                    positions)))
+              (assoc new-header-model-loc :positions positions))))
+        (header-model-loc-evolver component)))
+    (header-model-loc-evolver component)))
+
+(fg/defevolverfn :content-size
+  (let [header-model-pos (:positions (get-property [:this] :header-model-loc))
+        header-model-size (:sizes (get-property [:this] :header-model-loc))
+        last-col (dec (count (first header-model-pos)))
+        last-row (dec (count (second header-model-pos)))]
+    (m/defpoint
+      (+ (nth (first header-model-pos) last-col) (nth (first header-model-size) last-col))
+      (+ (nth (second header-model-pos) last-row) (nth (second header-model-size) last-row)))))
 
 (defn edge-search [range-size start pred]
   (loop [dir-dist [(if (< start (dec range-size)) 1 -1) 1]
@@ -103,39 +184,38 @@ flatgui.widgets.table2.table
         needed-count (* (first pss) (second pss))]
     (>= child-count needed-count)))
 
-;; TODO This means :header-model-pos and :header-model-size should be combined in one property
-(fg/defaccessorfn dimension-headers-consistent? [component]
-  (let [header-model-pos (get-property [:this] :header-model-pos)
-        header-model-size (get-property [:this] :header-model-size)]
-    (= (map count header-model-pos) (map count header-model-size))))
-
 (fg/defevolverfn :in-use-model
-  (if (and (enough-cells? component) (dimension-headers-consistent? component))
+  (if (enough-cells? component)
     (let [cs (get-property [:this] :clip-size)
-          header-model-pos (get-property [:this] :header-model-pos)
-          header-model-size (get-property [:this] :header-model-size)
+          header-model-pos (:positions (get-property [:this] :header-model-loc))
+          header-model-size (:sizes (get-property [:this] :header-model-loc))
           vpm (get-property [:this] :viewport-matrix)
           viewport-begin (mapv (fn [a] (* -1 a)) (v/mxtransf->vec vpm 2)) ;2-dimensional
           viewport-end (v/-mxtransf+point->vec vpm cs 2) ;2-dimensional
+          screen->model (get-property [:this] :screen->model)
+          dimensions (range (count viewport-begin))
+          empty-coord (mapv (fn [_] 0) dimensions)
           search-fn (fn [d start for-begin]
                       (let [header-model-pos-d (nth header-model-pos d)
                             header-model-size-d (nth header-model-size d)
                             dim-range-size (count header-model-pos-d)
-                            visible-screen-coord? (fn [coord]
-                                                    (if (and (and (>= coord 0) (< coord dim-range-size)))
-                                                      (let [screen-point-from (nth header-model-pos-d coord)
-                                                            screen-point-to (+
-                                                                              (nth header-model-pos-d coord)
-                                                                              (nth header-model-size-d coord))]
-                                                        (r/line&
-                                                          (nth viewport-begin d) (nth viewport-end d)
-                                                          screen-point-from screen-point-to))))
-                            viewport-begin-pred (fn [coord] (and
-                                                              (not (visible-screen-coord? (dec coord)))
-                                                              (visible-screen-coord? coord)))
-                            viewport-end-pred (fn [coord] (and
-                                                            (visible-screen-coord? coord)
-                                                            (not (visible-screen-coord? (inc coord)))))
+                            visible-screen-coord? (fn [scr-coord]
+                                                    (let [  ;_ (println "SC" (assoc empty-coord d scr-coord) "MC" (screen->model (assoc empty-coord d scr-coord)) "d" d)
+                                                          model-coord (nth (screen->model (assoc empty-coord d scr-coord)) d)]
+                                                      (if (and (and (>= model-coord 0) (< model-coord dim-range-size)))
+                                                        (let [screen-point-from (nth header-model-pos-d model-coord)
+                                                              screen-point-to (+
+                                                                                (nth header-model-pos-d model-coord)
+                                                                                (nth header-model-size-d model-coord))]
+                                                          (r/line&
+                                                            (nth viewport-begin d) (nth viewport-end d)
+                                                            screen-point-from screen-point-to)))))
+                            viewport-begin-pred (fn [scr-coord] (and
+                                                              (not (visible-screen-coord? (dec scr-coord)))
+                                                              (visible-screen-coord? scr-coord)))
+                            viewport-end-pred (fn [scr-coord] (and
+                                                            (visible-screen-coord? scr-coord)
+                                                            (not (visible-screen-coord? (inc scr-coord)))))
                             search-result (edge-search dim-range-size start (if for-begin viewport-begin-pred viewport-end-pred))]
                         (cond
                           (< search-result 0) 0
@@ -143,7 +223,6 @@ flatgui.widgets.table2.table
                           :else search-result)))
 
           old-screen-area (:screen-area old-in-use-model)
-          dimensions (range (count viewport-begin))
           new-screen-area [(mapv #(search-fn % (nth (first old-screen-area) %) true) dimensions)
                            (mapv #(search-fn % (nth (second old-screen-area) %) false) dimensions)]
 
@@ -157,11 +236,14 @@ flatgui.widgets.table2.table
           oy2 (inc (second (second old-screen-area)))
           new-screen-rect {:x nx1 :y ny1 :w (- nx2 nx1) :h (- ny2 ny1)}
           old-screen-rect {:x ox1 :y oy1 :w (- ox2 ox1) :h (- oy2 oy1)}
+          ;_ (println "old new screen rect" old-screen-rect new-screen-rect)
           vacant-rects (r/rect- new-screen-rect old-screen-rect)
           vacant-coords (rects->coords vacant-rects)
+          ;_ (println "vacant-coords" vacant-coords)
           ;; TODO the below looks like extremely heavy and complex computation
           to-be-free-rects (r/rect- old-screen-rect new-screen-rect)
           to-be-free-coords (rects->coords to-be-free-rects)
+          ;_ (println "to-be-free-coords" to-be-free-coords)
           old-cell-id->screen-coord (:cell-id->screen-coord old-in-use-model)
           to-be-free-cell-ids (if to-be-free-coords
                                 (filter
@@ -195,25 +277,50 @@ flatgui.widgets.table2.table
 (fg/defaccessorfn dummy-value-provider [component model-row model-col]
   (str (get-property [:this] :id) "-" model-row "-" model-col))
 
-(fg/defwidget "table"
-  {:header-line-count [1 0]                             ; By default, 1 header row and 0 header columns
-   :header-model-pos [[0] [0]]                          ; By default, 1 cell (1 row header) starting at 0,0 of size 1,1
-   :header-model-size [[1] [1]]
-   :model-size [1 1]                                    ; By default, 1x1 (1 row header cell)
-   :physical-screen-size [1 1]                          ; Determined by cell minimum size (a constant) and table clip size
-   :min-cell-w 0.25
-   :min-cell-h 0.25
-   :in-use-model {:viewport-begin [0 0]
-                  :viewport-end [1 1]
-                  :screen-area [[0 0] [1 1]]
-                  :screen-coord->cell-id {}
-                  :cell-id->screen-coord {}}
+(def initial-in-use-model {:viewport-begin [0 0]
+                           :viewport-end [0 0]
+                           :screen-area [[0 0] [0 0]]
+                           :screen-coord->cell-id {[0 0] :cell-0-0}
+                           :cell-id->screen-coord {:cell-0-0 [0 0]}})
 
+(fg/defwidget "table"
+  {;:header-line-count [1 0] not implemented yet                             ; By default, 1 header row and 0 header columns
+   :header-model-loc {:positions [[0] [0]]       ; By default, 1 cell (1 row header) starting at 0,0 of size 1,1
+                      :sizes [[1] [1]]}
+   :physical-screen-size [1 1]                          ; Determined by cell minimum size (a constant) and table clip size
+   :avg-min-cell-w 0.75
+   :avg-min-cell-h 0.375
+   :child-count-dim-margin 2
+   :in-use-model initial-in-use-model
    :screen->model identity                              ; This coord vector translation fn may take into account sorting/filtering etc.
    :value-provider dummy-value-provider
    :cell-prototype cell/cell
+   ;; Features of component
+   :has-mouse false
+   :accepts-focus? false
+   :focus-traversal-order nil
+   :focus-state focus/clean-state
+   :layout nil
+   :coord-map nil
    :evolvers {:physical-screen-size physical-screen-size-evolver ; may be turned off for better performance (but :physical-screen-size would need to be enough)
               :children children-evolver                ; maintains enough child cells to always cover :physical-screen-size area
-              :header-model-pos header-model-pos-evolver
-              :header-model-size header-model-size-evolver}}
-  scrollpanel/scrollpanel)
+              :content-size content-size-evolver
+              :header-model-loc header-model-loc-evolver
+              :in-use-model in-use-model-evolver
+
+              ;; Features of component that make sense here
+              :visible component/visible-evolver
+              :enabled component/enabled-evolver
+              :has-mouse nil
+
+              :accepts-focus? focus/simple-accepts-focus-evolver
+              :focus-state focus/focus-state-evolver
+              :focus-traversal-order nil
+
+              :coord-map nil
+
+              :preferred-size nil
+
+              :clip-size layout/clip-size-evolver
+              :position-matrix layout/position-matrix-evolver}}
+  component/componentbase)

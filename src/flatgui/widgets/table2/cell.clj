@@ -11,45 +11,116 @@
  flatgui.widgets.table2.cell
   (:require [flatgui.base :as fg]
             [flatgui.widgets.component :as component]
-            [flatgui.util.matrix :as m]
-            [flatgui.util.rectmath :as r]))
+            [flatgui.focus :as focus]
+            [flatgui.layout :as layout]
+            [flatgui.util.matrix :as m]))
 
-(def not-in-use-screen-coord [-1 -1])
+(def not-in-use-coord [-1 -1])
+(def not-in-use-point (m/defpoint -1 -1))
+(def not-in-use-matrix (m/translation -1 -1))
 
-(fg/defevolverfn :model-coord
-  (let [screen->model (get-property [] :screen->model)]
-    (screen->model (get-property [:this] :screen-coord))))
+(fg/defaccessorfn calc-model-coord [component sc]
+  (if (not= sc not-in-use-coord)
+    (let [screen->model (get-property [] :screen->model)]
+      (screen->model sc))
+    not-in-use-coord))
 
-(fg/defevolverfn :clip-size
-  (let [mc (get-property [:this] :model-coord)]
-    (if (not= mc not-in-use-screen-coord)
-      (apply m/defmxcol (concat
-                          (mapv (fn [d] (get-in (get-property [] :header-model-size) [d (nth mc d)])) (range (count mc)))
-                          ;Concat with [z 1] (where z==0) is done specifically because coord is 2-dimentional
-                          [0 1]))
-      old-clip-size)))
+(fg/defaccessorfn calc-clip-size [component mc]
+  (if (not= mc not-in-use-coord)
+    (apply m/defmxcol (concat
+                        (mapv (fn [d] (get-in (:sizes (get-property [] :header-model-loc)) [d (nth mc d)])) (range (count mc)))
+                        ;Concat with [z 1] (where z==0) is done specifically because coord is 2-dimentional
+                        [0 1]))
+    not-in-use-point))
 
-(fg/defevolverfn :position-matrix
-  (let [mc (get-property [:this] :model-coord)]
-    (if (not= mc not-in-use-screen-coord)
-      (let [positions (get-property [] :header-model-pos)]
-        ;;This works with two-argument version of m/translation
-        (apply m/translation (mapv (fn [d] (get-in positions [d (nth mc d)])) (range (count mc)))))
-      old-position-matrix)))
+(fg/defaccessorfn calc-position-matrix [component mc]
+  (if (not= mc not-in-use-coord)
+    (let [hml (get-property [] :header-model-loc)
+          positions (if-let [ordered (:ordered-positions hml)] ordered (:positions hml))]
+      ;;This works with two-argument version of m/translation
+      (apply m/translation (mapv (fn [d] (get-in positions [d (nth mc d)])) (range (count mc)))))
+    not-in-use-matrix))
 
-(fg/defevolverfn :screen-coord
+(fg/defaccessorfn get-screen-coord [component]
   (let [this-id (:id component)]
-    (if-let [sc (this-id (:cell-id->screen-coord (get-property [] :in-use-model)))] sc old-screen-coord)))
+    (if-let [sc (this-id (:cell-id->screen-coord (get-property [] :in-use-model)))]
+      sc
+      not-in-use-coord)))
 
+(fg/defevolverfn :atomic-state
+  (let [sc (get-screen-coord component)
+        mc (calc-model-coord component sc)
+        cs (calc-clip-size component mc)
+        pm (calc-position-matrix component mc)]
+    {:clip-size       cs
+     :position-matrix pm
+     :screen-coord    sc
+     :model-coord     mc}))
+
+(fg/defevolverfn :clip-size (:clip-size (get-property [:this] :atomic-state)))
+
+(fg/defevolverfn :position-matrix (:position-matrix (get-property [:this] :atomic-state)))
+
+(fg/defevolverfn :screen-coord (:screen-coord (get-property [:this] :atomic-state)))
+
+(fg/defevolverfn :model-coord (:model-coord (get-property [:this] :atomic-state)))
+
+(fg/defevolverfn :visible
+  (and
+    (component/visible-evolver component)
+    (not= not-in-use-coord (get-property [:this] :model-coord))))
+
+(def initial-atomic-state {:clip-size       not-in-use-point
+                           :position-matrix not-in-use-matrix
+                           :screen-coord    not-in-use-coord
+                           :model-coord     not-in-use-coord})
+
+;; Note: inherited from componentbase and not from component for performance reasons
 (fg/defwidget "cell"
-  {:clip-size (m/defpoint 0 0)
-   :position-matrix m/identity-matrix
+  {:clip-size       not-in-use-point
+   :position-matrix not-in-use-matrix
    ;; Screen coord on the surface of the scrollable panel ("virtual" screen). These values are potentially unlimited
-   :screen-coord not-in-use-screen-coord
+   :screen-coord    not-in-use-coord
    ;; Model coords which are different from screen coords in case sorting/filtering/etc applied
-   :model-coord not-in-use-screen-coord
-   :evolvers {:clip-size clip-size-evolver
-              :position-matrix position-matrix-evolver
-              :model-coord model-coord-evolver
-              :screen-coord screen-coord-evolver}}
-  component/component)
+   :model-coord     not-in-use-coord
+   :atomic-state    initial-atomic-state
+   ;;; Below properties are what component has in addition to componentbase
+   :h-margin 0.0625
+   :v-margin 0.0625
+   :icon-to-text-pos :left
+   :exterior-top 0
+   :exterior-left 0
+   :exterior-bottom 0
+   :exterior-right 0
+   :has-mouse false
+   :accepts-focus? false
+   :focus-traversal-order nil
+   :focus-state focus/clean-state
+   :layout nil
+   :coord-map nil
+   :evolvers        {:visible visible-evolver
+                     :atomic-state atomic-state-evolver
+                     :clip-size clip-size-evolver
+                     :position-matrix position-matrix-evolver
+                     :model-coord model-coord-evolver
+                     :screen-coord screen-coord-evolver
+
+                     ;; Below is everything component has except
+                     ;;  - :focus-traversal-order which is slow. Focus management basically works with it but just without good order -
+                     ;;     this is good enough for most table cell use cases
+                     ;;  - layout's :clip-size which makes no sence since parent (a table) does not use layout for its cells
+                     :enabled component/enabled-evolver
+                     :has-mouse component/has-mouse-evolver
+                     :content-size component/default-content-size-evolver
+
+                     :accepts-focus? focus/simple-accepts-focus-evolver
+                     :focus-state focus/focus-state-evolver
+                     :focus-traversal-order nil
+
+                     :children-z-order nil
+
+                     :coord-map layout/coord-map-evolver
+
+                     :preferred-size nil
+                     }}
+  component/componentbase)

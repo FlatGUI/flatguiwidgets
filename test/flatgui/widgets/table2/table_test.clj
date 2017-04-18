@@ -782,3 +782,55 @@
     (verify-cell-coords 1 1 1 1 cell-step3 in-use-model-step3 3)
     (verify-cell-coords 0 2 0 2 cell-step3 in-use-model-step3 3)
     (verify-cell-coords 1 2 1 2 cell-step3 in-use-model-step3 3)))
+
+(test/deftest model-resize-test
+  (let [data-model [["d" "b" "c" "a"]
+                    [ 3   1   2   4]]
+        exp-order  [["a" "b" "c" "d"]
+                    [ 4   1   2   3]]
+        keys [nil [[0 :asc]]]
+        vp (fn [coord] (nth (nth data-model (first coord)) (second coord)))
+        init-header-model-pos  [[0 1]
+                                [0 1 2]]
+        init-header-model-size [[1 1]
+                                [1 1 1]]
+        exp-header-model-pos  [[0 1]
+                               [0 1 2 3]]
+        exp-header-model-size [[1 1]
+                               [1 1 1 2]]
+        container (fg/defroot
+                    (fg/defcomponent table/table :main
+                                     {:header-model-loc {:positions init-header-model-pos
+                                                         :sizes init-header-model-size
+                                                         :order [nil [0 1 2]]}
+                                      :keys keys
+                                      :value-provider vp
+                                      :resort? true
+                                      :avg-min-cell-w 1
+                                      :avg-min-cell-h 1
+                                      :child-count-dim-margin 1
+                                      :viewport-matrix m/identity-matrix
+                                      :clip-size (m/defpoint 2 4)
+                                      :evolvers {:header-model-loc table/shift-cmd-header-model-loc-evolver}}))
+        results (atom {})
+        result-collector (proxy [IResultCollector] []
+                           (appendResult [_parentComponentUid, _path, node, newValue]
+                             (cond
+                               (= :header-model-loc (.getPropertyId node)) (reset! results newValue)))
+                           (componentAdded [_parentComponentUid _componentUid])
+                           (componentRemoved [_componentUid])
+                           (postProcessAfterEvolveCycle [_a _m]))
+        container-engine (Container.
+                           (ClojureContainerParser.)
+                           result-collector
+                           container)
+        _ (.evolve container-engine [:main] {:cmd :add :d 1 :size 2 :pos 3})
+        order (second (:order @results))
+        actual-order [(mapv #(vp [0 %]) order)
+                      (mapv #(vp [1 %]) order)]
+        ->int (fn [x] (mapv (fn [dv] (mapv int dv)) x))
+        positions (:positions @results)
+        sizes (:sizes @results)]
+    (test/is (= exp-order actual-order))
+    (test/is (= exp-header-model-pos (->int positions)))
+    (test/is (= exp-header-model-size (->int sizes)))))

@@ -44,7 +44,7 @@ flatgui.widgets.table2.sorting
   (if (get-property [:this] :resort?)
     (let [keys (get-property [:this] :keys)
           vp (get-property [:this] :value-provider)]
-      (map
+      (mapv
         (fn [d] (if-let [keys-d (nth keys d)]
                   (let [order-d (if-let [o (nth order d)] o (range (nth dim-counts d)))
                         ;; This is good only for 2-dim sorting by columns

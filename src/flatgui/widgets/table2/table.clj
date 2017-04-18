@@ -143,6 +143,22 @@ flatgui.widgets.table2.table
         (header-model-loc-evolver component)))
     (header-model-loc-evolver component)))
 
+;; TODO present macros make it impossible to combine evolvers, for example non-shifting + cmd
+;;
+(fg/defevolverfn shift-cmd-header-model-loc-evolver :header-model-loc
+  (if (map? (get-reason))
+    (condp = (:cmd (get-reason))
+      :add (let [r (get-reason)
+                 d (:d r)
+                 sizes (:sizes old-header-model-loc)
+                 positions (:positions old-header-model-loc)
+                 new-hml {:positions (update positions d (fn [d-pos] (conj d-pos (:pos r))))
+                          :sizes (update sizes d (fn [d-sizes] (conj d-sizes (:size r))))
+                          :order (if-let [order (:order old-header-model-loc)] (update order d (fn [d-ord] (conj d-ord (count d-ord)))))}]
+             (support-order component new-hml new-hml true))
+      old-header-model-loc)
+    (shift-header-model-loc-evolver component)))
+
 (fg/defevolverfn :content-size
   (let [header-model-pos (:positions (get-property [:this] :header-model-loc))
         header-model-size (:sizes (get-property [:this] :header-model-loc))

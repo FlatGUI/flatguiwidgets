@@ -174,8 +174,8 @@ flatgui.widgets.table2.table
         last-col (dec (count (first header-model-pos)))
         last-row (dec (count (second header-model-pos)))]
     (m/defpoint
-      (if (pos? last-col) (+ (nth (first header-model-pos) last-col) (nth (first header-model-size) last-col)) 0)
-      (if (pos? last-row) (+ (nth (second header-model-pos) last-row) (nth (second header-model-size) last-row)) 0))))
+      (if (>= last-col 0) (+ (nth (first header-model-pos) last-col) (nth (first header-model-size) last-col)) 0)
+      (if (>= last-row 0) (+ (nth (second header-model-pos) last-row) (nth (second header-model-size) last-row)) 0))))
 
 (defn edge-search [range-size start pred]
   (loop [dir-dist [(if (< start (dec range-size)) 1 -1) 1]

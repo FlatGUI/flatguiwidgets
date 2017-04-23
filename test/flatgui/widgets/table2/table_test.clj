@@ -114,7 +114,8 @@
                      :screen->model identity
                      :header-model-loc {:positions [[0 2 4] [0 1]]
                                         :sizes [[2 2 2] [1 1]]}
-                     :evolvers {:header-model-loc table/header-model-loc-evolver}
+                     :evolvers {:header-model-loc table/header-model-loc-evolver
+                                :content-size table/content-size-evolver}
                      :children  {:cell-0-0 (merge {:id :cell-0-0 :atomic-state cell-0-0-state :evolvers cell-evolvers} cell-0-0-state)
                                  :cell-1-0 (merge {:id :cell-1-0 :atomic-state cell-1-0-state :evolvers cell-evolvers} cell-1-0-state)
                                  :cell-2-0 (merge {:id :cell-2-0 :atomic-state cell-2-0-state :evolvers cell-evolvers} cell-2-0-state)
@@ -126,7 +127,7 @@
                            result-collector
                            container)
         retain (fn [m & keys] (into {} (map (fn [k] [k (k m)]) keys)))
-        get-result (fn [] (retain @results :header-model-loc))
+        get-result (fn [] (retain @results :header-model-loc :content-size))
         _ (.evolve container-engine [:main :cell-1-0] {:atomic-state {:clip-size (m/defpoint 3 1)}})
         res0 (get-result)
         _ (.evolve container-engine [:main :cell-1-0] {:atomic-state {:clip-size (m/defpoint 3 2)}})
@@ -140,22 +141,28 @@
         _ (.evolve container-engine [:main :cell-0-1] {:atomic-state {:position-matrix (m/translation 0 2)}})
         res5 (get-result)]
     (test/is (= {:header-model-loc {:positions [[0 2 4] [0 1]]
-                                    :sizes [[2 3 2] [1 1]]}}
+                                    :sizes [[2 3 2] [1 1]]}
+                 :content-size (m/defpoint 6 2)}
                 res0))
     (test/is (= {:header-model-loc {:positions [[0 2 4] [0 1]]
-                                    :sizes [[2 3 2] [2 1]]}}
+                                    :sizes [[2 3 2] [2 1]]}
+                 :content-size (m/defpoint 6 2)}
                 res1))
     (test/is (= {:header-model-loc {:positions [[0 2 4] [0 1]]
-                                    :sizes [[2 4 2] [3 1]]}}
+                                    :sizes [[2 4 2] [3 1]]}
+                 :content-size (m/defpoint 6 2)}
                 res2))
     (test/is (= {:header-model-loc {:positions [[0 2 6] [0 1]]
-                                    :sizes [[2 4 3] [2 1]]}}
+                                    :sizes [[2 4 3] [2 1]]}
+                 :content-size (m/defpoint 9 2)}
                 res3))
     (test/is (= {:header-model-loc {:positions [[0 2 7] [0 1]]
-                                    :sizes [[2 4 3] [2 1]]}}
+                                    :sizes [[2 4 3] [2 1]]}
+                 :content-size (m/defpoint 10 2)}
                 res4))
     (test/is (= {:header-model-loc {:positions [[0 2 7] [0 2]]
-                                    :sizes [[2 4 3] [2 1]]}}
+                                    :sizes [[2 4 3] [2 1]]}
+                 :content-size (m/defpoint 10 3)}
                 res5))
     (test/is (= (m/translation 0 0) (:cell-0-0 @cell-pms)))
     (test/is (= (m/translation 2 0) (:cell-1-0 @cell-pms)))

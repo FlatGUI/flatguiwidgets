@@ -106,12 +106,17 @@ flatgui.widgets.table2.table
          (if (< d (count model-coord))
            (recur
              (inc d)
-             (assoc-in sizes [d (nth model-coord d)] (m/mx-get cs d 0))
+             (if (< (nth model-coord d) (count (nth sizes d)))
+               (assoc-in sizes [d (nth model-coord d)] (m/mx-get cs d 0))
+               sizes)
              (if (no-order? d)
-               (assoc-in positions [d (nth model-coord d)] (m/mx-get pm d pmt))
+               (if (< (nth model-coord d) (count (nth positions d)))
+                 (assoc-in positions [d (nth model-coord d)] (m/mx-get pm d pmt))
+                 positions)
                (assoc positions d (compute-positions-d (nth sizes d) nil))))
            ;; Do not resort if processing for a cell reason
-           (support-order component old-header-model-loc {:positions positions :sizes sizes} false)))
+           (support-order component old-header-model-loc {:positions positions :sizes sizes} false)
+           ))
        old-header-model-loc))
    (support-order component old-header-model-loc old-header-model-loc true)))
 
@@ -127,9 +132,13 @@ flatgui.widgets.table2.table
               (recur
                 (inc d)
                 (let [dim-coord (nth model-coord d)
-                      shift (-
-                              (get-in (:sizes new-header-model-loc) [d dim-coord])
-                              (get-in (:sizes old-header-model-loc) [d dim-coord]))]
+                      shift (if (and
+                                  (< dim-coord (count (nth (:sizes new-header-model-loc) d)))
+                                  (< dim-coord (count (nth (:sizes old-header-model-loc) d))))
+                              (-
+                                (get-in (:sizes new-header-model-loc) [d dim-coord])
+                                (get-in (:sizes old-header-model-loc) [d dim-coord]))
+                              0)]
                   (if (not= 0 shift)
                     (loop [i (inc dim-coord)
                            p positions]
@@ -165,8 +174,8 @@ flatgui.widgets.table2.table
         last-col (dec (count (first header-model-pos)))
         last-row (dec (count (second header-model-pos)))]
     (m/defpoint
-      (+ (nth (first header-model-pos) last-col) (nth (first header-model-size) last-col))
-      (+ (nth (second header-model-pos) last-row) (nth (second header-model-size) last-row)))))
+      (if (pos? last-col) (+ (nth (first header-model-pos) last-col) (nth (first header-model-size) last-col)) 0)
+      (if (pos? last-row) (+ (nth (second header-model-pos) last-row) (nth (second header-model-size) last-row)) 0))))
 
 (defn edge-search [range-size start pred]
   (loop [dir-dist [(if (< start (dec range-size)) 1 -1) 1]
@@ -235,7 +244,7 @@ flatgui.widgets.table2.table
                             search-result (edge-search dim-range-size start (if for-begin viewport-begin-pred viewport-end-pred))]
                         (cond
                           (< search-result 0) 0
-                          (>= search-result dim-range-size) (dec search-result)
+                          (>= search-result dim-range-size) (max (dec search-result) 0)
                           :else search-result)))
 
           old-screen-area (:screen-area old-in-use-model)
@@ -277,7 +286,11 @@ flatgui.widgets.table2.table
                                (recur
                                  (next vcs)
                                  (next cids)
-                                 (assoc noc (first cids) (first vcs)))
+                                 (let [coord (first vcs)
+                                       fits-in-model (not (some (fn [d] (> (nth coord d) (count (nth header-model-pos d)))) dimensions))]
+                                   (if fits-in-model
+                                     (assoc noc (first cids) coord)
+                                     noc)))
                                noc))
                            {})
           to-be-free-cell-ids (filter #(not (% new-occupants)) to-be-free-cell-ids)
@@ -307,7 +320,7 @@ flatgui.widgets.table2.table
    :avg-min-cell-w 0.75
    :avg-min-cell-h 0.375
    :child-count-dim-margin 2
-   :in-use-model initial-in-use-model
+   :in-use-model initial-in-use-model ;TODO start with empty
    :screen->model identity                              ; This coord vector translation fn may take into account sorting/filtering etc.
    :value-provider dummy-value-provider
    :cell-prototype cell/cell

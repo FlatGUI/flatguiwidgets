@@ -822,7 +822,8 @@
                                       :child-count-dim-margin 1
                                       :viewport-matrix m/identity-matrix
                                       :clip-size (m/defpoint 2 4)
-                                      :evolvers {:header-model-loc table/shift-cmd-header-model-loc-evolver}}))
+                                      :evolvers {:header-model-loc table/shift-cmd-header-model-loc-evolver
+                                                 :screen->model sorting/screen->model-evolver}}))
         results (atom {})
         result-collector (proxy [IResultCollector] []
                            (appendResult [_parentComponentUid, _path, node, newValue]
@@ -907,6 +908,7 @@
         _ (.evolve container-engine [:main] {:cmd :add :d 1 :size 1 :pos 2})
         in-use-model-step3 @in-use-model-state
         cell-step3 @cells-state
+        order-step3 (second (:order @results))
         _ (.evolve container-engine [:main] {:cmd :add :d 1 :size 2 :pos 3})
         in-use-model-step4 @in-use-model-state
         cell-step4 @cells-state
@@ -948,6 +950,7 @@
     (verify-cell-coords 1 1 1 2 cell-step3 in-use-model-step3 3)
     (verify-cell-coords 0 2 0 0 cell-step3 in-use-model-step3 3)
     (verify-cell-coords 1 2 1 0 cell-step3 in-use-model-step3 3)
+    (test/is (= [1 2 0] order-step3))
 
     (verify-cell 0 0 0 0.0 1 2 cell-step4 in-use-model-step4 4) ;a --> model row 3
     (verify-cell 1 0 1 0.0 1 2 cell-step4 in-use-model-step4 4)
@@ -964,4 +967,5 @@
     (verify-cell-coords 0 2 0 2 cell-step4 in-use-model-step4 4)
     (verify-cell-coords 1 2 1 2 cell-step4 in-use-model-step4 4)
     (verify-cell-coords 0 3 0 0 cell-step4 in-use-model-step4 4)
-    (verify-cell-coords 1 3 1 0 cell-step4 in-use-model-step4 4)))
+    (verify-cell-coords 1 3 1 0 cell-step4 in-use-model-step4 4)
+    (test/is (= [3 1 2 0] order))))

@@ -897,11 +897,7 @@
         in-use-model-step1 @in-use-model-state
         cell-step1 @cells-state
         order-step1 (second (:order @results))
-
-        _ (println "===================== BEGIN ADDING CELL 1 ========================")
         _ (.evolve container-engine [:main] {:cmd :add :d 1 :size 1 :pos 1})
-        _ (println "===================== END ADDING CELL 1 ========================")
-
         in-use-model-step2 @in-use-model-state
         cell-step2 @cells-state
         order-step2 (second (:order @results))
@@ -969,3 +965,128 @@
     (verify-cell-coords 0 3 0 0 cell-step4 in-use-model-step4 4)
     (verify-cell-coords 1 3 1 0 cell-step4 in-use-model-step4 4)
     (test/is (= [3 1 2 0] order))))
+
+(test/deftest model-resize-test2
+  (let [data-model [[1 0]]
+        exp-order  [[0 1]]
+        keys [nil [[0 :asc]]]
+        vp (fn [coord] (nth (nth data-model (first coord)) (second coord)))
+        init-header-model-pos  [[0]
+                                []]
+        init-header-model-size [[1]
+                                []]
+        exp-header-model-pos  [[0]
+                               [0 1]]
+        exp-header-model-size [[1]
+                               [1 1]]
+        container (fg/defroot
+                    (fg/defcomponent table/table :main
+                                     {:header-model-loc {:positions init-header-model-pos
+                                                         :sizes init-header-model-size
+                                                         :order [nil []]}
+                                      :keys keys
+                                      :value-provider vp
+                                      :resort? true
+                                      :avg-min-cell-w 1
+                                      :avg-min-cell-h 1
+                                      :child-count-dim-margin 1
+                                      :viewport-matrix m/identity-matrix
+                                      :clip-size (m/defpoint 2 4)
+                                      :evolvers {:header-model-loc table/shift-cmd-header-model-loc-evolver
+                                                 :screen->model sorting/screen->model-evolver}}))
+        results (atom {})
+        in-use-model-state (atom {})
+        cells-state (atom {})
+        result-collector (proxy [IResultCollector] []
+                           (appendResult [_parentComponentUid, path, node, newValue]
+                             (cond
+                               (= :header-model-loc (.getPropertyId node)) (reset! results newValue)
+                               (= :in-use-model (.getPropertyId node)) (reset! in-use-model-state newValue)
+                               (= 2 (count path)) (swap! cells-state (fn [a] (assoc-in a [(second path) (.getPropertyId node)] newValue)))))
+                           (componentAdded [_parentComponentUid _componentUid])
+                           (componentRemoved [_componentUid])
+                           (postProcessAfterEvolveCycle [_a _m]))
+        container-engine (Container.
+                           (ClojureContainerParser.)
+                           result-collector
+                           container)
+        _ (.evolve container-engine [:main] {:cmd :add :d 1 :size 1 :pos 0})
+        in-use-model-step1 @in-use-model-state
+        cell-step1 @cells-state
+        order-step1 (second (:order @results))
+        _ (.evolve container-engine [:main] {:cmd :add :d 1 :size 1 :pos 1})
+        in-use-model-step2 @in-use-model-state
+        cell-step2 @cells-state
+        order (second (:order @results))
+        actual-order [(mapv #(vp [0 %]) order)]
+        ->int (fn [x] (mapv (fn [dv] (mapv int dv)) x))
+        positions (:positions @results)
+        sizes (:sizes @results)]
+    (test/is (= exp-order actual-order))
+    (test/is (= exp-header-model-pos (->int positions)))
+    (test/is (= exp-header-model-size (->int sizes)))
+
+    (verify-cell 0 0 0 0.0 1 1 cell-step1 in-use-model-step1 1) ;--> model row 0
+    (verify-cell-coords 0 0 0 0 cell-step1 in-use-model-step1 1)
+    (test/is (= [0] order-step1))
+
+    (verify-cell 0 0 0 0.0 1 1 cell-step2 in-use-model-step2 2) ;--> model row 1
+    (verify-cell 0 1 0 1.0 1 1 cell-step2 in-use-model-step2 2) ;--> model row 0
+    (verify-cell-coords 0 0 0 1 cell-step2 in-use-model-step2 2)
+    (verify-cell-coords 0 1 0 0 cell-step2 in-use-model-step2 2)
+    (test/is (= [1 0] order))))
+
+(test/deftest model-resize-test3
+  (let [init-header-model-pos  [[0]
+                                []]
+        init-header-model-size [[1]
+                                []]
+        exp-header-model-pos  [[0]
+                               [0 1]]
+        exp-header-model-size [[1]
+                               [1 1]]
+        container (fg/defroot
+                    (fg/defcomponent table/table :main
+                                     {:header-model-loc {:positions init-header-model-pos
+                                                         :sizes init-header-model-size}
+                                      :avg-min-cell-w 1
+                                      :avg-min-cell-h 1
+                                      :child-count-dim-margin 1
+                                      :viewport-matrix m/identity-matrix
+                                      :clip-size (m/defpoint 2 4)
+                                      :evolvers {:header-model-loc table/shift-cmd-header-model-loc-evolver}}))
+        results (atom {})
+        in-use-model-state (atom {})
+        cells-state (atom {})
+        result-collector (proxy [IResultCollector] []
+                           (appendResult [_parentComponentUid, path, node, newValue]
+                             (cond
+                               (= :header-model-loc (.getPropertyId node)) (reset! results newValue)
+                               (= :in-use-model (.getPropertyId node)) (reset! in-use-model-state newValue)
+                               (= 2 (count path)) (swap! cells-state (fn [a] (assoc-in a [(second path) (.getPropertyId node)] newValue)))))
+                           (componentAdded [_parentComponentUid _componentUid])
+                           (componentRemoved [_componentUid])
+                           (postProcessAfterEvolveCycle [_a _m]))
+        container-engine (Container.
+                           (ClojureContainerParser.)
+                           result-collector
+                           container)
+        _ (.evolve container-engine [:main] {:cmd :add :d 1 :size 1 :pos 0})
+        in-use-model-step1 @in-use-model-state
+        cell-step1 @cells-state
+        _ (.evolve container-engine [:main] {:cmd :add :d 1 :size 1 :pos 1})
+        in-use-model-step2 @in-use-model-state
+        cell-step2 @cells-state
+        ->int (fn [x] (mapv (fn [dv] (mapv int dv)) x))
+        positions (:positions @results)
+        sizes (:sizes @results)]
+    (test/is (= exp-header-model-pos (->int positions)))
+    (test/is (= exp-header-model-size (->int sizes)))
+
+    (verify-cell 0 0 0 0 1 1 cell-step1 in-use-model-step1 1) ;--> model row 0
+    (verify-cell-coords 0 0 0 0 cell-step1 in-use-model-step1 1)
+
+    (verify-cell 0 0 0 0 1 1 cell-step2 in-use-model-step2 2) ;--> model row 1
+    (verify-cell 0 1 0 1 1 1 cell-step2 in-use-model-step2 2) ;--> model row 0
+    (verify-cell-coords 0 0 0 0 cell-step2 in-use-model-step2 2)
+    (verify-cell-coords 0 1 0 1 cell-step2 in-use-model-step2 2)))

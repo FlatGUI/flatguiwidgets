@@ -309,10 +309,14 @@
 ;; :in-use-model test
 ;;
 
-(defn verify-cell [scrx scry tx ty csx csy step-cell-state step-result step]
-  (let [cell-id (get (:screen-coord->cell-id step-result) [scrx scry])]
-    (test/is (= (m/translation tx ty) (get-in step-cell-state [cell-id :position-matrix])) (str "Cell " [scrx scry] " translation matrix failed on step " step))
-    (test/is (= (m/defpoint csx csy) (get-in step-cell-state [cell-id :clip-size])) (str "Cell " [scrx scry] " clip size failed on step " step))))
+(defn verify-cell
+  ([scrx scry tx ty csx csy step-cell-state step-result step expected-cell-id]
+   (let [cell-id (get (:screen-coord->cell-id step-result) [scrx scry])]
+     (test/is (= (m/translation tx ty) (get-in step-cell-state [cell-id :position-matrix])) (str "Cell " [scrx scry] " translation matrix failed on step " step))
+     (test/is (= (m/defpoint csx csy) (get-in step-cell-state [cell-id :clip-size])) (str "Cell " [scrx scry] " clip size failed on step " step))
+     (if expected-cell-id (test/is (= expected-cell-id cell-id) (str "Cell " [scrx scry] " is expected " expected-cell-id " but is " cell-id)))))
+  ([scrx scry tx ty csx csy step-cell-state step-result step]
+    (verify-cell scrx scry tx ty csx csy step-cell-state step-result step nil)))
 
 (defn verify-cell-coords [scrx scry mx my step-cell-state step-result step]
   (let [cell-id (get (:screen-coord->cell-id step-result) [scrx scry])
@@ -870,12 +874,17 @@
                                       :child-count-dim-margin 1
                                       :viewport-matrix m/identity-matrix
                                       :clip-size (m/defpoint 2 4)
-                                      :evolvers {:header-model-loc table/shift-cmd-header-model-loc-evolver}}))
+                                      :evolvers {:header-model-loc table/shift-cmd-header-model-loc-evolver
+                                                 :screen->model sorting/screen->model-evolver}}))
         results (atom {})
+        in-use-model-state (atom {})
+        cells-state (atom {})
         result-collector (proxy [IResultCollector] []
-                           (appendResult [_parentComponentUid, _path, node, newValue]
+                           (appendResult [_parentComponentUid, path, node, newValue]
                              (cond
-                               (= :header-model-loc (.getPropertyId node)) (reset! results newValue)))
+                               (= :header-model-loc (.getPropertyId node)) (reset! results newValue)
+                               (= :in-use-model (.getPropertyId node)) (reset! in-use-model-state newValue)
+                               (= 2 (count path)) (swap! cells-state (fn [a] (assoc-in a [(second path) (.getPropertyId node)] newValue)))))
                            (componentAdded [_parentComponentUid _componentUid])
                            (componentRemoved [_componentUid])
                            (postProcessAfterEvolveCycle [_a _m]))
@@ -884,9 +893,23 @@
                            result-collector
                            container)
         _ (.evolve container-engine [:main] {:cmd :add :d 1 :size 1 :pos 0})
+        in-use-model-step1 @in-use-model-state
+        cell-step1 @cells-state
+        order-step1 (second (:order @results))
+
+        _ (println "===================== BEGIN ADDING CELL 1 ========================")
         _ (.evolve container-engine [:main] {:cmd :add :d 1 :size 1 :pos 1})
+        _ (println "===================== END ADDING CELL 1 ========================")
+
+        in-use-model-step2 @in-use-model-state
+        cell-step2 @cells-state
+        order-step2 (second (:order @results))
         _ (.evolve container-engine [:main] {:cmd :add :d 1 :size 1 :pos 2})
+        in-use-model-step3 @in-use-model-state
+        cell-step3 @cells-state
         _ (.evolve container-engine [:main] {:cmd :add :d 1 :size 2 :pos 3})
+        in-use-model-step4 @in-use-model-state
+        cell-step4 @cells-state
         order (second (:order @results))
         actual-order [(mapv #(vp [0 %]) order)
                       (mapv #(vp [1 %]) order)]
@@ -895,4 +918,50 @@
         sizes (:sizes @results)]
     (test/is (= exp-order actual-order))
     (test/is (= exp-header-model-pos (->int positions)))
-    (test/is (= exp-header-model-size (->int sizes)))))
+    (test/is (= exp-header-model-size (->int sizes)))
+
+    (verify-cell 0 0 0 0.0 1 1 cell-step1 in-use-model-step1 1) ;d --> model row 0
+    (verify-cell 1 0 1 0.0 1 1 cell-step1 in-use-model-step1 1)
+    (verify-cell-coords 0 0 0 0 cell-step1 in-use-model-step1 1)
+    (verify-cell-coords 1 0 1 0 cell-step1 in-use-model-step1 1)
+    (test/is (= [0] order-step1))
+
+    (verify-cell 0 0 0 0.0 1 1 cell-step2 in-use-model-step2 2) ;b --> model row 1
+    (verify-cell 1 0 1 0.0 1 1 cell-step2 in-use-model-step2 2)
+    (verify-cell 0 1 0 1.0 1 1 cell-step2 in-use-model-step2 2 ) ;d --> model row 0
+    (verify-cell 1 1 1 1.0 1 1 cell-step2 in-use-model-step2 2 )
+    (verify-cell-coords 0 0 0 1 cell-step2 in-use-model-step2 2)
+    (verify-cell-coords 1 0 1 1 cell-step2 in-use-model-step2 2)
+    (verify-cell-coords 0 1 0 0 cell-step2 in-use-model-step2 2)
+    (verify-cell-coords 1 1 1 0 cell-step2 in-use-model-step2 2)
+    (test/is (= [1 0] order-step2))
+
+    (verify-cell 0 0 0 0.0 1 1 cell-step3 in-use-model-step3 3) ;b --> model row 1
+    (verify-cell 1 0 1 0.0 1 1 cell-step3 in-use-model-step3 3)
+    (verify-cell 0 1 0 1.0 1 1 cell-step3 in-use-model-step3 3) ;c --> model row 2
+    (verify-cell 1 1 1 1.0 1 1 cell-step3 in-use-model-step3 3)
+    (verify-cell 0 2 0 2.0 1 1 cell-step3 in-use-model-step3 3) ;d --> model row 0
+    (verify-cell 1 2 1 2.0 1 1 cell-step3 in-use-model-step3 3)
+    (verify-cell-coords 0 0 0 1 cell-step3 in-use-model-step3 3)
+    (verify-cell-coords 1 0 1 1 cell-step3 in-use-model-step3 3)
+    (verify-cell-coords 0 1 0 2 cell-step3 in-use-model-step3 3)
+    (verify-cell-coords 1 1 1 2 cell-step3 in-use-model-step3 3)
+    (verify-cell-coords 0 2 0 0 cell-step3 in-use-model-step3 3)
+    (verify-cell-coords 1 2 1 0 cell-step3 in-use-model-step3 3)
+
+    (verify-cell 0 0 0 0.0 1 2 cell-step4 in-use-model-step4 4) ;a --> model row 3
+    (verify-cell 1 0 1 0.0 1 2 cell-step4 in-use-model-step4 4)
+    (verify-cell 0 1 0 2.0 1 1 cell-step4 in-use-model-step4 4) ;b --> model row 1
+    (verify-cell 1 1 1 2.0 1 1 cell-step4 in-use-model-step4 4)
+    (verify-cell 0 2 0 3.0 1 1 cell-step4 in-use-model-step4 4) ;c --> model row 2
+    (verify-cell 1 2 1 3.0 1 1 cell-step4 in-use-model-step4 4)
+    (verify-cell 0 3 0 4.0 1 1 cell-step4 in-use-model-step4 4) ;d --> model row 0
+    (verify-cell 1 3 1 4.0 1 1 cell-step4 in-use-model-step4 4)
+    (verify-cell-coords 0 0 0 3 cell-step4 in-use-model-step4 4)
+    (verify-cell-coords 1 0 1 3 cell-step4 in-use-model-step4 4)
+    (verify-cell-coords 0 1 0 1 cell-step4 in-use-model-step4 4)
+    (verify-cell-coords 1 1 1 1 cell-step4 in-use-model-step4 4)
+    (verify-cell-coords 0 2 0 2 cell-step4 in-use-model-step4 4)
+    (verify-cell-coords 1 2 1 2 cell-step4 in-use-model-step4 4)
+    (verify-cell-coords 0 3 0 0 cell-step4 in-use-model-step4 4)
+    (verify-cell-coords 1 3 1 0 cell-step4 in-use-model-step4 4)))

@@ -209,8 +209,14 @@ flatgui.widgets.table2.table
         needed-count (* (first pss) (second pss))]
     (>= child-count needed-count)))
 
+(fg/defaccessorfn dimensions-non-empty? [component]
+  (let [header-model-pos (:positions (get-property [:this] :header-model-loc))]
+    (not (some empty? header-model-pos))))
+
 (fg/defevolverfn :in-use-model
-  (if (enough-cells? component)
+  (if (and
+        (enough-cells? component)
+        (dimensions-non-empty? component))
     (let [cs (get-property [:this] :clip-size)
           header-model-pos (:positions (get-property [:this] :header-model-loc))
           header-model-size (:sizes (get-property [:this] :header-model-loc))
@@ -311,6 +317,15 @@ flatgui.widgets.table2.table
                            :screen-area [[0 0] [0 0]]
                            :screen-coord->cell-id {[0 0] :cell-0-0}
                            :cell-id->screen-coord {:cell-0-0 [0 0]}})
+
+(def empty-in-use-model {:viewport-begin [0 0]
+                         :viewport-end [-1 -1]
+                         :screen-area [[0 0] [-1 -1]]
+                         :screen-coord->cell-id {}
+                         :cell-id->screen-coord {}})
+
+;; TODO  size distribution for dimension. If defined for columns for example
+;; TODO  then total table w is fit to clip w, columns are resized proportionally
 
 (fg/defwidget "table"
   {;:header-line-count [1 0] not implemented yet                             ; By default, 1 header row and 0 header columns

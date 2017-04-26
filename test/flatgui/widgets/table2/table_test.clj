@@ -305,6 +305,12 @@
   (test/is (= (list [1 3] [1 4] [2 3] [2 4]) (table/combine-ranges [1 2] [3 4])))
   (test/is (= (list [1 5] [1 6] [1 7] [2 5] [2 6] [2 7] [3 5] [3 6] [3 7] [4 5] [4 6] [4 7]) (table/combine-ranges [1 4] [5 7]))))
 
+(test/deftest rects->coords-test
+  (test/is (= (set [[1 1] [2 1] [1 2] [2 2]]) (set (table/rects->coords (list {:x 1, :y 1, :w 2, :h 2})))))
+  (test/is (= (set [[1 1] [2 1]]) (set (table/rects->coords (list {:x 1, :y 1, :w 2, :h 1})))))
+  (test/is (= (set [[0 0] [1 0]]) (set (table/rects->coords (list {:x 0, :y 0, :w 2, :h 1})))))
+  (test/is (= (set [[0 0]]) (set (table/rects->coords (list {:x 0, :y 0, :w 1, :h 1}))))))
+
 ;;
 ;; :in-use-model test
 ;;
@@ -863,20 +869,22 @@
         exp-header-model-size [[1 1]
                                [1 1 1 2]]
         container (fg/defroot
-                    (fg/defcomponent table/table :main
-                                     {:header-model-loc {:positions init-header-model-pos
-                                                         :sizes init-header-model-size
-                                                         :order [nil []]}
-                                      :keys keys
-                                      :value-provider vp
-                                      :resort? true
-                                      :avg-min-cell-w 1
-                                      :avg-min-cell-h 1
-                                      :child-count-dim-margin 1
-                                      :viewport-matrix m/identity-matrix
-                                      :clip-size (m/defpoint 2 4)
-                                      :evolvers {:header-model-loc table/shift-cmd-header-model-loc-evolver
-                                                 :screen->model sorting/screen->model-evolver}}))
+                    (assoc
+                      (fg/defcomponent table/table :main
+                                       {:header-model-loc {:positions init-header-model-pos
+                                                           :sizes init-header-model-size
+                                                           :order [nil []]}
+                                        :keys keys
+                                        :value-provider vp
+                                        :resort? true
+                                        :avg-min-cell-w 1
+                                        :avg-min-cell-h 1
+                                        :child-count-dim-margin 1
+                                        :viewport-matrix m/identity-matrix
+                                        :clip-size (m/defpoint 2 4)
+                                        :evolvers {:header-model-loc table/shift-cmd-header-model-loc-evolver
+                                                   :screen->model sorting/screen->model-evolver}})
+                      :in-use-model table/empty-in-use-model))
         results (atom {})
         in-use-model-state (atom {})
         cells-state (atom {})
@@ -980,20 +988,22 @@
         exp-header-model-size [[1]
                                [1 1]]
         container (fg/defroot
-                    (fg/defcomponent table/table :main
-                                     {:header-model-loc {:positions init-header-model-pos
-                                                         :sizes init-header-model-size
-                                                         :order [nil []]}
-                                      :keys keys
-                                      :value-provider vp
-                                      :resort? true
-                                      :avg-min-cell-w 1
-                                      :avg-min-cell-h 1
-                                      :child-count-dim-margin 1
-                                      :viewport-matrix m/identity-matrix
-                                      :clip-size (m/defpoint 2 4)
-                                      :evolvers {:header-model-loc table/shift-cmd-header-model-loc-evolver
-                                                 :screen->model sorting/screen->model-evolver}}))
+                    (assoc
+                      (fg/defcomponent table/table :main
+                                       {:header-model-loc {:positions init-header-model-pos
+                                                           :sizes init-header-model-size
+                                                           :order [nil []]}
+                                        :keys keys
+                                        :value-provider vp
+                                        :resort? true
+                                        :avg-min-cell-w 1
+                                        :avg-min-cell-h 1
+                                        :child-count-dim-margin 1
+                                        :viewport-matrix m/identity-matrix
+                                        :clip-size (m/defpoint 2 4)
+                                        :evolvers {:header-model-loc table/shift-cmd-header-model-loc-evolver
+                                                   :screen->model sorting/screen->model-evolver}})
+                      :in-use-model table/empty-in-use-model))
         results (atom {})
         in-use-model-state (atom {})
         cells-state (atom {})
@@ -1046,15 +1056,14 @@
         exp-header-model-size [[1]
                                [1 1]]
         container (fg/defroot
-                    (fg/defcomponent table/table :main
-                                     {:header-model-loc {:positions init-header-model-pos
-                                                         :sizes init-header-model-size}
-                                      :avg-min-cell-w 1
-                                      :avg-min-cell-h 1
-                                      :child-count-dim-margin 1
-                                      :viewport-matrix m/identity-matrix
-                                      :clip-size (m/defpoint 2 4)
-                                      :evolvers {:header-model-loc table/shift-cmd-header-model-loc-evolver}}))
+                    (assoc
+                      (fg/defcomponent table/table :main
+                                       {:header-model-loc {:positions init-header-model-pos
+                                                           :sizes init-header-model-size}
+                                        :viewport-matrix m/identity-matrix
+                                        :clip-size (m/defpoint 2 4)
+                                        :evolvers {:header-model-loc table/shift-cmd-header-model-loc-evolver}})
+                      :in-use-model table/empty-in-use-model))
         results (atom {})
         in-use-model-state (atom {})
         cells-state (atom {})

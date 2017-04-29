@@ -91,6 +91,16 @@ flatgui.widgets.table2.table
         (dissoc header-model-loc :order :ordered-positions)))
     header-model-loc))
 
+(fg/defaccessorfn support-fit-to-size [component old-header-model-loc header-model-loc]
+  (if-let [fit-dim-to-size (:fit-dim-to-size old-header-model-loc)]
+    (assoc header-model-loc :fit-dim-to-size fit-dim-to-size)
+    header-model-loc))
+
+(fg/defaccessorfn retain-reatures [component old-header-model-loc header-model-loc do-sort]
+  (let [hml-order (support-order component old-header-model-loc header-model-loc do-sort)
+        hml-fit (support-fit-to-size component old-header-model-loc hml-order)]
+    hml-fit))
+
 (fg/defevolverfn :header-model-loc
  (if-let [cell-id (second (get-reason))]
    (let [no-order? (fn [d] (nil? (nth (:order old-header-model-loc) d)))
@@ -106,42 +116,130 @@ flatgui.widgets.table2.table
          (if (< d (count model-coord))
            (recur
              (inc d)
-             (assoc-in sizes [d (nth model-coord d)] (m/mx-get cs d 0))
+             (if (< (nth model-coord d) (count (nth sizes d)))
+               (assoc-in sizes [d (nth model-coord d)] (m/mx-get cs d 0))
+               sizes)
              (if (no-order? d)
-               (assoc-in positions [d (nth model-coord d)] (m/mx-get pm d pmt))
+               (if (< (nth model-coord d) (count (nth positions d)))
+                 (assoc-in positions [d (nth model-coord d)] (m/mx-get pm d pmt))
+                 positions)
                (assoc positions d (compute-positions-d (nth sizes d) nil))))
            ;; Do not resort if processing for a cell reason
-           (support-order component old-header-model-loc {:positions positions :sizes sizes} false)))
+           (retain-reatures component old-header-model-loc {:positions positions :sizes sizes} false)))
        old-header-model-loc))
-   (support-order component old-header-model-loc old-header-model-loc true)))
+   (retain-reatures component old-header-model-loc old-header-model-loc true)))
+
+(fg/defaccessorfn process-container-resize [component header-model-loc]
+  (let [fit-dim-to-size (:fit-dim-to-size header-model-loc)
+        positions (:positions header-model-loc)
+        sizes (:sizes header-model-loc)
+        container-size (get-property [:this] :clip-size)
+        dims (count positions)]
+    (loop [d 0
+           p positions
+           s sizes]
+      (if (< d dims)
+        (let [count-d (count (nth p d))]
+          (if (pos? count-d)
+            (let [last-i (dec (count (nth p d)))
+                  old-d-size (+ (get-in p [d last-i]) (+ (get-in s [d last-i])))
+                  new-d-size (m/mx-get container-size d 0)
+                  d-diff (- new-d-size old-d-size)]
+              (if (not= d-diff 0)
+                (let [d-fit (nth fit-dim-to-size d)
+                      sizes-d (nth sizes d)
+                      total-size (apply + sizes-d)
+                      d-weight (if (not= total-size 0) (mapv #(/ % total-size) sizes-d) 0)
+                      size-adj (mapv #(* % d-diff) d-weight)
+                      pos-adj (loop [i 0
+                                     tot-adj 0
+                                     pa []]
+                                (if (< i (count sizes-d))
+                                  (recur
+                                    (inc i)
+                                    (+ tot-adj (nth size-adj i))
+                                    (assoc pa i tot-adj))
+                                  pa))]
+                  (recur
+                    (inc d)
+                    (if d-fit
+                      (update p d (fn [pos-d] (mapv (fn [i] (+ (nth pos-d i) (nth pos-adj i))) (range count-d))))
+                      p)
+                    (if d-fit
+                      (update s d (fn [size-d] (mapv (fn [i] (+ (nth size-d i) (nth size-adj i))) (range count-d))))
+                      s)))
+                (recur (inc d) p s)))
+            (recur (inc d) p s)))
+        (assoc header-model-loc :positions p :sizes s)))))
 
 (fg/defevolverfn shift-header-model-loc-evolver :header-model-loc
   (if-let [cell-id (second (get-reason))]
     (let [as (get-property [:this cell-id] :atomic-state)
           model-coord (:model-coord as)]
       (if (not= model-coord cell/not-in-use-coord)
-        (let [new-header-model-loc (header-model-loc-evolver component)]
+        (let [new-header-model-loc (header-model-loc-evolver component)
+              fit-dim-to-size (:fit-dim-to-size new-header-model-loc)]
           (loop [d 0
-                 positions (:positions new-header-model-loc)]
+                 positions (:positions new-header-model-loc)
+                 sizes (:sizes new-header-model-loc)]
             (if (< d (count model-coord))
-              (recur
-                (inc d)
-                (let [dim-coord (nth model-coord d)
-                      shift (-
+              (let [dim-coord (nth model-coord d)
+                    d-fit (nth fit-dim-to-size d)
+                    shift (if (and
+                                (< dim-coord (count (nth (:sizes new-header-model-loc) d)))
+                                (< dim-coord (count (nth (:sizes old-header-model-loc) d))))
+                            (-
                               (get-in (:sizes new-header-model-loc) [d dim-coord])
-                              (get-in (:sizes old-header-model-loc) [d dim-coord]))]
-                  (if (not= 0 shift)
+                              (get-in (:sizes old-header-model-loc) [d dim-coord]))
+                            0)
+                    total-remaining-size (if d-fit
+                                           (loop [i (inc dim-coord) s 0]
+                                             (if (< i (count (nth sizes d))) (recur (inc i) (+ s (get-in sizes [d i]))) s)))]
+                (recur
+                  (inc d)
+                  ;; positions
+                  (let []
+                    (if (not= 0 shift)
+                      (loop [i (inc dim-coord)
+                             deduct 0
+                             p positions]
+                        (if (< i (count (nth p d)))
+                          (recur
+                            (inc i)
+                            (if d-fit (- deduct (* shift (/ (get-in sizes [d i]) total-remaining-size))) deduct)
+                            (update-in p [d i] + shift deduct))
+                          p))
+                      positions))
+                  ;; sizes
+                  (if d-fit
                     (loop [i (inc dim-coord)
-                           p positions]
-                      (if (< i (count (nth p d)))
+                           s sizes]
+                      (if (< i (count (nth s d)))
                         (recur
                           (inc i)
-                          (update-in p [d i] + shift))
-                        p))
-                    positions)))
-              (assoc new-header-model-loc :positions positions))))
+                          (update-in s [d i] (fn [si] (- si (* shift (/ si total-remaining-size))))))
+                        s))
+                    sizes)))
+              (assoc new-header-model-loc :positions positions :sizes sizes))))
         (header-model-loc-evolver component)))
-    (header-model-loc-evolver component)))
+    (process-container-resize component (header-model-loc-evolver component))))
+
+;; TODO present macros make it impossible to combine evolvers, for example non-shifting + cmd
+;;
+(fg/defevolverfn shift-cmd-header-model-loc-evolver :header-model-loc
+  (if (map? (get-reason))
+    (condp = (:cmd (get-reason))
+      :add (let [r (get-reason)
+                 d (:d r)
+                 sizes (:sizes old-header-model-loc)
+                 positions (:positions old-header-model-loc)
+                 new-hml {:positions (update positions d (fn [d-pos] (conj d-pos (:pos r))))
+                          :sizes (update sizes d (fn [d-sizes] (conj d-sizes (:size r))))
+                          :order (if-let [order (:order old-header-model-loc)] (update order d (fn [d-ord] (conj d-ord (count d-ord)))))
+                          :fit-dim-to-size (if-let [fit (:fit-dim-to-size old-header-model-loc)] fit)}]
+             (retain-reatures component new-hml new-hml true))
+      old-header-model-loc)
+    (shift-header-model-loc-evolver component)))
 
 (fg/defevolverfn :content-size
   (let [header-model-pos (:positions (get-property [:this] :header-model-loc))
@@ -149,8 +247,8 @@ flatgui.widgets.table2.table
         last-col (dec (count (first header-model-pos)))
         last-row (dec (count (second header-model-pos)))]
     (m/defpoint
-      (+ (nth (first header-model-pos) last-col) (nth (first header-model-size) last-col))
-      (+ (nth (second header-model-pos) last-row) (nth (second header-model-size) last-row)))))
+      (if (>= last-col 0) (+ (nth (first header-model-pos) last-col) (nth (first header-model-size) last-col)) 0)
+      (if (>= last-row 0) (+ (nth (second header-model-pos) last-row) (nth (second header-model-size) last-row)) 0))))
 
 (defn edge-search [range-size start pred]
   (loop [dir-dist [(if (< start (dec range-size)) 1 -1) 1]
@@ -184,8 +282,14 @@ flatgui.widgets.table2.table
         needed-count (* (first pss) (second pss))]
     (>= child-count needed-count)))
 
+(fg/defaccessorfn dimensions-non-empty? [component]
+  (let [header-model-pos (:positions (get-property [:this] :header-model-loc))]
+    (not (some empty? header-model-pos))))
+
 (fg/defevolverfn :in-use-model
-  (if (enough-cells? component)
+  (if (and
+        (enough-cells? component)
+        (dimensions-non-empty? component))
     (let [cs (get-property [:this] :clip-size)
           header-model-pos (:positions (get-property [:this] :header-model-loc))
           header-model-size (:sizes (get-property [:this] :header-model-loc))
@@ -219,7 +323,7 @@ flatgui.widgets.table2.table
                             search-result (edge-search dim-range-size start (if for-begin viewport-begin-pred viewport-end-pred))]
                         (cond
                           (< search-result 0) 0
-                          (>= search-result dim-range-size) (dec search-result)
+                          (>= search-result dim-range-size) (max (dec search-result) 0)
                           :else search-result)))
 
           old-screen-area (:screen-area old-in-use-model)
@@ -261,7 +365,11 @@ flatgui.widgets.table2.table
                                (recur
                                  (next vcs)
                                  (next cids)
-                                 (assoc noc (first cids) (first vcs)))
+                                 (let [coord (first vcs)
+                                       fits-in-model (not (some (fn [d] (> (nth coord d) (count (nth header-model-pos d)))) dimensions))]
+                                   (if fits-in-model
+                                     (assoc noc (first cids) coord)
+                                     noc)))
                                noc))
                            {})
           to-be-free-cell-ids (filter #(not (% new-occupants)) to-be-free-cell-ids)
@@ -282,6 +390,15 @@ flatgui.widgets.table2.table
                            :screen-area [[0 0] [0 0]]
                            :screen-coord->cell-id {[0 0] :cell-0-0}
                            :cell-id->screen-coord {:cell-0-0 [0 0]}})
+
+(def empty-in-use-model {:viewport-begin [0 0]
+                         :viewport-end [-1 -1]
+                         :screen-area [[0 0] [-1 -1]]
+                         :screen-coord->cell-id {}
+                         :cell-id->screen-coord {}})
+
+;; TODO  size distribution for dimension. If defined for columns for example
+;; TODO  then total table w is fit to clip w, columns are resized proportionally
 
 (fg/defwidget "table"
   {;:header-line-count [1 0] not implemented yet                             ; By default, 1 header row and 0 header columns

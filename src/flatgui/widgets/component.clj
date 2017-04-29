@@ -19,7 +19,8 @@ flatgui.widgets.component
             [flatgui.theme]
             [flatgui.skins.skinbase]
             [flatgui.skins.flat]
-            [flatgui.inputchannels.mouse :as mouse])
+            [flatgui.inputchannels.mouse :as mouse]
+            [flatgui.inputchannels.host :as host])
   (:import (flatgui.core.awt FGDummyInteropUtil)))
 
 
@@ -73,6 +74,12 @@ flatgui.widgets.component
   (and
     (get-property [:this] :visible)
     (get-property [:this] :popup)))
+
+(fg/defevolverfn clip-size-to-host :clip-size
+  (if (host/host-event? component)
+    (let [host-size (host/get-host-size component)]
+      (m/defpoint (:w host-size) (:h host-size)))
+    old-clip-size))
 
 (fg/defwidget "componentbase"
   (array-map

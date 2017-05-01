@@ -6,7 +6,7 @@
 ; the terms of this license.
 ; You must not remove this notice, or any other, from this software.
 
-(def flatgui-version "0.2.1")
+(def flatgui-version "0.2.2-SNAPSHOT")
 
 
 (defproject org.flatgui/flatguiwidgets flatgui-version

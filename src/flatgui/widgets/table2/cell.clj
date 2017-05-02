@@ -13,7 +13,8 @@
             [flatgui.widgets.component :as component]
             [flatgui.focus :as focus]
             [flatgui.layout :as layout]
-            [flatgui.util.matrix :as m]))
+            [flatgui.util.matrix :as m]
+            [flatgui.inputchannels.mouse :as mouse]))
 
 (def not-in-use-coord [-1 -1])
 (def not-in-use-point (m/defpoint -1 -1))
@@ -47,15 +48,35 @@
       sc
       not-in-use-coord)))
 
+(fg/defaccessorfn selected? [component old-atomic-state mc]
+  (if (not= mc not-in-use-coord)
+    (cond
+      (and (mouse/left-mouse-button? component) (mouse/mouse-pressed? component))
+      (not (:selected old-atomic-state))
+      :else
+      (let [selection (get-property [] :selection)
+            ;; d 1 means rows
+            d 1]
+        ;; Multiple selection would be
+        ;;(some (fn [e] (= e (nth mc d))) (nth selection d))
+        ;; This is single selection
+        (let [s-d (nth selection d)]
+          ;(and (= 1 (count s-d)) (= (nth mc d) (first s-d)))
+          (= (nth mc d) (first s-d))
+          )))
+    false))
+
 (fg/defevolverfn :atomic-state
   (let [sc (get-screen-coord component)
         mc (calc-model-coord component sc)
         cs (calc-clip-size component mc)
-        pm (calc-position-matrix component mc)]
+        pm (calc-position-matrix component mc)
+        sel (selected? component old-atomic-state mc)]
     {:clip-size       cs
      :position-matrix pm
      :screen-coord    sc
-     :model-coord     mc}))
+     :model-coord     mc
+     :selected        sel}))
 
 (fg/defevolverfn :clip-size (:clip-size (get-property [:this] :atomic-state)))
 
@@ -69,6 +90,9 @@
   (and
     (component/visible-evolver component)
     (not= not-in-use-coord (get-property [:this] :model-coord))))
+
+;(fg/defevolverfn :selection-trigger
+;  (and (mouse/left-mouse-button? component) (mouse/mouse-pressed? component)))
 
 (def initial-atomic-state {:clip-size       not-in-use-point
                            :position-matrix not-in-use-matrix
@@ -104,6 +128,7 @@
                      :position-matrix position-matrix-evolver
                      :model-coord model-coord-evolver
                      :screen-coord screen-coord-evolver
+                     ;:selection-trigger selection-trigger-evolver
 
                      ;; Below is everything component has except
                      ;;  - :focus-traversal-order which is slow. Focus management basically works with it but just without good order -

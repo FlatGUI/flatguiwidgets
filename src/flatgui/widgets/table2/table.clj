@@ -18,7 +18,8 @@ flatgui.widgets.table2.table
             [flatgui.layout :as layout]
             [flatgui.util.matrix :as m]
             [flatgui.util.vecmath :as v]
-            [flatgui.util.rectmath :as r]))
+            [flatgui.util.rectmath :as r]
+            [flatgui.inputchannels.mouse :as mouse]))
 
 (defn gen-cell-id [& dim] (keyword (str "cell" (apply str (map #(str "-" %) dim)))))
 
@@ -382,6 +383,28 @@ flatgui.widgets.table2.table
                      :cell-id->screen-coord cell-id->screen-coord})
     old-in-use-model))
 
+(fg/defevolverfn :selection
+  (if-let [cell-id (second (get-reason))]
+    (let [                                                ;_ (println "--- :selection triggered by " cell-id)
+          as (get-property [:this cell-id] :atomic-state)
+          mc (:model-coord as)]
+      (if (not= mc cell/not-in-use-coord)
+        (let [selected (:selected as)
+              r (loop [d 0
+                       s old-selection]
+                  (if (< d (count mc))
+                    (recur
+                      (inc d)
+                      (let [d-coord (nth mc d)]
+                        (update s d (fn [sel-d]
+                                      (let [without-d-coord (remove (fn [e] (= e d-coord)) sel-d)]
+                                        (if selected (conj without-d-coord d-coord) without-d-coord))))))
+                    s))
+              _ (println "selection = " r)]
+
+          r)
+        old-selection))))
+
 (fg/defaccessorfn dummy-value-provider [component model-row model-col]
   (str (get-property [:this] :id) "-" model-row "-" model-col))
 
@@ -397,8 +420,6 @@ flatgui.widgets.table2.table
                          :screen-coord->cell-id {}
                          :cell-id->screen-coord {}})
 
-;; TODO  size distribution for dimension. If defined for columns for example
-;; TODO  then total table w is fit to clip w, columns are resized proportionally
 
 (fg/defwidget "table"
   {;:header-line-count [1 0] not implemented yet                             ; By default, 1 header row and 0 header columns

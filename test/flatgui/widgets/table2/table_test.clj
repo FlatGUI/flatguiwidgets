@@ -1308,3 +1308,81 @@
     (verify-cell 0 1 0 1 3 1 cell-step1 in-use-model-step1 1)
     (verify-cell-coords 0 0 0 0 cell-step1 in-use-model-step1 1)
     (verify-cell-coords 0 1 0 1 cell-step1 in-use-model-step1 1)))
+
+(test/deftest selection-single-test
+  (let [init-header-model-pos  [[0 2]
+                                [0 2 3]]
+        init-header-model-size [[2 1]
+                                [2 1 1]]
+        root (fg/defroot
+                    (fg/defcomponent table/table :main
+                                     {:header-model-loc {:positions init-header-model-pos
+                                                         :sizes init-header-model-size}
+                                      :selection [nil nil]
+                                      :avg-min-cell-w 1
+                                      :avg-min-cell-h 1
+                                      :child-count-dim-margin 1
+                                      :viewport-matrix m/identity-matrix
+                                      :clip-size (m/defpoint 3 4)
+                                      :evolvers {:header-model-loc table/shift-header-model-loc-evolver
+                                                 :selection table/cbc-selection}}))
+
+        container (fgtest/init-container root)
+        cid-0-0 (fgtest/wait-table-cell-id container [:main] [0 0])
+        cid-1-0 (fgtest/wait-table-cell-id container [:main] [1 0])
+        _cid-0-1 (fgtest/wait-table-cell-id container [:main] [0 1]) ;Even if cell id is not used, the call still checks that cell has been created
+        cid-1-1 (fgtest/wait-table-cell-id container [:main] [1 1])
+        cid-0-2 (fgtest/wait-table-cell-id container [:main] [0 2])
+        _cid-1-2 (fgtest/wait-table-cell-id container [:main] [1 2])]
+
+    (fgtest/wait-table-cell-property container [:main] [0 0] :atomic-state (fn [as] (not (:selected as))))
+    (fgtest/wait-table-cell-property container [:main] [1 0] :atomic-state (fn [as] (not (:selected as))))
+    (fgtest/wait-table-cell-property container [:main] [0 1] :atomic-state (fn [as] (not (:selected as))))
+    (fgtest/wait-table-cell-property container [:main] [1 1] :atomic-state (fn [as] (not (:selected as))))
+    (fgtest/wait-table-cell-property container [:main] [0 2] :atomic-state (fn [as] (not (:selected as))))
+    (fgtest/wait-table-cell-property container [:main] [1 2] :atomic-state (fn [as] (not (:selected as))))
+
+    (fgtest/left-click container [:main cid-1-1])
+
+    (fgtest/wait-table-cell-property container [:main] [0 0] :atomic-state (fn [as] (not (:selected as))))
+    (fgtest/wait-table-cell-property container [:main] [1 0] :atomic-state (fn [as] (not (:selected as))))
+    (fgtest/wait-table-cell-property container [:main] [0 1] :atomic-state (fn [as] (:selected as)))
+    (fgtest/wait-table-cell-property container [:main] [1 1] :atomic-state (fn [as] (:selected as)))
+    (fgtest/wait-table-cell-property container [:main] [0 2] :atomic-state (fn [as] (not (:selected as))))
+    (fgtest/wait-table-cell-property container [:main] [1 2] :atomic-state (fn [as] (not (:selected as))))
+
+    (fgtest/left-click container [:main cid-0-2])
+
+    (fgtest/wait-table-cell-property container [:main] [0 0] :atomic-state (fn [as] (not (:selected as))))
+    (fgtest/wait-table-cell-property container [:main] [1 0] :atomic-state (fn [as] (not (:selected as))))
+    (fgtest/wait-table-cell-property container [:main] [0 1] :atomic-state (fn [as] (not (:selected as))))
+    (fgtest/wait-table-cell-property container [:main] [1 1] :atomic-state (fn [as] (not (:selected as))))
+    (fgtest/wait-table-cell-property container [:main] [0 2] :atomic-state (fn [as] (:selected as)))
+    (fgtest/wait-table-cell-property container [:main] [1 2] :atomic-state (fn [as] (:selected as)))
+
+    (fgtest/left-click container [:main cid-0-0])
+
+    (fgtest/wait-table-cell-property container [:main] [0 0] :atomic-state (fn [as] (:selected as)))
+    (fgtest/wait-table-cell-property container [:main] [1 0] :atomic-state (fn [as] (:selected as)))
+    (fgtest/wait-table-cell-property container [:main] [0 1] :atomic-state (fn [as] (not (:selected as))))
+    (fgtest/wait-table-cell-property container [:main] [1 1] :atomic-state (fn [as] (not (:selected as))))
+    (fgtest/wait-table-cell-property container [:main] [0 2] :atomic-state (fn [as] (not (:selected as))))
+    (fgtest/wait-table-cell-property container [:main] [1 2] :atomic-state (fn [as] (not (:selected as))))
+
+    (fgtest/left-click container [:main cid-1-0])
+
+    (fgtest/wait-table-cell-property container [:main] [0 0] :atomic-state (fn [as] (not (:selected as))))
+    (fgtest/wait-table-cell-property container [:main] [1 0] :atomic-state (fn [as] (not (:selected as))))
+    (fgtest/wait-table-cell-property container [:main] [0 1] :atomic-state (fn [as] (not (:selected as))))
+    (fgtest/wait-table-cell-property container [:main] [1 1] :atomic-state (fn [as] (not (:selected as))))
+    (fgtest/wait-table-cell-property container [:main] [0 2] :atomic-state (fn [as] (not (:selected as))))
+    (fgtest/wait-table-cell-property container [:main] [1 2] :atomic-state (fn [as] (not (:selected as))))
+
+    (fgtest/left-click container [:main cid-1-0])
+
+    (fgtest/wait-table-cell-property container [:main] [0 0] :atomic-state (fn [as] (:selected as)))
+    (fgtest/wait-table-cell-property container [:main] [1 0] :atomic-state (fn [as] (:selected as)))
+    (fgtest/wait-table-cell-property container [:main] [0 1] :atomic-state (fn [as] (not (:selected as))))
+    (fgtest/wait-table-cell-property container [:main] [1 1] :atomic-state (fn [as] (not (:selected as))))
+    (fgtest/wait-table-cell-property container [:main] [0 2] :atomic-state (fn [as] (not (:selected as))))
+    (fgtest/wait-table-cell-property container [:main] [1 2] :atomic-state (fn [as] (not (:selected as))))))

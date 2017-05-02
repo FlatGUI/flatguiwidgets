@@ -400,7 +400,8 @@ flatgui.widgets.table2.table
                                 (let [without-d-coord (remove (fn [e] (= e d-coord)) sel-d)]
                                   (if selected (conj without-d-coord d-coord) without-d-coord))))))
               s)))
-        old-selection))))
+        old-selection))
+    old-selection))
 
 ;; This is for direct-selection mode which means table catches mouse events to determine clicked row
 ;; TODO why is this slower than cbc-selection ?

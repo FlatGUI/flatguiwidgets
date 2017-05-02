@@ -383,27 +383,46 @@ flatgui.widgets.table2.table
                      :cell-id->screen-coord cell-id->screen-coord})
     old-in-use-model))
 
-(fg/defevolverfn :selection
+;; Cell-by-cell selection: each cell catches mouse event to determine selection
+(fg/defevolverfn cbc-selection :selection
   (if-let [cell-id (second (get-reason))]
-    (let [                                                ;_ (println "--- :selection triggered by " cell-id)
-          as (get-property [:this cell-id] :atomic-state)
+    (let [as (get-property [:this cell-id] :atomic-state)
           mc (:model-coord as)]
       (if (not= mc cell/not-in-use-coord)
-        (let [selected (:selected as)
-              r (loop [d 0
-                       s old-selection]
-                  (if (< d (count mc))
-                    (recur
-                      (inc d)
-                      (let [d-coord (nth mc d)]
-                        (update s d (fn [sel-d]
-                                      (let [without-d-coord (remove (fn [e] (= e d-coord)) sel-d)]
-                                        (if selected (conj without-d-coord d-coord) without-d-coord))))))
-                    s))
-              _ (println "selection = " r)]
-
-          r)
+        (let [selected (:selected as)]
+          (loop [d 0
+                 s old-selection]
+            (if (< d (count mc))
+              (recur
+                (inc d)
+                (let [d-coord (nth mc d)]
+                  (update s d (fn [sel-d]
+                                (let [without-d-coord (remove (fn [e] (= e d-coord)) sel-d)]
+                                  (if selected (conj without-d-coord d-coord) without-d-coord))))))
+              s)))
         old-selection))))
+
+;; This is for direct-selection mode which means table catches mouse events to determine clicked row
+;; TODO why is this slower than cbc-selection ?
+(fg/defevolverfn direct-selection :selection
+ (if (and (mouse/left-mouse-button? component) (mouse/mouse-pressed? component))
+   (let [y (mouse/get-mouse-rel-y component)
+         d 1 ; d 1 means row
+         positions-d (nth (:positions (get-property [:this] :header-model-loc)) d)
+         count-pos-d (count positions-d)
+         d-coord (loop [c 0]
+                   (if (and (< c count-pos-d) (> y (nth positions-d c)))
+                     (recur (inc c))
+                     (dec c)))]
+     (if (< d-coord count-pos-d)
+       (let [sel-d (nth old-selection d)
+             was-selected (some (fn [e] (= d-coord e)) sel-d)]
+         (if was-selected
+           ;; This models single selection
+           (assoc old-selection d nil)
+           (assoc old-selection d (list d-coord))))
+       old-selection))
+   old-selection))
 
 (fg/defaccessorfn dummy-value-provider [component model-row model-col]
   (str (get-property [:this] :id) "-" model-row "-" model-col))

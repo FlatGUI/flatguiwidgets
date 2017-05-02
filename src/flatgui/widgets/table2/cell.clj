@@ -48,22 +48,28 @@
       sc
       not-in-use-coord)))
 
-(fg/defaccessorfn selected? [component old-atomic-state mc]
+(fg/defaccessorfn selected-in-table? [component mc]
+  (if (not= mc not-in-use-coord)
+    (let [selection (get-property [] :selection)
+          ;; d 1 means rows
+          d 1]
+      ;; For cell-by-cell selection, multiple selection would be
+      ;;(some (fn [e] (= e (nth mc d))) (nth selection d))
+      ;;
+      ;; This is single selection
+      (let [s-d (nth selection d)]
+        ;(and (= 1 (count s-d)) (= (nth mc d) (first s-d)))
+        (= (nth mc d) (first s-d))))
+    false))
+
+;; For cell-by-cell selection, use this
+(fg/defaccessorfn cbc-selected? [component old-atomic-state mc]
   (if (not= mc not-in-use-coord)
     (cond
       (and (mouse/left-mouse-button? component) (mouse/mouse-pressed? component))
       (not (:selected old-atomic-state))
       :else
-      (let [selection (get-property [] :selection)
-            ;; d 1 means rows
-            d 1]
-        ;; Multiple selection would be
-        ;;(some (fn [e] (= e (nth mc d))) (nth selection d))
-        ;; This is single selection
-        (let [s-d (nth selection d)]
-          ;(and (= 1 (count s-d)) (= (nth mc d) (first s-d)))
-          (= (nth mc d) (first s-d))
-          )))
+      (selected-in-table? component mc))
     false))
 
 (fg/defevolverfn :atomic-state
@@ -71,7 +77,8 @@
         mc (calc-model-coord component sc)
         cs (calc-clip-size component mc)
         pm (calc-position-matrix component mc)
-        sel (selected? component old-atomic-state mc)]
+        ;sel (selected-in-table? component mc) ; For direct selection, use this
+        sel (cbc-selected? component old-atomic-state mc)]
     {:clip-size       cs
      :position-matrix pm
      :screen-coord    sc
@@ -90,9 +97,6 @@
   (and
     (component/visible-evolver component)
     (not= not-in-use-coord (get-property [:this] :model-coord))))
-
-;(fg/defevolverfn :selection-trigger
-;  (and (mouse/left-mouse-button? component) (mouse/mouse-pressed? component)))
 
 (def initial-atomic-state {:clip-size       not-in-use-point
                            :position-matrix not-in-use-matrix
@@ -128,18 +132,18 @@
                      :position-matrix position-matrix-evolver
                      :model-coord model-coord-evolver
                      :screen-coord screen-coord-evolver
-                     ;:selection-trigger selection-trigger-evolver
 
                      ;; Below is everything component has except
-                     ;;  - :focus-traversal-order which is slow. Focus management basically works with it but just without good order -
+                     ;;  - :focus-traversal-order which is slow, :focus-state which becomes slow with growing number of cells
+                     ;;     Focus management basically works with it but just without good order -
                      ;;     this is good enough for most table cell use cases
-                     ;;  - layout's :clip-size which makes no sence since parent (a table) does not use layout for its cells
+                     ;;  - layout's :clip-size which makes no sense since parent (a table) does not use layout for its cells
                      :enabled component/enabled-evolver
-                     :has-mouse component/has-mouse-evolver
+
                      :content-size component/default-content-size-evolver
 
                      :accepts-focus? focus/simple-accepts-focus-evolver
-                     :focus-state focus/focus-state-evolver
+                     :focus-state nil
                      :focus-traversal-order nil
 
                      :children-z-order nil
@@ -147,5 +151,9 @@
                      :coord-map layout/coord-map-evolver
 
                      :preferred-size nil
+
+                     ;; These mouse-delendent evolver, together with :focus-state should be turned off to let table catch mouse events
+                     ;; in case direct selection is used for selection management.
+                     :has-mouse component/has-mouse-evolver
                      }}
   component/componentbase)

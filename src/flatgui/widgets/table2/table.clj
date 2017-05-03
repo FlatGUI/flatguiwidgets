@@ -28,34 +28,63 @@ flatgui.widgets.table2.table
         col-cnt (second pss)]
     (mapcat (fn [r] (map (fn [c] [r c]) (range col-cnt))) (range row-cnt))))
 
+(fg/defaccessorfn gen-children-regular [component pss old-children]
+  (let [child-count (count (get-property [:this] :children))
+        needed-count (* (first pss) (second pss))
+        cell-prototype (get-property [:this] :cell-prototype)]
+    (if (< child-count needed-count)
+      (merge
+        (into {} (map (fn [coord]
+                        (let [cid (apply gen-cell-id coord)
+                              c (cid old-children)]
+                          [cid (if c c (fg/defcomponent cell-prototype cid {}))]))
+                      ;; Multiply by margin to allow more children in advance and avoid adding
+                      ;; new children (expensive operation) too often
+                      (let [margin (if-let [m (get-property [:this] :child-count-dim-margin)] m 2)]
+                        (all-coords-2d (mapv #(* margin %) pss)))))
+        old-children)
+      old-children)))
+
+(fg/defaccessorfn get-cell-prototype-by-col [component mc-col model-column->cell-prototype]
+  (if-let [prot (nth model-column->cell-prototype mc-col)] prot (get-property [:this] :cell-prototype)))
+
+(fg/defaccessorfn gen-children-by-columns [component pss model-column->cell-prototype old-children]
+  (let [col-count (count model-column->cell-prototype)
+        existing-rows (/ (count (get-property [:this] :children)) col-count)
+        needed-rows (second pss)
+        screen->model (get-property [:this] :screen->model)]
+    (if (< existing-rows needed-rows)
+      (merge
+        (into {} (map (fn [coord]
+                        (let [mc-col (first (screen->model coord))
+                              cid (apply gen-cell-id coord)
+                              c (cid old-children)]
+                          [cid (if c c (fg/defcomponent
+                                         (get-cell-prototype-by-col component mc-col model-column->cell-prototype)
+                                         cid {}))]))
+                      ;; Multiply by margin to allow more children in advance and avoid adding
+                      ;; new children (expensive operation) too often
+                      (let [margin (if-let [m (get-property [:this] :child-count-dim-margin)] m 2)]
+                        (all-coords-2d [(first pss) (* needed-rows margin)]))))
+        old-children)
+      old-children)))
+
 (fg/defevolverfn :children
   (if (not (nil? (get-reason)))
-    (let [pss (get-property [:this] :physical-screen-size)
-          child-count (count (get-property [:this] :children))
-          needed-count (* (first pss) (second pss))]
-      (if (< child-count needed-count)
-        (merge
-          (into {} (map (fn [coord]
-                          (let [cid (apply gen-cell-id coord)
-                                c (cid old-children)]
-                            [cid (if c c (fg/defcomponent
-                                           (get-property [:this] :cell-prototype)
-                                           cid
-                                           {;:physical-screen-coord coord
-                                            }))]))
-                        ;; Multiply by margin to allow more children in advance and avoid adding
-                        ;; new children (expensive operation) too often
-                        (let [margin (if-let [m (get-property [:this] :child-count-dim-margin)] m 2)]
-                          (all-coords-2d (mapv #(* margin %) pss)))))
-          old-children)
-        old-children))
+    (let [pss (get-property [:this] :physical-screen-size)]
+      (if-let [model-column->cell-prototype (get-property [:this] :model-column->cell-prototype)]
+        (gen-children-by-columns component pss model-column->cell-prototype old-children)
+        (gen-children-regular component pss old-children)))
     old-children))
 
 (fg/defevolverfn :physical-screen-size
-  (let [clip-size (get-property [:this] :clip-size)]
+  (let [clip-size (get-property [:this] :clip-size)
+        model-column->cell-prototype (get-property [:this] :model-column->cell-prototype)]
     ;; inc because for example screen size of 1.2 may actually occupy 3 cells of 1 (one partially for 0.1, one fully, and one last for 0.1)
-    [(int (inc (Math/ceil (double (/ (m/y clip-size) (get-property [:this] :avg-min-cell-h))))))
-     (int (inc (Math/ceil (double (/ (m/x clip-size) (get-property [:this] :avg-min-cell-w))))))]))
+    [(if model-column->cell-prototype
+       (count model-column->cell-prototype)
+       (int (inc (Math/ceil (double (/ (m/x clip-size) (get-property [:this] :avg-min-cell-w)))))))
+     (int (inc (Math/ceil (double (/ (m/y clip-size) (get-property [:this] :avg-min-cell-h))))))]))
 
 (defn compute-positions-d [sizes-d order-d]
   (let [cnt-d (count sizes-d)]
@@ -287,6 +316,52 @@ flatgui.widgets.table2.table
   (let [header-model-pos (:positions (get-property [:this] :header-model-loc))]
     (not (some empty? header-model-pos))))
 
+(defn- fits-in-model [coord header-model-pos dimensions]
+  (not (some (fn [d] (> (nth coord d) (count (nth header-model-pos d)))) dimensions)))
+
+(defn occupy-cells-regular [vacant-coords all-unused-cell-ids header-model-pos dimensions]
+  (loop [vcs vacant-coords
+         cids all-unused-cell-ids
+         noc {}]
+    (if (not (empty? vcs))
+      (recur
+        (next vcs)
+        (next cids)
+        (let [coord (first vcs)]
+          (if (fits-in-model coord header-model-pos dimensions)
+            (assoc noc (first cids) coord)
+            noc)))
+      noc)))
+
+(fg/defaccessorfn find-first-suitable [unused-cids cell-prototype]
+  (if-let [cid (some
+                 (fn [id] (if (= (get-property [:this id] :widget-type) (:widget-type cell-prototype)) id))
+                 unused-cids)]
+    cid
+    (throw
+      (IllegalStateException.
+        (str
+          "Insufficient amount of cells generated, cannot find free cell of type "
+          (:widget-type cell-prototype))))))
+
+(fg/defaccessorfn occupy-cells-by-columns [component model-column->cell-prototype vacant-coords all-unused-cell-ids header-model-pos dimensions]
+  (let [screen->model (get-property [:this] :screen->model)]
+    (loop [vcs vacant-coords
+           unused-cids (set all-unused-cell-ids)
+           noc {}]
+      (if (not (empty? vcs))
+        (let [coord (first vcs)
+              mc-col (first (screen->model coord))
+              cell-prototype (get-cell-prototype-by-col component mc-col model-column->cell-prototype)
+              cid (find-first-suitable unused-cids cell-prototype)]
+          (recur
+            (next vcs)
+            (disj unused-cids cid)
+            (if (fits-in-model coord header-model-pos dimensions)
+              (assoc noc cid coord)
+              noc)))
+        noc))))
+
 (fg/defevolverfn :in-use-model
   (if (and
         (enough-cells? component)
@@ -359,19 +434,9 @@ flatgui.widgets.table2.table
                                                                                            (fn [[k _v]] (not (k old-cell-id->screen-coord)))
                                                                                            (get-property [:this] :children)))))
           new-occupants  (if vacant-coords
-                           (loop [vcs vacant-coords
-                                  cids all-unused-cell-ids
-                                  noc {}]
-                             (if (not (empty? vcs))
-                               (recur
-                                 (next vcs)
-                                 (next cids)
-                                 (let [coord (first vcs)
-                                       fits-in-model (not (some (fn [d] (> (nth coord d) (count (nth header-model-pos d)))) dimensions))]
-                                   (if fits-in-model
-                                     (assoc noc (first cids) coord)
-                                     noc)))
-                               noc))
+                           (if-let [mc->prot (get-property [:this] :model-column->cell-prototype)]
+                             (occupy-cells-by-columns component mc->prot vacant-coords all-unused-cell-ids header-model-pos dimensions)
+                             (occupy-cells-regular vacant-coords all-unused-cell-ids header-model-pos dimensions))
                            {})
           to-be-free-cell-ids (filter #(not (% new-occupants)) to-be-free-cell-ids)
           cell-id->screen-coord (apply dissoc (merge old-cell-id->screen-coord new-occupants) to-be-free-cell-ids)
@@ -449,6 +514,7 @@ flatgui.widgets.table2.table
    :avg-min-cell-w 0.75
    :avg-min-cell-h 0.375
    :child-count-dim-margin 2
+   :model-column->cell-prototype nil ; If defined then vector, each element - column cell prototype or nil to use :cell-prototype
    :in-use-model initial-in-use-model
    :screen->model identity                              ; This coord vector translation fn may take into account sorting/filtering etc.
    :value-provider dummy-value-provider

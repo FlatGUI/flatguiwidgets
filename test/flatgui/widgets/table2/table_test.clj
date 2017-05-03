@@ -72,7 +72,19 @@
                      :evolvers {:physical-screen-size table/physical-screen-size-evolver}
                      :children  {}})
         res (fgtest/evolve container :physical-screen-size nil)]
-    (test/is (= [7 5] res))))
+    (test/is (= [5 7] res))))
+
+(test/deftest physical-screen-size-test1
+  (let [container (fg/defroot
+                    {:id        :main
+                     :clip-size (m/defpoint 10 5)
+                     :avg-min-cell-h 0.9
+                     :avg-min-cell-w 3
+                     :model-column->cell-prototype [nil nil nil]
+                     :evolvers {:physical-screen-size table/physical-screen-size-evolver}
+                     :children  {}})
+        res (fgtest/evolve container :physical-screen-size nil)]
+    (test/is (= [3 7] res))))
 
 (test/deftest header-model-pos-size-test
   (let [results (atom {})

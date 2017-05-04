@@ -121,9 +121,15 @@
    :exterior-bottom 0
    :exterior-right 0
    :has-mouse false
-   :accepts-focus? false
    :focus-traversal-order nil
-   :focus-state focus/clean-state
+
+   ;; Each cell is a focus root otherwise focus management becomes too expensive.
+   ;; simple-focus-state-evolver is used here for this reason as well.
+   ;; This restriction might not be needed for small tables.
+   :closed-focus-root true
+   :focus-state {:mode :has-focus
+                 :focused-child nil}
+
    :layout nil
    :coord-map nil
    :evolvers        {:visible visible-evolver
@@ -143,7 +149,7 @@
                      :content-size component/default-content-size-evolver
 
                      :accepts-focus? focus/simple-accepts-focus-evolver
-                     :focus-state nil
+                     :focus-state focus/simple-focus-state-evolver
                      :focus-traversal-order nil
 
                      :children-z-order nil

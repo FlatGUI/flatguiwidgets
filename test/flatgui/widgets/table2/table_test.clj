@@ -17,6 +17,7 @@
             [flatgui.util.decimal :as decimal])
   (:import (flatgui.core.engine ClojureContainerParser Container IResultCollector)))
 
+(fgtest/enable-traces-for-failed-tests)
 
 (test/deftest all-coords-2d-test
   (test/is (= #{[0 0] [0 1] [0 2] [1 0] [1 1] [1 2]} (set (table/all-coords-2d [2 3])))))
@@ -1398,3 +1399,83 @@
     (fgtest/wait-table-cell-property container [:main] [1 1] :atomic-state (fn [as] (not (:selected as))))
     (fgtest/wait-table-cell-property container [:main] [0 2] :atomic-state (fn [as] (not (:selected as))))
     (fgtest/wait-table-cell-property container [:main] [1 2] :atomic-state (fn [as] (not (:selected as))))))
+
+(test/deftest various-cell-types-test
+  (let [init-header-model-pos  [[0 2 3]
+                                [0 2 3]]
+        init-header-model-size [[2 1 1]
+                                [2 1 1]]
+        tc1 (assoc cell/cell :widget-type "tc1")
+        tc2 (assoc cell/cell :widget-type "tc2")
+        _ (fg/defevolverfn :viewport-matrix (if (get-reason) (:viewport-matrix (get-reason)) old-viewport-matrix))
+        root (fg/defroot
+               (fg/defcomponent table/table :main
+                                {:header-model-loc {:positions init-header-model-pos
+                                                    :sizes init-header-model-size}
+                                 :avg-min-cell-w 1
+                                 :avg-min-cell-h 1
+                                 :child-count-dim-margin 1
+                                                              ;; 0   1   2
+                                 :model-column->cell-prototype [tc1 tc2 nil]
+                                 :viewport-matrix m/identity-matrix
+                                 :clip-size (m/defpoint 1.5 1.5)
+                                 :evolvers {:viewport-matrix viewport-matrix-evolver
+                                            :header-model-loc table/shift-header-model-loc-evolver}}))
+
+        container (fgtest/init-container root)
+        cid-0-0 (fgtest/wait-table-cell-id container [:main] [0 0])]
+
+    (fgtest/wait-for-property-pred container [:main] :in-use-model (fn [m] (= (:screen-coord->cell-id m) {[0 0] cid-0-0})))
+    (fgtest/wait-table-cell-property container [:main] [0 0] :widget-type (fn [wt] (= wt "tc1")))
+
+    (fgtest/event-> container [:main] {:viewport-matrix (m/translation -1.75 -1.75)})
+    (let [cid-0-0 (fgtest/wait-table-cell-id container [:main] [0 0])
+          cid-1-0 (fgtest/wait-table-cell-id container [:main] [1 0])
+          cid-2-0 (fgtest/wait-table-cell-id container [:main] [2 0])
+          cid-0-1 (fgtest/wait-table-cell-id container [:main] [0 1])
+          cid-1-1 (fgtest/wait-table-cell-id container [:main] [1 1])
+          cid-2-1 (fgtest/wait-table-cell-id container [:main] [2 1])
+          cid-0-2 (fgtest/wait-table-cell-id container [:main] [0 2])
+          cid-1-2 (fgtest/wait-table-cell-id container [:main] [1 2])
+          cid-2-2 (fgtest/wait-table-cell-id container [:main] [2 2])]
+      (fgtest/wait-for-property-pred container [:main] :in-use-model (fn [m] (= (:screen-coord->cell-id m)
+                                                                                {[0 0] cid-0-0 [1 0] cid-1-0 [2 0] cid-2-0
+                                                                                 [0 1] cid-0-1 [1 1] cid-1-1 [2 1] cid-2-1
+                                                                                 [0 2] cid-0-2 [1 2] cid-1-2 [2 2] cid-2-2}))))
+
+    (fgtest/wait-table-cell-property container [:main] [0 0] :widget-type (fn [wt] (= wt "tc1")))
+    (fgtest/wait-table-cell-property container [:main] [0 1] :widget-type (fn [wt] (= wt "tc1")))
+    (fgtest/wait-table-cell-property container [:main] [0 2] :widget-type (fn [wt] (= wt "tc1")))
+
+    (fgtest/wait-table-cell-property container [:main] [1 0] :widget-type (fn [wt] (= wt "tc2")))
+    (fgtest/wait-table-cell-property container [:main] [1 1] :widget-type (fn [wt] (= wt "tc2")))
+    (fgtest/wait-table-cell-property container [:main] [1 2] :widget-type (fn [wt] (= wt "tc2")))
+
+    (fgtest/wait-table-cell-property container [:main] [2 0] :widget-type (fn [wt] (= wt "cell")))
+    (fgtest/wait-table-cell-property container [:main] [2 1] :widget-type (fn [wt] (= wt "cell")))
+    (fgtest/wait-table-cell-property container [:main] [2 2] :widget-type (fn [wt] (= wt "cell")))
+
+
+    (fgtest/event-> container [:main] {:viewport-matrix (m/translation -2.5 -2.5)})
+    (let [cid-1-1 (fgtest/wait-table-cell-id container [:main] [1 1])
+          cid-2-1 (fgtest/wait-table-cell-id container [:main] [2 1])
+          cid-1-2 (fgtest/wait-table-cell-id container [:main] [1 2])
+          cid-2-2 (fgtest/wait-table-cell-id container [:main] [2 2])]
+      (fgtest/wait-for-property-pred container [:main] :in-use-model (fn [m] (= (:screen-coord->cell-id m)
+                                                                                {[1 1] cid-1-1 [2 1] cid-2-1
+                                                                                 [1 2] cid-1-2 [2 2] cid-2-2}))))
+
+    (fgtest/wait-table-cell-property container [:main] [1 1] :widget-type (fn [wt] (= wt "tc2")))
+    (fgtest/wait-table-cell-property container [:main] [1 2] :widget-type (fn [wt] (= wt "tc2")))
+
+    (fgtest/wait-table-cell-property container [:main] [2 1] :widget-type (fn [wt] (= wt "cell")))
+    (fgtest/wait-table-cell-property container [:main] [2 2] :widget-type (fn [wt] (= wt "cell")))
+
+    (fgtest/event-> container [:main] {:viewport-matrix (m/translation -0.75 0)})
+    (let [cid-0-0 (fgtest/wait-table-cell-id container [:main] [0 0])
+          cid-1-0 (fgtest/wait-table-cell-id container [:main] [1 0])]
+      (fgtest/wait-for-property-pred container [:main] :in-use-model (fn [m] (= (:screen-coord->cell-id m)
+                                                                                {[0 0] cid-0-0 [1 0] cid-1-0}))))
+
+    (fgtest/wait-table-cell-property container [:main] [0 0] :widget-type (fn [wt] (= wt "tc1")))
+    (fgtest/wait-table-cell-property container [:main] [1 0] :widget-type (fn [wt] (= wt "tc2")))))

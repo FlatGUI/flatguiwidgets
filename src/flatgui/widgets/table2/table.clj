@@ -254,22 +254,31 @@ flatgui.widgets.table2.table
         (header-model-loc-evolver component)))
     (process-container-resize component (header-model-loc-evolver component))))
 
+(fg/defaccessorfn modify-hml [component r old-header-model-loc pos-d-fn sizes-d-fn ord-d-fn]
+  (let [r (get-reason)
+        d (:d r)
+        sizes (:sizes old-header-model-loc)
+        positions (:positions old-header-model-loc)
+        new-hml {:positions (update positions d pos-d-fn)
+                 :sizes (update sizes d sizes-d-fn)
+                 :order (if-let [order (:order old-header-model-loc)] (update order d ord-d-fn))
+                 :fit-dim-to-size (if-let [fit (:fit-dim-to-size old-header-model-loc)] fit)}]
+    (retain-reatures component new-hml new-hml true)))
+
 ;; TODO present macros make it impossible to combine evolvers, for example non-shifting + cmd
 ;;
 (fg/defevolverfn shift-cmd-header-model-loc-evolver :header-model-loc
-  (if (map? (get-reason))
-    (condp = (:cmd (get-reason))
-      :add (let [r (get-reason)
-                 d (:d r)
-                 sizes (:sizes old-header-model-loc)
-                 positions (:positions old-header-model-loc)
-                 new-hml {:positions (update positions d (fn [d-pos] (conj d-pos (:pos r))))
-                          :sizes (update sizes d (fn [d-sizes] (conj d-sizes (:size r))))
-                          :order (if-let [order (:order old-header-model-loc)] (update order d (fn [d-ord] (conj d-ord (count d-ord)))))
-                          :fit-dim-to-size (if-let [fit (:fit-dim-to-size old-header-model-loc)] fit)}]
-             (retain-reatures component new-hml new-hml true))
-      old-header-model-loc)
-    (shift-header-model-loc-evolver component)))
+  (let [r (get-reason)]
+    (if (map? r)
+      (condp = (:cmd (get-reason))
+        :add (modify-hml component r old-header-model-loc
+                         (fn [d-pos] (conj d-pos (:pos r))) (fn [d-sizes] (conj d-sizes (:size r))) (fn [d-ord] (conj d-ord (count d-ord))))
+        :add-bulk (modify-hml component r old-header-model-loc
+                         (fn [d-pos] (vec (concat d-pos (:pos r)))) (fn [d-sizes] (vec (concat d-sizes (:size r)))) (fn [d-ord] (vec (concat d-ord (count d-ord)))))
+        :clear (modify-hml component r old-header-model-loc
+                           (fn [_d-pos] []) (fn [_d-sizes] []) (fn [_d-ord] nil))
+        old-header-model-loc)
+      (shift-header-model-loc-evolver component))))
 
 (fg/defevolverfn :content-size
   (let [header-model-pos (:positions (get-property [:this] :header-model-loc))

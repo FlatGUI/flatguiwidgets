@@ -1113,7 +1113,13 @@
         cell-step2 @cells-state
         ->int (fn [x] (mapv (fn [dv] (mapv int dv)) x))
         positions (:positions @results)
-        sizes (:sizes @results)]
+        sizes (:sizes @results)
+        _ (.evolve container-engine [:main] {:cmd :clear :d 1})
+        clear-positions (:positions @results)
+        clear-sizes (:sizes @results)
+        _ (.evolve container-engine [:main] {:cmd :add-bulk :d 1 :size [1 1] :pos [0 1]})
+        bulk-positions (:positions @results)
+        bulk-sizes (:sizes @results)]
     (test/is (= exp-header-model-pos (->int positions)))
     (test/is (= exp-header-model-size (->int sizes)))
 
@@ -1123,7 +1129,13 @@
     (verify-cell 0 0 0 0 1 1 cell-step2 in-use-model-step2 2) ;--> model row 1
     (verify-cell 0 1 0 1 1 1 cell-step2 in-use-model-step2 2) ;--> model row 0
     (verify-cell-coords 0 0 0 0 cell-step2 in-use-model-step2 2)
-    (verify-cell-coords 0 1 0 1 cell-step2 in-use-model-step2 2)))
+    (verify-cell-coords 0 1 0 1 cell-step2 in-use-model-step2 2)
+
+    (test/is (= init-header-model-pos (->int clear-positions)))
+    (test/is (= init-header-model-size (->int clear-sizes)))
+
+    (test/is (= exp-header-model-pos (->int bulk-positions)))
+    (test/is (= exp-header-model-size (->int bulk-sizes)))))
 
 (test/deftest fit-to-size-test
   (let [init-header-model-pos  [[0 0.25]

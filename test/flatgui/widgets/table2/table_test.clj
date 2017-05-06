@@ -46,6 +46,7 @@
                            (componentRemoved [componentUid] (swap! removed-uids (fn [r] (conj r componentUid))))
                            (postProcessAfterEvolveCycle [_a _m]))
         container-engine (Container.
+                           "add-remove-children-test"
                            (ClojureContainerParser.)
                            result-collector
                            container)
@@ -137,6 +138,7 @@
                                  :cell-1-1 (merge {:id :cell-1-1 :atomic-state cell-1-1-state :evolvers cell-evolvers} cell-1-1-state)
                                  :cell-2-1 (merge {:id :cell-2-1 :atomic-state cell-2-1-state :evolvers cell-evolvers} cell-2-1-state)}})
         container-engine (Container.
+                           "header-model-pos-size-test"
                            (ClojureContainerParser.)
                            result-collector
                            container)
@@ -242,6 +244,7 @@
                                  :cell-1-1 (merge {:id :cell-1-1 :atomic-state cell-1-1-state :evolvers cell-evolvers} cell-1-1-state)
                                  :cell-2-1 (merge {:id :cell-2-1 :atomic-state cell-2-1-state :evolvers cell-evolvers} cell-2-1-state)}})
         container-engine (Container.
+                           "shift-header-model-pos-size-test"
                            (ClojureContainerParser.)
                            result-collector
                            container)
@@ -422,6 +425,7 @@
                            (componentRemoved [_componentUid])
                            (postProcessAfterEvolveCycle [_a _m]))
         container-engine (Container.
+                           "in-use-model-test"
                            (ClojureContainerParser.)
                            result-collector
                            container)
@@ -571,6 +575,7 @@
                            (componentRemoved [_componentUid])
                            (postProcessAfterEvolveCycle [_a _m]))
         container-engine (Container.
+                           "in-use-model-scroll-test"
                            (ClojureContainerParser.)
                            result-collector
                            container)
@@ -680,6 +685,7 @@
                            (componentRemoved [_componentUid])
                            (postProcessAfterEvolveCycle [_a _m]))
         container-engine (Container.
+                           "sort-test"
                            (ClojureContainerParser.)
                            result-collector
                            container)
@@ -737,6 +743,7 @@
                            (componentRemoved [_componentUid])
                            (postProcessAfterEvolveCycle [_a _m]))
         container-engine (Container.
+                           "sort-test1"
                            (ClojureContainerParser.)
                            result-collector
                            container)
@@ -864,6 +871,7 @@
                            (componentRemoved [_componentUid])
                            (postProcessAfterEvolveCycle [_a _m]))
         container-engine (Container.
+                           "model-resize-test"
                            (ClojureContainerParser.)
                            result-collector
                            container)
@@ -923,6 +931,7 @@
                            (componentRemoved [_componentUid])
                            (postProcessAfterEvolveCycle [_a _m]))
         container-engine (Container.
+                           "model-resize-test1"
                            (ClojureContainerParser.)
                            result-collector
                            container)
@@ -1042,6 +1051,7 @@
                            (componentRemoved [_componentUid])
                            (postProcessAfterEvolveCycle [_a _m]))
         container-engine (Container.
+                           "model-resize-test2"
                            (ClojureContainerParser.)
                            result-collector
                            container)
@@ -1102,6 +1112,7 @@
                            (componentRemoved [_componentUid])
                            (postProcessAfterEvolveCycle [_a _m]))
         container-engine (Container.
+                           "model-resize-test3"
                            (ClojureContainerParser.)
                            result-collector
                            container)
@@ -1173,6 +1184,7 @@
                            (componentRemoved [_componentUid])
                            (postProcessAfterEvolveCycle [_a _m]))
         container-engine (Container.
+                           "fit-to-size-test"
                            (ClojureContainerParser.)
                            result-collector
                            container)
@@ -1234,6 +1246,7 @@
                            (componentRemoved [_componentUid])
                            (postProcessAfterEvolveCycle [_a _m]))
         container-engine (Container.
+                           "fit-to-size-test1"
                            (ClojureContainerParser.)
                            result-collector
                            container)
@@ -1316,6 +1329,7 @@
                            (postProcessAfterEvolveCycle [_a _m]))
 
         container-engine (Container.
+                           "fit-to-size-test2"
                            (ClojureContainerParser.)
                            result-collector
                            container)

@@ -26,10 +26,13 @@
       (screen->model sc))
     not-in-use-coord))
 
+;; nil may be got aftrer row deletions
+(defn- get-in-masknil [m ks] (if-let [r (get-in m ks)] r 0))
+
 (fg/defaccessorfn calc-clip-size [component mc]
   (if (not= mc not-in-use-coord)
     (apply m/defmxcol (concat
-                        (mapv (fn [d] (get-in (:sizes (get-property [] :header-model-loc)) [d (nth mc d)])) (range (count mc)))
+                        (mapv (fn [d] (get-in-masknil (:sizes (get-property [] :header-model-loc)) [d (nth mc d)])) (range (count mc)))
                         ;Concat with [z 1] (where z==0) is done specifically because coord is 2-dimentional
                         [0 1]))
     not-in-use-point))
@@ -39,7 +42,7 @@
     (let [hml (get-property [] :header-model-loc)
           positions (if-let [ordered (:ordered-positions hml)] ordered (:positions hml))]
       ;;This works with two-argument version of m/translation
-      (apply m/translation (mapv (fn [d] (get-in positions [d (nth mc d)])) (range (count mc)))))
+      (apply m/translation (mapv (fn [d] (get-in-masknil positions [d (nth mc d)])) (range (count mc)))))
     not-in-use-matrix))
 
 (fg/defaccessorfn get-screen-coord [component]

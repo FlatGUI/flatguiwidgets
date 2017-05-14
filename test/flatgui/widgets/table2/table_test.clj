@@ -1148,6 +1148,75 @@
     (test/is (= exp-header-model-pos (->int bulk-positions)))
     (test/is (= exp-header-model-size (->int bulk-sizes)))))
 
+(def dummy-result-collector (reify IResultCollector
+                              (appendResult [_this _parentComponentUid, _path, _node, _newValue])
+                              (componentAdded [_this _parentComponentUid _componentUid])
+                              (componentRemoved [_this _componentUid])
+                              (postProcessAfterEvolveCycle [_this _a _m])))
+
+(test/deftest model-resize-test4
+  (let [init-header-model-pos  [[0]
+                                []]
+        init-header-model-size [[1]
+                                []]
+        exp-header-model-pos  [[0]
+                               [0 1]]
+        exp-header-model-size [[1]
+                               [1 1]]
+        container (fg/defroot
+                    (assoc
+                      (fg/defcomponent table/table :main
+                                       {:header-model-loc {:positions init-header-model-pos
+                                                           :sizes init-header-model-size
+                                                           :fit-dim-to-size [true false]}
+                                        :viewport-matrix m/identity-matrix
+                                        :clip-size (m/defpoint 1 4)
+                                        :evolvers {:header-model-loc table/shift-cmd-header-model-loc-evolver}})
+                      :in-use-model table/empty-in-use-model))
+        result-collector dummy-result-collector
+        container-engine (Container.
+                           "model-resize-test3"
+                           (ClojureContainerParser.)
+                           result-collector
+                           container)
+        get-hml (fn [] (.getPropertyValue container-engine [:main] :header-model-loc))
+        get-pos (fn [] (:positions (get-hml)))
+        get-sizes (fn [] (:sizes (get-hml)))
+
+        _ (.evolve container-engine [:main] {:cmd :add :d 1 :size 1 :pos 0})
+        _ (.evolve container-engine [:main] {:cmd :add :d 1 :size 1 :pos 1})
+
+        positions (get-pos)
+        sizes (get-sizes)
+
+        _ (.evolve container-engine [:main] {:cmd :clear :d 1})
+
+        cell-ids (map (fn [[k _v]] k) (.getPropertyValue container-engine [:main] :children))
+        cell-mc (mapcat
+                  (fn [c-id] (let [mc (.getPropertyValue container-engine [:main c-id] :model-coord)] (if (not= mc cell/not-in-use-coord) [[c-id mc]] [])))
+                  cell-ids)
+
+        clear-positions (get-pos)
+        clear-sizes (get-sizes)
+
+        _ (.evolve container-engine [:main] {:cmd :add :d 1 :size 1 :pos 0})
+        _ (.evolve container-engine [:main] {:cmd :add :d 1 :size 1 :pos 1})
+
+        positions2 (get-pos)
+        sizes2 (get-sizes)
+
+        ->int (fn [x] (mapv (fn [dv] (mapv int dv)) x))]
+
+    (test/is (= exp-header-model-pos (->int positions)))
+    (test/is (= exp-header-model-size (->int sizes)))
+
+    (test/is (= init-header-model-pos (->int clear-positions)))
+    (test/is (= init-header-model-size (->int clear-sizes)))
+    (test/is (= '() cell-mc))
+
+    (test/is (= exp-header-model-pos (->int positions2)))
+    (test/is (= exp-header-model-size (->int sizes2)))))
+
 (test/deftest fit-to-size-test
   (let [init-header-model-pos  [[0 0.25]
                                 [0 0.5]]

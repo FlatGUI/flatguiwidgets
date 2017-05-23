@@ -137,7 +137,10 @@ flatgui.widgets.table2.table
 
 (fg/defaccessorfn support-fit-to-size [component old-header-model-loc header-model-loc]
   (if-let [fit-dim-to-size (:fit-dim-to-size old-header-model-loc)]
-    (assoc header-model-loc :fit-dim-to-size fit-dim-to-size)
+    (assoc
+      (if-let [dim-const-size (:fit-dim-const-size old-header-model-loc)] (assoc header-model-loc :fit-dim-const-size dim-const-size) header-model-loc)
+      :fit-dim-to-size
+      fit-dim-to-size)
     header-model-loc))
 
 (fg/defaccessorfn retain-reatures [component old-header-model-loc header-model-loc do-sort]
@@ -175,6 +178,7 @@ flatgui.widgets.table2.table
 
 (fg/defaccessorfn process-container-resize [component header-model-loc]
   (let [fit-dim-to-size (:fit-dim-to-size header-model-loc)
+        fit-dim-const-size (:fit-dim-const-size header-model-loc)
         positions (:positions header-model-loc)
         sizes (:sizes header-model-loc)
         container-size (get-property [:this] :clip-size)
@@ -190,32 +194,38 @@ flatgui.widgets.table2.table
                   new-d-size (m/mx-get container-size d 0)
                   d-diff (- new-d-size old-d-size)]
               (if (not= d-diff 0)
-                (let [d-fit (nth fit-dim-to-size d)
-                      sizes-d (nth sizes d)
-                      total-size (apply + sizes-d)
-                      d-weight (if (not= total-size 0) (mapv #(/ % total-size) sizes-d) 0)
-                      size-adj (mapv #(* % d-diff) d-weight)
-                      pos-adj (loop [i 0
-                                     tot-adj 0
-                                     pa []]
-                                (if (< i (count sizes-d))
-                                  (recur
-                                    (inc i)
-                                    (+ tot-adj (nth size-adj i))
-                                    (assoc pa i tot-adj))
-                                  pa))]
+                (if (nth fit-dim-to-size d)
+                  (let [d-fit-const (nth fit-dim-const-size d)
+                        sizes-d (nth sizes d)
+                        count-sizes-d (count sizes-d)
+                        range-sizes-d (range count-sizes-d)
+                        sizes-d-fn (fn [%] (if (nth d-fit-const %) 0 (nth sizes-d %)))
+                        total-size (apply + (map sizes-d-fn range-sizes-d))
+                        d-weight (if (not= total-size 0) (mapv (fn [%] (/ (sizes-d-fn %) total-size)) range-sizes-d) 0) ;(if (not= total-size 0) (mapv #(/ % total-size) sizes-d) 0)
+                        size-adj (mapv #(* % d-diff) d-weight)
+                        pos-adj (loop [i 0
+                                       tot-adj 0
+                                       pa []]
+                                  (if (< i count-sizes-d)
+                                    (recur
+                                      (inc i)
+                                      (+ tot-adj (nth size-adj i))
+                                      (assoc pa i tot-adj))
+                                    pa))]
+                    (recur
+                      (inc d)
+                      (update p d (fn [pos-d] (mapv (fn [i] (+ (nth pos-d i) (nth pos-adj i))) (range count-d))))
+                      (update s d (fn [size-d] (mapv (fn [i] (+ (nth size-d i) (nth size-adj i))) (range count-d))))))
                   (recur
                     (inc d)
-                    (if d-fit
-                      (update p d (fn [pos-d] (mapv (fn [i] (+ (nth pos-d i) (nth pos-adj i))) (range count-d))))
-                      p)
-                    (if d-fit
-                      (update s d (fn [size-d] (mapv (fn [i] (+ (nth size-d i) (nth size-adj i))) (range count-d))))
-                      s)))
+                    p
+                    s))
                 (recur (inc d) p s)))
             (recur (inc d) p s)))
         (assoc header-model-loc :positions p :sizes s)))))
 
+;; NOTE: This implementation does not support the case when const-size column
+;;       goes after resized column in :fit-dim-to-size mode
 (fg/defevolverfn shift-header-model-loc-evolver :header-model-loc
   (if-let [cell-id (second (get-reason))]
     (let [as (get-property [:this cell-id] :atomic-state)
@@ -276,7 +286,8 @@ flatgui.widgets.table2.table
         new-hml {:positions (update positions d pos-d-fn)
                  :sizes (update sizes d sizes-d-fn)
                  :order (if-let [order (:order old-header-model-loc)] (update order d ord-d-fn))
-                 :fit-dim-to-size (if-let [fit (:fit-dim-to-size old-header-model-loc)] fit)}]
+                 :fit-dim-to-size (if-let [fit (:fit-dim-to-size old-header-model-loc)] fit)
+                 :fit-dim-const-size (if-let [fit (:fit-dim-const-size old-header-model-loc)] fit)}]
     (retain-reatures component new-hml new-hml true)))
 
 ;; TODO present macros make it impossible to combine evolvers, for example non-shifting + cmd

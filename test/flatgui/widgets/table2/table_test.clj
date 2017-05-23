@@ -1417,6 +1417,100 @@
     (verify-cell-coords 0 0 0 0 cell-step1 in-use-model-step1 1)
     (verify-cell-coords 0 1 0 1 cell-step1 in-use-model-step1 1)))
 
+(test/deftest fit-to-size-test3
+  (let [init-header-model-pos  [[0 1 2 4]
+                                [0 1]]
+        init-header-model-size [[1 1 2 1]
+                                [1 1]]
+        ;; Container resize to 3
+        exp-header-model-pos1  [[0.0 1.0 1.5 2.5]
+                                [0.0 1.0]]
+        exp-header-model-size1 [[1.0 0.5 1.0 0.5]
+                                [1.0 1.0]]
+
+        _ (fg/defevolverfn :atomic-state (if-let [as (:atomic-state (get-reason))]
+                                           (merge old-atomic-state as)
+                                           (cell/atomic-state-evolver component)))
+        _ (fg/defevolverfn :clip-size (if (get-reason) (:clip-size (get-reason)) old-clip-size))
+        container (fg/defroot
+                    (assoc
+                      (fg/defcomponent table/table :main
+                                       {:header-model-loc {:positions init-header-model-pos
+                                                           :sizes init-header-model-size
+                                                           :fit-dim-to-size [true false]
+                                                           :fit-dim-const-size [[true false false false] nil]}
+                                        :cell-prototype (assoc-in cell/cell [:evolvers :atomic-state] atomic-state-evolver)
+                                        :viewport-matrix m/identity-matrix
+                                        :clip-size (m/defpoint 5 2)
+                                        :evolvers {:header-model-loc table/shift-cmd-header-model-loc-evolver
+                                                   :clip-size clip-size-evolver}})
+                      :in-use-model table/empty-in-use-model))
+        results (atom {})
+        in-use-model-state (atom {})
+        cells-state (atom {})
+        result-collector (proxy [IResultCollector] []
+                           (appendResult [_parentComponentUid, path, node, newValue]
+                             (cond
+                               (= :header-model-loc (.getPropertyId node)) (reset! results newValue)
+                               (= :in-use-model (.getPropertyId node)) (reset! in-use-model-state newValue)
+                               (= 2 (count path)) (swap! cells-state (fn [a] (assoc-in a [(second path) (.getPropertyId node)] newValue)))))
+                           (componentAdded [_parentComponentUid _componentUid])
+                           (componentRemoved [_componentUid])
+                           (postProcessAfterEvolveCycle [_a _m]))
+        container-engine (Container.
+                           "fit-to-size-test4"
+                           (ClojureContainerParser.)
+                           result-collector
+                           container)
+        sc->id (:screen-coord->cell-id @in-use-model-state)
+
+        _ (.evolve container-engine [:main] {:clip-size (m/defpoint 3 2)})
+
+        positions-step1 (round-vec-of-vec (:positions @results))
+        sizes-step1 (round-vec-of-vec (:sizes @results))
+
+
+        ;_ (.evolve container-engine [:main (get sc->id [1 0])] {:atomic-state {:clip-size (m/defpoint 1.6 1)}})
+        ;
+        ;positions-step1 (round-vec-of-vec (:positions @results))
+        ;sizes-step1 (round-vec-of-vec (:sizes @results))
+        ;in-use-model-step1 @in-use-model-state
+        ;cell-step1 @cells-state
+        ;
+        ;_ (.evolve container-engine [:main (get sc->id [0 0])] {:atomic-state {:clip-size (m/defpoint 0.5 1)}})
+        ;
+        ;positions-step2 (round-vec-of-vec (:positions @results))
+        ;sizes-step2 (round-vec-of-vec (:sizes @results))
+        ;in-use-model-step2 @in-use-model-state
+        ;cell-step2 @cells-state
+        ]
+
+    (test/is (= exp-header-model-pos1 positions-step1))
+    (test/is (= exp-header-model-size1 sizes-step1))
+
+    ;(verify-cell 0 0 0   0   1   1 cell-step1 in-use-model-step1 1)
+    ;(verify-cell 1 0 1.0 0.0 1.6 1 cell-step1 in-use-model-step1 1)
+    ;(verify-cell 2 0 2.6 0.0 1.6 1 cell-step1 in-use-model-step1 1)
+    ;(verify-cell 3 0 4.2 0.0 0.8 1 cell-step1 in-use-model-step1 1)
+    ;(verify-cell 0 1 0   1   1   1 cell-step1 in-use-model-step1 1)
+    ;(verify-cell 1 1 1.0 1.0 1.6 1 cell-step1 in-use-model-step1 1)
+    ;(verify-cell 2 1 2.6 1.0 1.6 1 cell-step1 in-use-model-step1 1)
+    ;(verify-cell 3 1 4.2 1.0 0.8 1 cell-step1 in-use-model-step1 1)
+    ;
+    ;(test/is (= exp-header-model-pos2 positions-step2))
+    ;(test/is (= exp-header-model-size2 sizes-step2))
+    ;
+    ;(verify-cell 0 0 0   0   0.5 1 cell-step2 in-use-model-step2 2)
+    ;(verify-cell 1 0 0.5 0.0 1.8 1 cell-step2 in-use-model-step2 2)
+    ;(verify-cell 2 0 2.3 0.0 1.8 1 cell-step2 in-use-model-step2 2)
+    ;(verify-cell 3 0 4.1 0.0 0.9 1 cell-step2 in-use-model-step2 2)
+    ;(verify-cell 0 1 0   1   0.5 1 cell-step2 in-use-model-step2 2)
+    ;(verify-cell 1 1 0.5 1.0 1.8 1 cell-step2 in-use-model-step2 2)
+    ;(verify-cell 2 1 2.3 1.0 1.8 1 cell-step2 in-use-model-step2 2)
+    ;(verify-cell 3 1 4.1 1.0 0.9 1 cell-step2 in-use-model-step2 2)
+
+    ))
+
 (test/deftest selection-single-test
   (let [init-header-model-pos  [[0 2]
                                 [0 2 3]]

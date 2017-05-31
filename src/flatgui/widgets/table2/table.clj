@@ -178,7 +178,7 @@ flatgui.widgets.table2.table
 
 (fg/defaccessorfn process-container-resize [component header-model-loc]
   (let [fit-dim-to-size (:fit-dim-to-size header-model-loc)
-        fit-dim-const-size (:fit-dim-const-size header-model-loc)
+        fit-dim-const-size (:fit-dim-const-size header-model-loc) ;;TODO weights (0..1) rather than true/false
         positions (:positions header-model-loc)
         sizes (:sizes header-model-loc)
         container-size (get-property [:this] :clip-size)
@@ -201,7 +201,7 @@ flatgui.widgets.table2.table
                         range-sizes-d (range count-sizes-d)
                         sizes-d-fn (fn [%] (if (nth d-fit-const %) 0 (nth sizes-d %)))
                         total-size (apply + (map sizes-d-fn range-sizes-d))
-                        d-weight (if (not= total-size 0) (mapv (fn [%] (/ (sizes-d-fn %) total-size)) range-sizes-d) 0) ;(if (not= total-size 0) (mapv #(/ % total-size) sizes-d) 0)
+                        d-weight (mapv (fn [%] (if (not= (double total-size) 0.0) (/ (sizes-d-fn %) total-size) 0)) range-sizes-d)
                         size-adj (mapv #(* % d-diff) d-weight)
                         pos-adj (loop [i 0
                                        tot-adj 0

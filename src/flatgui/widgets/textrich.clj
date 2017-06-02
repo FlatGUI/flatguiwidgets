@@ -40,6 +40,8 @@ flatgui.widgets.textrich
     \space (glyph :whitespace nil default-style)
     (glyph :char c default-style)))
 
+(def whitespace-glyph (char-glyph \space))
+
 (def model
   {:w 0
    :glyphs []
@@ -61,6 +63,8 @@ flatgui.widgets.textrich
 (defmethod glyph-size :whitespace [g interop]
   (let [font (:font (:style g))]
     (text-size interop " " font)))
+
+(defmethod glyph-size :test [g _interop] {:w (:w (:style g)) :h (:h (:style g))})
 
 (def delimiters #{:whitespace :linebreak})
 
@@ -97,9 +101,7 @@ flatgui.widgets.textrich
               g-line-h (max current-h line-h)]
           (if (and is-delim (>= current-len w))
             (let [step-back (and (> current-len w) (not= last-delim-index -1))
-                  next-line-start (if step-back (inc last-delim-index) (inc g-index))
-                  line [line-start (if step-back (- last-delim-index line-start) (- g-index line-start))]
-                  _ (println "--" line)]
+                  next-line-start (if step-back (inc last-delim-index) (inc g-index))]
               (recur
                 next-line-start
                 (if (delimiters (:type (nth glyphs line-start)))

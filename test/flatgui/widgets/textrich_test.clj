@@ -20,15 +20,17 @@
     (getStringWidth [str _font] (.length str))
     (getFontHeight [_font] 1)))
 
+(defn test-glyph [w h] (textrich/glyph :test nil {:w w :h h}))
+
 ;; Good only for test: 1 whitespace = 1 char of text here
-(defn lines->strins [text lines] (mapv #(subs text (first %) (apply + %)) lines))
+(defn lines->strins [text lines] (mapv #(subs text (first %) (+ (first %) (second %))) lines))
 
 (defn test-lines [text w expected-lines]
   (let [glyphs (map textrich/char-glyph text)
         lines (textrich/wrap-lines {:glyphs glyphs} w dummy-interop)]
     (test/is (= expected-lines (lines->strins text lines)))))
 
-(test/deftest add-remove-children-test
+(test/deftest wrap-test
   (test-lines "The quick brown fox jumps over the lazy dog" 9 ["The quick" "brown fox" "jumps" "over the" "lazy dog"])
   (test-lines "11 22" 2 ["11" "22"])
   (test-lines "11 22 " 2 ["11" "22"])
@@ -53,3 +55,10 @@
   (test-lines " 11   22   " 2 ["11" "22"])
   (test-lines "   11 22   " 2 ["11" "22"])
   (test-lines "   11   22 " 2 ["11" "22"]))
+
+(def whitespace-glyph (textrich/char-glyph \space))
+
+(test/deftest wrap-line-h-lines
+  (let [glyphs [(test-glyph 1 1) (test-glyph 1 2) (test-glyph 1 1) whitespace-glyph (test-glyph 1 3) (test-glyph 1 2)]
+        lines (textrich/wrap-lines {:glyphs glyphs} 3 dummy-interop)]
+    (test/is (= [[0 3 2] [4 2 3]] lines))))

@@ -65,14 +65,17 @@ flatgui.widgets.textrich
 (def delimiters #{:whitespace :linebreak})
 
 ;; We assume that a string's width is the sum of its characters' widths (due to web impl limitations)
-(defn line-len [glyphs line-start line-size interop]
-  (loop [len 0
+(defn line-size [glyphs line-start line-size interop]
+  (loop [w 0
+         h 0
          c 0]
     (if (< c line-size)
-      (recur
-        (+ len (:w (glyph-size (nth glyphs (+ line-start c)) interop)))
-        (inc c))
-      len)))
+      (let [s (glyph-size (nth glyphs (+ line-start c)) interop)]
+        (recur
+          (+ w (:w s))
+          (max h (:h s))
+          (inc c)))
+      {:w w :h h})))
 
 (defn wrap-lines [model w interop]
   (let [glyphs (:glyphs model)
@@ -80,14 +83,18 @@ flatgui.widgets.textrich
     (loop [line-start 0
            lines []
            last-delim-index -1
-           g-index 0]
+           g-index 0
+           line-h 0]
       (if (>= g-index g-count)
         (if (and (> g-index line-start) (not (delimiters (:type (nth glyphs line-start)))))
-          (conj lines [line-start (- g-index line-start)])
+          (conj lines [line-start (- g-index line-start) line-h])
           lines)
         (let [g (nth glyphs g-index)
               is-delim (delimiters (:type g))
-              current-len (line-len glyphs line-start (- g-index line-start) interop)]
+              current-size (line-size glyphs line-start (- g-index line-start) interop)
+              current-len (:w current-size)
+              current-h (:h current-size)
+              g-line-h (max current-h line-h)]
           (if (and is-delim (>= current-len w))
             (let [step-back (and (> current-len w) (not= last-delim-index -1))
                   next-line-start (if step-back (inc last-delim-index) (inc g-index))
@@ -97,15 +104,19 @@ flatgui.widgets.textrich
                 next-line-start
                 (if (delimiters (:type (nth glyphs line-start)))
                   lines
-                  (conj lines [line-start (if step-back (- last-delim-index line-start) (- g-index line-start))]))
+                  (conj lines [line-start (if step-back (- last-delim-index line-start) (- g-index line-start)) g-line-h]))
                 -1
-                next-line-start))
+                next-line-start
+                0))
             (recur
               (if (and is-delim (= g-index line-start)) (inc g-index) line-start)
               lines
               (if is-delim g-index last-delim-index)
-              (inc g-index))
+              (inc g-index)
+              g-line-h)
             ))))))
+
+;(defn render-lines)
 
 (fg/defevolverfn :model
   (let [w (m/x (get-property [:this] :clip-size))]

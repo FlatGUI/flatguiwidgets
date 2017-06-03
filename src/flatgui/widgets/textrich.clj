@@ -83,9 +83,8 @@ flatgui.widgets.textrich
           (inc c)))
       {:w w :h h})))
 
-(defn wrap-lines [model w interop]
-  (let [glyphs (:glyphs model)
-        g-count (count glyphs)]
+(defn wrap-lines [glyphs w interop]
+  (let [g-count (count glyphs)]
     (loop [line-start 0
            lines []
            last-delim-index -1

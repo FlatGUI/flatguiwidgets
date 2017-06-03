@@ -72,3 +72,11 @@
                  {:h 2.0 :primitives [(test-glyph 1.0 2.0) {:type :string :data "jumps" :style textrich/default-style} (test-glyph 2.0 1.0)] }
                  {:h 1.0 :primitives [{:type :string :data "over the" :style textrich/default-style}] }
                  {:h 1.0 :primitives [{:type :string :data "lazy dog" :style textrich/default-style}] }]) rendition)))
+
+(test/deftest render-test-1
+  (let [strings-&-styles [["aaa" :x] ["bbb" :y] ["ccc" :z]]
+        glyphs (mapcat (fn [ss] (map (fn [c] (textrich/char-glyph c (second ss))) (first ss))) strings-&-styles)
+        lines (textrich/wrap-lines {:glyphs glyphs} 9 dummy-interop)
+        rendition (textrich/render-lines glyphs lines)]
+    (test/is (= [[0 9 1.0]] lines))
+    (test/is (= [{:h 1.0 :primitives [{:type :string :data "aaa" :style :x} {:type :string :data "bbb" :style :y} {:type :string :data "ccc" :style :z}]}] rendition))))

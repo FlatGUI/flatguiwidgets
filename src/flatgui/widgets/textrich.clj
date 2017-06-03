@@ -35,10 +35,12 @@ flatgui.widgets.textrich
    :data data
    :style style})
 
-(defn char-glyph [c]
-  (condp = c
-    \space (glyph :whitespace nil default-style)
-    (glyph :char c default-style)))
+(defn char-glyph
+  ([c style]
+   (condp = c
+     \space (glyph :whitespace nil style)
+     (glyph :char c style)))
+  ([c] (char-glyph c default-style)))
 
 (def whitespace-glyph (char-glyph \space))
 

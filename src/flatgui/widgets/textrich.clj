@@ -118,7 +118,37 @@ flatgui.widgets.textrich
               g-line-h)
             ))))))
 
-;(defn render-lines)
+(defn render-glyph [lr glyph]
+  (let [last-primitive (last lr)]
+    (if (#{:char :whitespace} (:type glyph))
+      (let [append-to-last (and last-primitive (= :string (:type last-primitive)) (= (:style last-primitive) (:style glyph)))
+            addition (if (= :char (:type glyph)) (:data glyph) " ")]
+        (if append-to-last
+          (assoc-in lr [(dec (count lr)) :data] (str (:data last-primitive) addition))
+          (conj lr {:type :string :data addition :style (:style glyph)})))
+      (conj lr glyph))))
+
+(defn render-lines [glyphs lines]
+  (loop [l 0
+         line-rendition []]
+    (if (< l (count lines))
+      (let [line (nth lines l)
+            line-start (first line)
+            line-len (second line)]
+        (recur
+          (inc l)
+          (conj
+            line-rendition
+            (loop [lr []
+                   i 0]
+              (if (< i line-len)
+                (let [g-index (+ line-start i)
+                      g (nth glyphs g-index)]
+                  (recur
+                    (render-glyph lr g)
+                    (inc i)))
+                {:h (nth line 2) :primitives lr})))))
+      line-rendition)))
 
 (fg/defevolverfn :model
   (let [w (m/x (get-property [:this] :clip-size))]

@@ -23,12 +23,12 @@
 (defn test-glyph [w h] (textrich/glyph :test nil {:w w :h h}))
 
 ;; Good only for test: 1 whitespace = 1 char of text here
-(defn lines->strins [text lines] (mapv #(subs text (first %) (+ (first %) (second %))) lines))
+(defn lines->strings [text lines] (mapv #(subs text (first %) (+ (first %) (second %))) lines))
 
 (defn test-lines [text w expected-lines]
   (let [glyphs (map textrich/char-glyph text)
         lines (textrich/wrap-lines {:glyphs glyphs} w dummy-interop)]
-    (test/is (= expected-lines (lines->strins text lines)))))
+    (test/is (= expected-lines (lines->strings text lines)))))
 
 (test/deftest wrap-test
   (test-lines "The quick brown fox jumps over the lazy dog" 9 ["The quick" "brown fox" "jumps" "over the" "lazy dog"])
@@ -60,3 +60,15 @@
   (let [glyphs [(test-glyph 1 1) (test-glyph 1 2) (test-glyph 1 1) textrich/whitespace-glyph (test-glyph 1 3) (test-glyph 1 2)]
         lines (textrich/wrap-lines {:glyphs glyphs} 3 dummy-interop)]
     (test/is (= [[0 3 2] [4 2 3]] lines))))
+
+(test/deftest render-test
+  (let [data ["The quick brown fox " (test-glyph 1.0 2.0) "jumps" (test-glyph 2.0 1.0) " over the lazy dog"]
+        glyphs (mapcat (fn [d] (if (string? d) (map textrich/char-glyph d) [d])) data)
+        lines (textrich/wrap-lines {:glyphs glyphs} 9 dummy-interop)
+        rendition (textrich/render-lines glyphs lines)]
+    (test/is (= [[0 9 1.0] [10 9 1.0] [20 7 2.0] [28 8 1.0] [37 8 1.0]]) lines)
+    (test/is (= [{:h 1.0 :primitives [{:type :string :data "The quick" :style textrich/default-style}] }
+                 {:h 1.0 :primitives [{:type :string :data "brown fox" :style textrich/default-style}] }
+                 {:h 2.0 :primitives [(test-glyph 1.0 2.0) {:type :string :data "jumps" :style textrich/default-style} (test-glyph 2.0 1.0)] }
+                 {:h 1.0 :primitives [{:type :string :data "over the" :style textrich/default-style}] }
+                 {:h 1.0 :primitives [{:type :string :data "lazy dog" :style textrich/default-style}] }]) rendition)))

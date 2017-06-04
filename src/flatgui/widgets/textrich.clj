@@ -44,12 +44,10 @@ flatgui.widgets.textrich
 
 (def whitespace-glyph (char-glyph \space))
 
-(def model
-  {:w 0
-   :glyphs []
-   :caret-pos
-   :selection-mark})
-
+(def empty-model
+  {:glyphs []
+   :caret-pos 0
+   :selection-mark 0})
 
 (defmulti glyph-size (fn [g _interop] (:type g)))
 
@@ -151,8 +149,37 @@ flatgui.widgets.textrich
                 {:h (nth line 2) :primitives lr})))))
       line-rendition)))
 
-(fg/defevolverfn :model
-  (let [w (m/x (get-property [:this] :clip-size))]
-    (if (not= w (:w old-model))
+;(fg/defevolverfn :model
+;  (let [w (m/x (get-property [:this] :clip-size))]
+;    (if (not= w (:w old-model))
+;
+;      old-model)))
 
-      old-model)))
+(fg/defevolverfn :rendition
+  (let [model (get-property [:this] :model)
+        glyphs (:glyphs model)
+        w (m/x (get-property [:this] :clip-size))
+        interop (get-property component [:this] :interop)
+        lines (wrap-lines glyphs w interop)
+        rendition (render-lines glyphs lines)]
+    rendition))
+
+(fg/defwidget "textrich"
+              {:model empty-model
+               :rendition nil
+               :caret-visible true;false
+               :->clipboard nil
+               :first-visible-symbol 0
+               :focusable true
+               ;:cursor :text
+               :skin-key [:textrich]
+               :background :prime-4
+               :foreground :prime-1
+               :no-mouse-press-capturing true
+               :evolvers {;:model model-evolver
+                          :rendition rendition-evolver
+                          ;:caret-visible caret-visible-evolver
+                          ;:->clipboard ->clipboard-evolver
+                          ;:cursor cursor-evolver
+                          }}
+              flatgui.widgets.component/component)

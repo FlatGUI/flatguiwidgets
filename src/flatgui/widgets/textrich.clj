@@ -46,12 +46,13 @@ flatgui.widgets.textrich
 (def whitespace-glyph (char-glyph \space))
 
 (def empty-model
-  {:glyphs []
-   :caret-pos 0
-   :selection-mark 0})
+  {:glyphs []})
 
 (def empty-rendition
   {:lines nil
+   :caret-line 0
+   :caret-pos 0
+   :selection-mark 0
    :caret-coords (m/defpoint 0 0)
    :rendition nil})
 
@@ -155,7 +156,14 @@ flatgui.widgets.textrich
                 {:h (nth line 2) :primitives lr})))))
       line-rendition)))
 
-(fg/defaccessorfn evolve-caretpos [component old-caret-pos old-selection-mark old-glyph-count supplied-glyph-count]
+(defn- jump-to-line [lines old-caret-pos old-caret-line jump-fn]
+  (let [new-line-index (max (min (jump-fn old-caret-line) (dec (count lines))) 0)
+        new-line (nth lines new-line-index)
+        caret-line-pos (- old-caret-pos (first (nth lines old-caret-line)))
+        new-caret-line-len (second (nth lines new-line-index))]
+    (+ (first new-line) (min caret-line-pos new-caret-line-len))))
+
+(fg/defaccessorfn evolve-caretpos [component lines old-caret-pos old-caret-line old-selection-mark old-glyph-count supplied-glyph-count]
   (cond
 
     (or (keyboard/key-typed? component) (clipboard/clipboard-paste? component))
@@ -169,6 +177,8 @@ flatgui.widgets.textrich
         KeyEvent/VK_RIGHT (textcommons/inccaretpos old-caret-pos old-glyph-count)
         KeyEvent/VK_HOME 0
         KeyEvent/VK_END old-glyph-count
+        KeyEvent/VK_UP (jump-to-line lines old-caret-pos old-caret-line (fn [l] (dec l)))
+        KeyEvent/VK_DOWN (jump-to-line lines old-caret-pos old-caret-line (fn [l] (inc l)))
         old-caret-pos))
 
     :else old-caret-pos))
@@ -180,29 +190,34 @@ flatgui.widgets.textrich
 ;      old-model)))
 
 (fg/defevolverfn :model
-  (let [old-caret-pos (:caret-pos old-model)
-        old-selection-mark (:selection-mark old-model)
-        old-glyphs (:glyphs old-model)]
-    (assoc old-model :caret-pos (evolve-caretpos component old-caret-pos old-selection-mark (count old-glyphs) 0))))
+  old-model)
 
+(fg/defaccessorfn calc-caret-line [model caret-pos lines]
+  (loop [l 0]
+    (if (< l (count lines))
+      (let [line (nth lines l)
+            line-start (first line)
+            line-len (second line)]
+        (if (and (>= caret-pos line-start) (<= caret-pos (+ line-start line-len)))
+          l
+          (recur (inc l))))
+      (throw (IllegalStateException. (str "caret-pos=" caret-pos " is out of model"))))))
 
-(fg/defaccessorfn calc-caret-coords [model lines]
-  (let [glyphs (:glyphs model)
-        caret-pos (:caret-pos model)]
+(fg/defaccessorfn calc-caret-coords [model caret-line caret-pos lines]
+  (let [glyphs (:glyphs model)]
     (loop [l 0
            y 0]
       (if (< l (count lines))
         (let [line (nth lines l)
-              line-start (first line)
-              line-len (second line)
-              line-h (nth line 2)
-              interop (get-property [:this] :interop)]
-          (if (and (>= caret-pos line-start) (<= caret-pos (+ line-start line-len)))
-            [(:w (line-size glyphs line-start (- caret-pos line-start) interop)) y line-h]
+              line-h (nth line 2)]
+          (if (= l caret-line)
+            (let [line-start (first line)
+                  interop (get-property [:this] :interop)]
+              [(:w (line-size glyphs line-start (- caret-pos line-start) interop)) y line-h])
             (recur
               (inc l)
               (+ y line-h))))
-        (throw (IllegalStateException. (str "caret-pos=" caret-pos " is out of model")))))))
+        (throw (IllegalStateException. (str "caret-line=" caret-line " is out of model")))))))
 
 (fg/defevolverfn :rendition
   (let [model (get-property [:this] :model)
@@ -210,9 +225,18 @@ flatgui.widgets.textrich
         w (m/x (get-property [:this] :clip-size))
         interop (get-property component [:this] :interop)
         lines (wrap-lines glyphs w interop)
-        rendition (render-lines glyphs lines)]
+        rendition (render-lines glyphs lines)
+
+        old-caret-pos (:caret-pos old-rendition)
+        old-caret-line (:caret-line old-rendition)
+        old-selection-mark (:selection-mark old-rendition)
+        caret-pos (evolve-caretpos component lines old-caret-pos old-caret-line old-selection-mark (count glyphs) 0)
+        caret-line (calc-caret-line model caret-pos lines)]
     {:lines lines
-     :caret-coords (calc-caret-coords model lines)
+     :caret-line caret-line
+     :caret-pos caret-pos
+     :selection-mark 0
+     :caret-coords (calc-caret-coords model caret-line caret-pos lines)
      :rendition rendition}))
 
 

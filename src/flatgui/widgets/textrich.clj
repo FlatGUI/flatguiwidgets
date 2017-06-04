@@ -20,7 +20,8 @@ flatgui.widgets.textrich
             [flatgui.inputchannels.clipboard :as clipboard]
             [flatgui.inputchannels.awtbase :as inputbase]
             [flatgui.util.matrix :as m]
-            [flatgui.comlogic :as fgc])
+            [flatgui.comlogic :as fgc]
+            [flatgui.widgets.textcommons :as textcommons])
   (:import [java.awt.event KeyEvent]
            (flatgui.core.engine.ui FGTransferable)))
 
@@ -48,6 +49,11 @@ flatgui.widgets.textrich
   {:glyphs []
    :caret-pos 0
    :selection-mark 0})
+
+(def empty-rendition
+  {:lines nil
+   :caret-coords (m/defpoint 0 0)
+   :rendition nil})
 
 (defmulti glyph-size (fn [g _interop] (:type g)))
 
@@ -149,11 +155,52 @@ flatgui.widgets.textrich
                 {:h (nth line 2) :primitives lr})))))
       line-rendition)))
 
+(fg/defaccessorfn evolve-caretpos [component old-caret-pos old-selection-mark old-glyph-count supplied-glyph-count]
+  (cond
+
+    (or (keyboard/key-typed? component) (clipboard/clipboard-paste? component))
+    ;; min here to take into account possible selection that is to be replaced with supplied text
+    (+ (min old-selection-mark old-caret-pos) supplied-glyph-count)
+
+    (keyboard/key-pressed? component)
+    (let [key (keyboard/get-key component)]
+      (condp = key
+        KeyEvent/VK_LEFT (textcommons/deccaretpos old-caret-pos)
+        KeyEvent/VK_RIGHT (textcommons/inccaretpos old-caret-pos old-glyph-count)
+        old-caret-pos))
+
+    :else old-caret-pos))
+
 ;(fg/defevolverfn :model
 ;  (let [w (m/x (get-property [:this] :clip-size))]
 ;    (if (not= w (:w old-model))
 ;
 ;      old-model)))
+
+(fg/defevolverfn :model
+  (let [old-caret-pos (:caret-pos old-model)
+        old-selection-mark (:selection-mark old-model)
+        old-glyphs (:glyphs old-model)]
+    (assoc old-model :caret-pos (evolve-caretpos component old-caret-pos old-selection-mark (count old-glyphs) 0))))
+
+
+(fg/defaccessorfn calc-caret-coords [model lines]
+  (let [glyphs (:glyphs model)
+        caret-pos (:caret-pos model)]
+    (loop [l 0
+           y 0]
+      (if (< l (count lines))
+        (let [line (nth lines l)
+              line-start (first line)
+              line-len (second line)
+              line-h (nth line 2)
+              interop (get-property [:this] :interop)]
+          (if (and (>= caret-pos line-start) (<= caret-pos (+ line-start line-len)))
+            [(:w (line-size glyphs line-start (- caret-pos line-start) interop)) y line-h]
+            (recur
+              (inc l)
+              (+ y line-h))))
+        (throw (IllegalStateException. (str "caret-pos=" caret-pos " is out of model")))))))
 
 (fg/defevolverfn :rendition
   (let [model (get-property [:this] :model)
@@ -162,11 +209,14 @@ flatgui.widgets.textrich
         interop (get-property component [:this] :interop)
         lines (wrap-lines glyphs w interop)
         rendition (render-lines glyphs lines)]
-    rendition))
+    {:lines lines
+     :caret-coords (calc-caret-coords model lines)
+     :rendition rendition}))
+
 
 (fg/defwidget "textrich"
               {:model empty-model
-               :rendition nil
+               :rendition empty-rendition
                :caret-visible true;false
                :->clipboard nil
                :first-visible-symbol 0
@@ -176,7 +226,7 @@ flatgui.widgets.textrich
                :background :prime-4
                :foreground :prime-1
                :no-mouse-press-capturing true
-               :evolvers {;:model model-evolver
+               :evolvers {:model model-evolver
                           :rendition rendition-evolver
                           ;:caret-visible caret-visible-evolver
                           ;:->clipboard ->clipboard-evolver

@@ -13,6 +13,7 @@
             [flatgui.base :as fg]
             [flatgui.widgets.component]
             [flatgui.widgets.scrollpanel]
+            [flatgui.widgets.textcommons :as textcommons]
             [flatgui.inputchannels.keyboard :as keyboard]
             [flatgui.inputchannels.mouse :as mouse]
             [flatgui.inputchannels.mousewheel :as mousewheel]
@@ -56,12 +57,6 @@
 (fg/defaccessorfn text-str-h [component]
   (awt/text-str-h-impl (get-property component [:this] :interop) (get-property component [:this] :font)))
 
-(defn deccaretpos [c]
-  (if (> c 0) (- c 1) 0))
-
-(defn inccaretpos [c t]
-  (let [len (.length t)]
-    (if (< c len) (+ c 1) len)))
 
 (defn evovle-caret-pos [component h old-caret-pos old-caret-line-pos old-caret-line old-selection-mark old-text old-lines supplied-text]
   (let [t old-text
@@ -77,10 +72,10 @@
       (+ (min old-selection-mark old-caret-pos) (.length supplied-text))
       (if pressed
         (condp = key
-          KeyEvent/VK_BACK_SPACE (if (> fwd-selection-len 0) (- old-caret-pos fwd-selection-len) (deccaretpos old-caret-pos))
+          KeyEvent/VK_BACK_SPACE (if (> fwd-selection-len 0) (- old-caret-pos fwd-selection-len) (textcommons/deccaretpos old-caret-pos))
           KeyEvent/VK_DELETE (if (> fwd-selection-len 0) (- old-caret-pos fwd-selection-len) old-caret-pos)
-          KeyEvent/VK_LEFT (deccaretpos old-caret-pos)
-          KeyEvent/VK_RIGHT (inccaretpos old-caret-pos t)
+          KeyEvent/VK_LEFT (textcommons/deccaretpos old-caret-pos)
+          KeyEvent/VK_RIGHT (textcommons/inccaretpos old-caret-pos (.length t))
           KeyEvent/VK_HOME (if (or (not (:multiline component)) with-ctrl)
                              0
                              (- old-caret-pos old-caret-line-pos))

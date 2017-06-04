@@ -167,6 +167,8 @@ flatgui.widgets.textrich
       (condp = key
         KeyEvent/VK_LEFT (textcommons/deccaretpos old-caret-pos)
         KeyEvent/VK_RIGHT (textcommons/inccaretpos old-caret-pos old-glyph-count)
+        KeyEvent/VK_HOME 0
+        KeyEvent/VK_END old-glyph-count
         old-caret-pos))
 
     :else old-caret-pos))

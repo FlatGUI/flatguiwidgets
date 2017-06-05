@@ -289,13 +289,6 @@
             old-first-visible-symbol))))
     0))
 
-(defn- keep-in-range [mx cs content-size]
-  (let [x (m/mx-x mx)
-        y (m/mx-y mx)]
-    (m/translation
-      (if (neg? x) (max x (- (m/x cs) (m/x content-size)))  x)
-      (if (neg? y) (max y (- (m/y cs) (m/y content-size))) y))))
-
 (fg/defevolverfn auto-scroll-evolver :viewport-matrix
   (let [text-field-id (first (first (:children component)))
         model (get-property [:this text-field-id] :model)
@@ -312,7 +305,7 @@
             vmx (- (m/mx-x old-viewport-matrix))
             vmy (- (m/mx-y old-viewport-matrix))
             cs (get-property [:this] :clip-size)]
-        (keep-in-range
+        (textcommons/keep-in-range
           (if (and
                 (>= caret-x-left vmx)
                 (< caret-x-right (+ vmx (m/x cs)))

@@ -210,6 +210,7 @@ flatgui.widgets.textrich
           (recur (inc l))))
       (throw (IllegalStateException. (str "caret-pos=" caret-pos " is out of model"))))))
 
+;; Caret coords: [<x> <y> <h>]
 (fg/defaccessorfn calc-caret-coords [model caret-line caret-pos lines]
   (let [glyphs (:glyphs model)]
     (loop [l 0
@@ -260,6 +261,35 @@ flatgui.widgets.textrich
             (+ h (nth line 2))))
         (m/defpoint w h)))))
 
+(fg/defevolverfn :viewport-matrix
+  (let [rendition (get-property [:this] :rendition)
+        caret-coords (:caret-coords rendition)
+        caret-x (nth caret-coords 0)
+        caret-y (nth caret-coords 1)
+        caret-h (nth caret-coords 2)
+        clip-size (get-property [:this] :clip-size)
+        content-size (get-property [:this] :content-size)
+        vmx (- (m/mx-x old-viewport-matrix))
+        vmy (- (m/mx-y old-viewport-matrix))]
+    (if (not (and
+               (>= caret-x vmx)
+               (< caret-x (+ vmx (m/x clip-size)))
+               (>= caret-y vmy)
+               (< (+ caret-y caret-h) (+ vmy (m/y clip-size)))))
+      (textcommons/keep-in-range
+        (m/translation
+          (cond
+            (< caret-x vmx) (- caret-x)
+            (>= caret-x (+ vmx (m/x clip-size))) (- (- caret-x (m/x clip-size)))
+            :else (- vmx))
+          (cond
+            (< caret-y vmy) (- caret-y)
+            (>= (+ caret-y caret-h) (m/y clip-size)) (- (- (+ caret-y caret-h) (m/y clip-size)))
+            :else (- vmy)))
+        clip-size
+        content-size)
+      old-viewport-matrix)))
+
 (fg/defwidget "textrich"
               {:model empty-model
                :rendition empty-rendition
@@ -275,6 +305,7 @@ flatgui.widgets.textrich
                :evolvers {:model model-evolver
                           :rendition rendition-evolver
                           :content-size content-size-evolver
+                          :viewport-matrix viewport-matrix-evolver
                           ;:caret-visible caret-visible-evolver
                           ;:->clipboard ->clipboard-evolver
                           ;:cursor cursor-evolver

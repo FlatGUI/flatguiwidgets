@@ -10,10 +10,18 @@
       :author "Denys Lebediev"}
   flatgui.widgets.textcommons
   (:require [flatgui.widgets.component]
-            [flatgui.widgets.scrollpanel]))
+            [flatgui.widgets.scrollpanel]
+            [flatgui.util.matrix :as m]))
 
 (defn deccaretpos [c]
   (if (> c 0) (- c 1) 0))
 
 (defn inccaretpos [c len]
   (if (< c len) (+ c 1) len))
+
+(defn keep-in-range [mx cs content-size]
+  (let [x (m/mx-x mx)
+        y (m/mx-y mx)]
+    (m/translation
+      (if (neg? x) (max x (- (m/x cs) (m/x content-size))) x)
+      (if (neg? y) (max y (- (m/y cs) (m/y content-size))) y))))

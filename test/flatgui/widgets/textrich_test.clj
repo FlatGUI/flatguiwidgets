@@ -59,14 +59,14 @@
 (test/deftest wrap-line-h-lines
   (let [glyphs [(test-glyph 1 1) (test-glyph 1 2) (test-glyph 1 1) textrich/whitespace-glyph (test-glyph 1 3) (test-glyph 1 2)]
         lines (textrich/wrap-lines glyphs 3 dummy-interop)]
-    (test/is (= [[0 3 2] [4 2 3]] lines))))
+    (test/is (= [[0 3 2 3] [4 2 3 2]] lines))))
 
 (test/deftest render-test
   (let [data ["The quick brown fox " (test-glyph 1.0 2.0) "jumps" (test-glyph 2.0 1.0) " over the lazy dog"]
         glyphs (mapcat (fn [d] (if (string? d) (map textrich/char-glyph d) [d])) data)
         lines (textrich/wrap-lines glyphs 9 dummy-interop)
         rendition (textrich/render-lines glyphs lines)]
-    (test/is (= [[0 9 1.0] [10 9 1.0] [20 7 2.0] [28 8 1.0] [37 8 1.0]]) lines)
+    (test/is (= [[0 9 1.0 9] [10 9 1.0 9] [20 7 2.0 8] [28 8 1.0 8] [37 8 1.0 8]]) lines)
     (test/is (= [{:h 1.0 :primitives [{:type :string :data "The quick" :style textrich/default-style}] }
                  {:h 1.0 :primitives [{:type :string :data "brown fox" :style textrich/default-style}] }
                  {:h 2.0 :primitives [(test-glyph 1.0 2.0) {:type :string :data "jumps" :style textrich/default-style} (test-glyph 2.0 1.0)] }
@@ -78,5 +78,5 @@
         glyphs (mapcat (fn [ss] (map (fn [c] (textrich/char-glyph c (second ss))) (first ss))) strings-&-styles)
         lines (textrich/wrap-lines glyphs 9 dummy-interop)
         rendition (textrich/render-lines glyphs lines)]
-    (test/is (= [[0 9 1.0]] lines))
+    (test/is (= [[0 9 1.0 9.0]] lines))
     (test/is (= [{:h 1.0 :primitives [{:type :string :data "aaa" :style :x} {:type :string :data "bbb" :style :y} {:type :string :data "ccc" :style :z}]}] rendition))))

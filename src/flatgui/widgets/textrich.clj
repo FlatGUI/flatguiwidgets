@@ -88,16 +88,18 @@ flatgui.widgets.textrich
           (inc c)))
       {:w w :h h})))
 
+;; line: [<start> <len> <h> <w>]
 (defn wrap-lines [glyphs w interop]
   (let [g-count (count glyphs)]
     (loop [line-start 0
            lines []
            last-delim-index -1
+           line-w-to-last-delim -1
            g-index 0
            line-h 0]
       (if (>= g-index g-count)
         (if (and (> g-index line-start) (not (delimiters (:type (nth glyphs line-start)))))
-          (conj lines [line-start (- g-index line-start) line-h])
+          (conj lines [line-start (- g-index line-start) line-h (:w (line-size glyphs line-start (- g-index line-start) interop))])
           lines)
         (let [g (nth glyphs g-index)
               is-delim (delimiters (:type g))
@@ -112,7 +114,11 @@ flatgui.widgets.textrich
                 next-line-start
                 (if (delimiters (:type (nth glyphs line-start)))
                   lines
-                  (conj lines [line-start (if step-back (- last-delim-index line-start) (- g-index line-start)) g-line-h]))
+                  (conj lines [line-start
+                               (if step-back (- last-delim-index line-start) (- g-index line-start))
+                               g-line-h
+                               (if step-back line-w-to-last-delim current-len)]))
+                -1
                 -1
                 next-line-start
                 0))
@@ -120,6 +126,7 @@ flatgui.widgets.textrich
               (if (and is-delim (= g-index line-start)) (inc g-index) line-start)
               lines
               (if is-delim g-index last-delim-index)
+              (if is-delim current-len line-w-to-last-delim)
               (inc g-index)
               g-line-h)
             ))))))
@@ -128,7 +135,7 @@ flatgui.widgets.textrich
   (let [last-primitive (last lr)]
     (if (#{:char :whitespace} (:type glyph))
       (let [append-to-last (and last-primitive (= :string (:type last-primitive)) (= (:style last-primitive) (:style glyph)))
-            addition (if (= :char (:type glyph)) (:data glyph) " ")]
+            addition (if (= :char (:type glyph)) (str (:data glyph)) " ")]
         (if append-to-last
           (assoc-in lr [(dec (count lr)) :data] (str (:data last-primitive) addition))
           (conj lr {:type :string :data addition :style (:style glyph)})))
@@ -239,6 +246,19 @@ flatgui.widgets.textrich
      :caret-coords (calc-caret-coords model caret-line caret-pos lines)
      :rendition rendition}))
 
+(fg/defevolverfn :content-size
+  (let [rendition (get-property [:this] :rendition)
+        lines (:lines rendition)]
+    (loop [l 0
+           w 0
+           h 0]
+      (if (< l (count lines))
+        (let [line (nth lines l)]
+          (recur
+            (inc l)
+            (max w (nth line 3))
+            (+ h (nth line 2))))
+        (m/defpoint w h)))))
 
 (fg/defwidget "textrich"
               {:model empty-model
@@ -254,6 +274,7 @@ flatgui.widgets.textrich
                :no-mouse-press-capturing true
                :evolvers {:model model-evolver
                           :rendition rendition-evolver
+                          :content-size content-size-evolver
                           ;:caret-visible caret-visible-evolver
                           ;:->clipboard ->clipboard-evolver
                           ;:cursor cursor-evolver

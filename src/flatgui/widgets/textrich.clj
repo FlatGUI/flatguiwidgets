@@ -45,15 +45,17 @@ flatgui.widgets.textrich
 
 (def whitespace-glyph (char-glyph \space))
 
-(def empty-model
-  {:glyphs []})
+;(def empty-model
+;  {:glyphs []})
 
 (def empty-rendition
-  {:lines nil
+  {:glyphs []
+   :lines nil
    :caret-line 0
    :caret-pos 0
    :selection-mark 0
-   :caret-coords (m/defpoint 0 0)
+   :caret-coords [0 0 0]
+   :w 0
    :rendition nil})
 
 (defmulti glyph-size (fn [g _interop] (:type g)))
@@ -173,7 +175,8 @@ flatgui.widgets.textrich
 (fg/defaccessorfn evolve-caretpos [component lines old-caret-pos old-caret-line old-selection-mark old-glyph-count supplied-glyph-count]
   (cond
 
-    (or (keyboard/key-typed? component) (clipboard/clipboard-paste? component))
+    ;(or (keyboard/key-typed? component) (clipboard/clipboard-paste? component))
+    (pos? supplied-glyph-count)
     ;; min here to take into account possible selection that is to be replaced with supplied text
     (+ (min old-selection-mark old-caret-pos) supplied-glyph-count)
 
@@ -190,16 +193,7 @@ flatgui.widgets.textrich
 
     :else old-caret-pos))
 
-;(fg/defevolverfn :model
-;  (let [w (m/x (get-property [:this] :clip-size))]
-;    (if (not= w (:w old-model))
-;
-;      old-model)))
-
-(fg/defevolverfn :model
-  old-model)
-
-(fg/defaccessorfn calc-caret-line [model caret-pos lines]
+(fg/defaccessorfn calc-caret-line [caret-pos lines]
   (loop [l 0]
     (if (< l (count lines))
       (let [line (nth lines l)
@@ -211,41 +205,129 @@ flatgui.widgets.textrich
       (throw (IllegalStateException. (str "caret-pos=" caret-pos " is out of model"))))))
 
 ;; Caret coords: [<x> <y> <h>]
-(fg/defaccessorfn calc-caret-coords [model caret-line caret-pos lines]
-  (let [glyphs (:glyphs model)]
-    (loop [l 0
-           y 0]
-      (if (< l (count lines))
-        (let [line (nth lines l)
-              line-h (nth line 2)]
-          (if (= l caret-line)
-            (let [line-start (first line)
-                  interop (get-property [:this] :interop)]
-              [(:w (line-size glyphs line-start (- caret-pos line-start) interop)) y line-h])
-            (recur
-              (inc l)
-              (+ y line-h))))
-        (throw (IllegalStateException. (str "caret-line=" caret-line " is out of model")))))))
+(fg/defaccessorfn calc-caret-coords [glyphs caret-line caret-pos lines]
+  (loop [l 0
+         y 0]
+    (if (< l (count lines))
+      (let [line (nth lines l)
+            line-h (nth line 2)]
+        (if (= l caret-line)
+          (let [line-start (first line)
+                interop (get-property [:this] :interop)]
+            [(:w (line-size glyphs line-start (- caret-pos line-start) interop)) y line-h])
+          (recur
+            (inc l)
+            (+ y line-h))))
+      (throw (IllegalStateException. (str "caret-line=" caret-line " is out of model"))))))
 
-(fg/defevolverfn :rendition
-  (let [model (get-property [:this] :model)
-        glyphs (:glyphs model)
-        w (m/x (get-property [:this] :clip-size))
+(fg/defaccessorfn input-data-reson? [component] (and (map? (get-reason)) (= :string (:type (get-reason)))))
+
+;(fg/defaccessorfn input->glyphs [component]
+;  (cond
+;
+;    (input-data-reson? component)
+;    (map char-glyph (:data (get-reason)))
+;
+;    :else old-model))
+
+;(fg/defevolverfn :model
+;  (let [reason (get-reason)
+;        ;; caret-pos is taken from rendition but condition below avoid recalculating model when carent-pos changes
+;        caret-pos (get-property [:this] :caret-pos)]
+;    (cond
+;
+;      (input-data-reson? component)
+;      (let [old-glyphs (:glyphs old-model)
+;            inp (input->glyphs component)]
+;        ())
+;
+;      :else old-model)))
+
+(fg/defaccessorfn full-model-reinit [component old-model glyphs]
+  (let [w (m/x (get-property [:this] :clip-size))
         interop (get-property component [:this] :interop)
         lines (wrap-lines glyphs w interop)
         rendition (render-lines glyphs lines)
 
-        old-caret-pos (:caret-pos old-rendition)
-        old-caret-line (:caret-line old-rendition)
-        old-selection-mark (:selection-mark old-rendition)
+        old-caret-pos (:caret-pos old-model)
+        old-caret-line (:caret-line old-model)
+        old-selection-mark (:selection-mark old-model)
         caret-pos (evolve-caretpos component lines old-caret-pos old-caret-line old-selection-mark (count glyphs) 0)
-        caret-line (calc-caret-line model caret-pos lines)]
-    {:lines lines
+        caret-line (calc-caret-line caret-pos lines)]
+    {:glyphs glyphs
+     :lines lines
      :caret-line caret-line
      :caret-pos caret-pos
      :selection-mark 0
-     :caret-coords (calc-caret-coords model caret-line caret-pos lines)
+     :caret-coords (calc-caret-coords glyphs caret-line caret-pos lines)
+     :w w
      :rendition rendition}))
+
+(fg/defaccessorfn caret-update [component old-model glyphs]
+  (let [lines (:lines old-model)
+
+        old-caret-pos (:caret-pos old-model)
+        old-caret-line (:caret-line old-model)
+        old-selection-mark (:selection-mark old-model)
+        caret-pos (evolve-caretpos component lines old-caret-pos old-caret-line old-selection-mark (count glyphs) 0)
+        caret-line (calc-caret-line caret-pos lines)]
+    (assoc
+      old-model
+      :caret-line caret-line
+      :caret-pos caret-pos
+      :selection-mark 0
+      :caret-coords (calc-caret-coords glyphs caret-line caret-pos lines))))
+
+(fg/defaccessorfn glyphs-> [component old-model glyphs input-glyphs]
+  (let [old-caret-pos (:caret-pos old-model)
+        new-glyphs (vec (concat
+                          (take old-caret-pos glyphs)
+                          input-glyphs
+                          (take-last (- (count glyphs) old-caret-pos) glyphs)))
+
+
+        ;; TODO re-render starting from changed line, no need to re-render everything
+        w (m/x (get-property [:this] :clip-size))
+        interop (get-property component [:this] :interop)
+        lines (wrap-lines new-glyphs w interop)
+        rendition (render-lines new-glyphs lines)
+
+        caret-pos (+ old-caret-pos (count input-glyphs))
+        caret-line (calc-caret-line caret-pos lines)]
+    (assoc
+      old-model
+      :glyphs new-glyphs
+      :lines lines
+      :rendition rendition
+      :caret-line caret-line
+      :caret-pos caret-pos
+      :selection-mark 0
+      :caret-coords (calc-caret-coords new-glyphs caret-line caret-pos lines))))
+
+(fg/defaccessorfn rendition-input-data-evolver [component old-rendition input-data]
+  (condp = (:type input-data)
+    :string (glyphs-> component old-rendition (:glyphs old-rendition) (map char-glyph (:data input-data)))
+    ))
+
+(fg/defevolverfn :rendition
+  (let [glyphs (:glyphs old-rendition)]
+    (if (pos? (count glyphs))                               ; TODO should work with empty initial glyphs
+      (cond
+
+        (nil? (:lines old-rendition))
+        (full-model-reinit component old-rendition glyphs)
+
+        (not= (:w old-rendition) (m/x (get-property [:this] :clip-size)))
+        (full-model-reinit component old-rendition glyphs)  ;TODO optimize this one
+
+        (keyboard/key-event? component)
+        (caret-update component old-rendition glyphs)
+
+        (input-data-reson? component)
+        (rendition-input-data-evolver component old-rendition (get-reason))
+
+        :else old-rendition)
+      empty-rendition)))
 
 (fg/defevolverfn :content-size
   (let [rendition (get-property [:this] :rendition)
@@ -291,7 +373,7 @@ flatgui.widgets.textrich
       old-viewport-matrix)))
 
 (fg/defwidget "textrich"
-              {:model empty-model
+              {                                             ;:model empty-model
                :rendition empty-rendition
                :caret-visible true;false
                :->clipboard nil
@@ -302,7 +384,7 @@ flatgui.widgets.textrich
                :background :prime-4
                :foreground :prime-1
                :no-mouse-press-capturing true
-               :evolvers {:model model-evolver
+               :evolvers {                                  ;:model model-evolver
                           :rendition rendition-evolver
                           :content-size content-size-evolver
                           :viewport-matrix viewport-matrix-evolver

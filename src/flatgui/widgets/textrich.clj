@@ -45,8 +45,7 @@ flatgui.widgets.textrich
 
 (def whitespace-glyph (char-glyph \space))
 
-;(def empty-model
-;  {:glyphs []})
+(defn image-glyph [image-url size] {:type :image :data image-url :style {:size size}})
 
 (def empty-rendition
   {:glyphs []
@@ -75,6 +74,8 @@ flatgui.widgets.textrich
 
 (defmethod glyph-size :test [g _interop] {:w (:w (:style g)) :h (:h (:style g))})
 
+(defmethod glyph-size :image [g _interop] (:size (:style g)))
+
 (def delimiters #{:whitespace :linebreak})
 
 ;; We assume that a string's width is the sum of its characters' widths (due to web impl limitations)
@@ -97,6 +98,7 @@ flatgui.widgets.textrich
            lines []
            last-delim-index -1
            line-w-to-last-delim -1
+           line-h-to-last-delim -1
            g-index 0
            line-h 0]
       (if (>= g-index g-count)
@@ -118,8 +120,9 @@ flatgui.widgets.textrich
                   lines
                   (conj lines [line-start
                                (if step-back (- last-delim-index line-start) (- g-index line-start))
-                               g-line-h
+                               (if step-back line-h-to-last-delim g-line-h)
                                (if step-back line-w-to-last-delim current-len)]))
+                -1
                 -1
                 -1
                 next-line-start
@@ -129,6 +132,7 @@ flatgui.widgets.textrich
               lines
               (if is-delim g-index last-delim-index)
               (if is-delim current-len line-w-to-last-delim)
+              (if is-delim g-line-h line-h-to-last-delim)
               (inc g-index)
               g-line-h)
             ))))))
@@ -222,27 +226,6 @@ flatgui.widgets.textrich
 
 (fg/defaccessorfn input-data-reson? [component] (and (map? (get-reason)) (= :string (:type (get-reason)))))
 
-;(fg/defaccessorfn input->glyphs [component]
-;  (cond
-;
-;    (input-data-reson? component)
-;    (map char-glyph (:data (get-reason)))
-;
-;    :else old-model))
-
-;(fg/defevolverfn :model
-;  (let [reason (get-reason)
-;        ;; caret-pos is taken from rendition but condition below avoid recalculating model when carent-pos changes
-;        caret-pos (get-property [:this] :caret-pos)]
-;    (cond
-;
-;      (input-data-reson? component)
-;      (let [old-glyphs (:glyphs old-model)
-;            inp (input->glyphs component)]
-;        ())
-;
-;      :else old-model)))
-
 (fg/defaccessorfn full-model-reinit [component old-model glyphs]
   (let [w (m/x (get-property [:this] :clip-size))
         interop (get-property component [:this] :interop)
@@ -307,6 +290,7 @@ flatgui.widgets.textrich
 (fg/defaccessorfn rendition-input-data-evolver [component old-rendition input-data]
   (condp = (:type input-data)
     :string (glyphs-> component old-rendition (:glyphs old-rendition) (map char-glyph (:data input-data)))
+    :image (glyphs-> component old-rendition (:glyphs old-rendition) [(image-glyph (:data input-data) (:size input-data))])
     ))
 
 (fg/defevolverfn :rendition

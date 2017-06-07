@@ -61,6 +61,12 @@
         lines (textrich/wrap-lines glyphs 3 dummy-interop)]
     (test/is (= [[0 3 2 3] [4 2 3 2]] lines))))
 
+(test/deftest wrap-line-h-lines-2
+  (let [data ["aaaaaa bbb" (test-glyph 1.0 2.0) "bbb cccccc"]
+        glyphs (mapcat (fn [d] (if (string? d) (map textrich/char-glyph d) [d])) data)
+        lines (textrich/wrap-lines glyphs 7 dummy-interop)]
+    (test/is (= [[0 6 1.0 6.0] [7 7 2.0 7.0] [15 6 1.0 6.0]] lines))))
+
 (test/deftest render-test
   (let [data ["The quick brown fox " (test-glyph 1.0 2.0) "jumps" (test-glyph 2.0 1.0) " over the lazy dog"]
         glyphs (mapcat (fn [d] (if (string? d) (map textrich/char-glyph d) [d])) data)

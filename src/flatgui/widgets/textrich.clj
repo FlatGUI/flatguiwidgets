@@ -290,8 +290,20 @@ flatgui.widgets.textrich
 (fg/defaccessorfn rendition-input-data-evolver [component old-rendition input-data]
   (condp = (:type input-data)
     :string (glyphs-> component old-rendition (:glyphs old-rendition) (map char-glyph (:data input-data)))
-    :image (glyphs-> component old-rendition (:glyphs old-rendition) [(image-glyph (:data input-data) (:size input-data))])
-    ))
+    :image (glyphs-> component old-rendition (:glyphs old-rendition) [(image-glyph (:data input-data) (:size input-data))])))
+
+(fg/defaccessorfn rendition-clipboard-paste-evolver [component old-rendition]
+  (if-let [strdata (clipboard/get-plain-text component)]
+    (rendition-input-data-evolver component old-rendition {:type :string :data strdata})
+    (if-let [imagedata (clipboard/get-image component)]
+      (let [media-server (get-property [:this] :media-server)]
+        (if-let [image-file-name (.storeImage media-server (if-let [s (get-property [:this] :media-prefix)] s (name (:id component))) imagedata)]
+          (rendition-input-data-evolver component old-rendition {:type :image
+                                                                 :data image-file-name
+                                                                 ;; TODO where to get unit size? interop?
+                                                                 :size {:w (/ (.getWidth imagedata nil) 64.0) :h (/ (.getHeight imagedata nil) 64.0)}})
+          old-rendition))
+      old-rendition)))
 
 (fg/defevolverfn :rendition
   (let [glyphs (:glyphs old-rendition)]
@@ -309,6 +321,9 @@ flatgui.widgets.textrich
 
         (input-data-reson? component)
         (rendition-input-data-evolver component old-rendition (get-reason))
+
+        (clipboard/clipboard-paste? component)
+        (rendition-clipboard-paste-evolver component old-rendition)
 
         :else old-rendition)
       empty-rendition)))

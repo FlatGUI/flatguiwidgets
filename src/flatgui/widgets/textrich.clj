@@ -47,6 +47,8 @@ flatgui.widgets.textrich
 
 (defn image-glyph [image-url size] {:type :image :data image-url :style {:size size}})
 
+(defn video-glyph [video-url size] {:type :video :data video-url :style {:size size}})
+
 (def empty-rendition
   {:glyphs []
    :lines nil
@@ -75,6 +77,8 @@ flatgui.widgets.textrich
 (defmethod glyph-size :test [g _interop] {:w (:w (:style g)) :h (:h (:style g))})
 
 (defmethod glyph-size :image [g _interop] (:size (:style g)))
+
+(defmethod glyph-size :video [g _interop] (:size (:style g)))
 
 (def delimiters #{:whitespace :linebreak})
 
@@ -290,7 +294,8 @@ flatgui.widgets.textrich
 (fg/defaccessorfn rendition-input-data-evolver [component old-rendition input-data]
   (condp = (:type input-data)
     :string (glyphs-> component old-rendition (:glyphs old-rendition) (map char-glyph (:data input-data)))
-    :image (glyphs-> component old-rendition (:glyphs old-rendition) [(image-glyph (:data input-data) (:size input-data))])))
+    :image (glyphs-> component old-rendition (:glyphs old-rendition) [(image-glyph (:data input-data) (:size input-data))])
+    :video (glyphs-> component old-rendition (:glyphs old-rendition) [(video-glyph (:data input-data) (:size input-data))])))
 
 (fg/defaccessorfn rendition-clipboard-paste-evolver [component old-rendition]
   (if-let [strdata (clipboard/get-plain-text component)]

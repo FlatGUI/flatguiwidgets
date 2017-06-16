@@ -372,14 +372,14 @@
               send (max caret-line-pos selection-mark-line-pos)
               text (:text model)
               selected-text (subs text sstart send)]
-          (FGTransferable. selected-text))
+          (FGTransferable/createTextTransferable selected-text))
         (not= caret-line selection-mark-line)
         (let [caret-line-first (< caret-line selection-mark-line)
               sstart (if caret-line-first [caret-line caret-line-pos] [selection-mark-line selection-mark-line-pos])
               send (if caret-line-first [selection-mark-line selection-mark-line-pos] [caret-line caret-line-pos])
               int-line-range (range (inc (first sstart)) (first send))
               lines (:lines model)]
-          (FGTransferable. (str
+          (FGTransferable/createTextTransferable (str
                              (subs (nth lines (first sstart)) (second sstart)) "\n"
                              (apply str (map #(str (nth lines %) "\n") int-line-range))
                              (subs (nth lines (first send)) 0 (second send)))))

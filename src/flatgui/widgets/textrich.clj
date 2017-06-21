@@ -322,7 +322,10 @@ flatgui.widgets.textrich
         (full-model-reinit component old-rendition glyphs)  ;TODO optimize this one
 
         (keyboard/key-event? component)
-        (caret-update component old-rendition glyphs)
+        (let [typed-text (textcommons/textfield-dflt-text-suplier component)]
+          (if (or (nil? typed-text) (.isEmpty typed-text))
+            (caret-update component old-rendition glyphs)
+            (rendition-input-data-evolver component old-rendition {:type :string :data typed-text})))
 
         (input-data-reson? component)
         (rendition-input-data-evolver component old-rendition (get-reason))
@@ -388,6 +391,7 @@ flatgui.widgets.textrich
                :background :prime-4
                :foreground :prime-1
                :no-mouse-press-capturing true
+               :editable true
                :evolvers {                                  ;:model model-evolver
                           :rendition rendition-evolver
                           :content-size content-size-evolver

@@ -391,33 +391,15 @@
     (if (get-property [:this] :has-mouse) :text)
     old-cursor))
 
-(defn textfield-dflt-text-suplier [component]
-  (if (or
-        ;; temp fix: it kills apostrophe because it's 0x27, same as VK_RIGHT
-        (and
-          (keyboard/key-typed? component)
-          (not
-            (#{KeyEvent/VK_BACK_SPACE KeyEvent/VK_DELETE KeyEvent/VK_LEFT
-               KeyEvent/VK_HOME KeyEvent/VK_END KeyEvent/VK_UP KeyEvent/VK_DOWN
-               KeyEvent/VK_PAGE_UP KeyEvent/VK_PAGE_DOWN}
-              (keyboard/get-key component))))
-        (not
-          (#{KeyEvent/VK_BACK_SPACE KeyEvent/VK_DELETE KeyEvent/VK_LEFT KeyEvent/VK_RIGHT
-             KeyEvent/VK_HOME KeyEvent/VK_END KeyEvent/VK_UP KeyEvent/VK_DOWN
-             KeyEvent/VK_PAGE_UP KeyEvent/VK_PAGE_DOWN}
-            (keyboard/get-key component))))
-    (keyboard/get-key-str component)
-    ""))
-
 ;; TODO replace selection does not work with this supplier in browser, but seems to work in local AWT app. Check textfield-num-only-text-suplier
 ;(defn sample-only-text-suplier [component]
-;  (let [key (textfield/textfield-dflt-text-suplier component)]
+;  (let [key (textcommons/textfield-dflt-text-suplier component)]
 ;    (if (#{"a" "b" "c" "d" "e" "f" "g" "h" "i" "j" "k" "m" "n" "o" "p"
 ;           " " "[" "]"
 ;           ":" "-" "|" "<" ">" "'" "."} key) key "")))
 
 (defn textfield-num-only-text-suplier [component]
-  (let [key (textfield-dflt-text-suplier component)]
+  (let [key (textcommons/textfield-dflt-text-suplier component)]
     (if (some #(= key %) '("0" "1" "2" "3" "4" "5" "6" "7" "8" "9" "0" ".")) key "")))
 
 (fg/defwidget "textfield"
@@ -426,7 +408,7 @@
    :multiline false
    :auto-size false
    :paint-border true
-   :text-supplier textfield-dflt-text-suplier
+   :text-supplier textcommons/textfield-dflt-text-suplier
    :caret-visible false
    :model (create-single-line-model "" 0 0)
    :text ""

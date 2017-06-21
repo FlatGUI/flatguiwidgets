@@ -26,12 +26,15 @@
             :evolvers {:pressed flatgui.widgets.abstractbutton/check-pressed-evolver}}
            flatgui.widgets.abstractbutton/abstractbutton)
 
+(fg/defevolverfn rollover-foreground-evolver :foreground
+  (if (get-property component [:this] :has-mouse)
+    (:prime-4 (get-property component [:this] :theme))
+    (:prime-6 (get-property component [:this] :theme))))
+
 (fg/defwidget "rolloverbutton"
            {:skin-key [:button :rollover]
             ;; TODO move out
             :foreground :prime-4
             :evolvers {:pressed flatgui.widgets.abstractbutton/regular-pressed-evolver
-                       :foreground (fg/accessorfn (if (get-property component [:this] :has-mouse)
-                                                    (:prime-4 (get-property component [:this] :theme))
-                                                    (:prime-6 (get-property component [:this] :theme))))}}
+                       :foreground rollover-foreground-evolver}}
            flatgui.widgets.abstractbutton/abstractbutton)

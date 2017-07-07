@@ -21,7 +21,8 @@ flatgui.widgets.component
             [flatgui.skins.flat]
             [flatgui.inputchannels.mouse :as mouse]
             [flatgui.inputchannels.host :as host])
-  (:import (flatgui.core.awt FGDummyInteropUtil)))
+  (:import (flatgui.core.awt FGDummyInteropUtil)
+           (flatgui.core IFGInteropUtil)))
 
 
 (fg/defevolverfn :z-position
@@ -56,7 +57,11 @@ flatgui.widgets.component
 
 (fg/defevolverfn :interop
   (let [parent (get-property component [] :interop)]
-    (if parent parent old-interop)))
+    (cond
+      parent parent
+      ;; This is used when cloning container from a template for a new session
+      (instance? IFGInteropUtil (get-reason)) (get-reason)
+      :else old-interop)))
 
 (fg/defevolverfn :font
   (let [parent (get-property component [] :font)]

@@ -11,7 +11,8 @@
             [clojure.string :as str]
             [flatgui.base :as fg]
             [flatgui.util.matrix :as m]
-            [flatgui.widgets.textrich :as textrich])
+            [flatgui.widgets.textrich :as textrich]
+            [flatgui.test :as fgtest])
   (:import (flatgui.core.engine IResultCollector Container ClojureContainerParser)
            (flatgui.core IFGInteropUtil)))
 
@@ -86,3 +87,14 @@
         rendition (textrich/render-lines glyphs lines)]
     (test/is (= [[0 9 1.0 9.0]] lines))
     (test/is (= [{:h 1.0 :primitives [{:type :string :data "aaa" :style :x} {:type :string :data "bbb" :style :y} {:type :string :data "ccc" :style :z}]}] rendition))))
+
+(test/deftest text-test
+  (let [rendition {:rendition [{:h 1.0 :primitives [{:type :string :data "a" :style textrich/default-style}] }
+                               {:h 1.0 :primitives [{:type :string :data "b" :style textrich/default-style}] }
+                               {:h 2.0 :primitives [(test-glyph 1.0 2.0) {:type :string :data "c" :style textrich/default-style} (test-glyph 2.0 1.0)] }
+                               {:h 1.0 :primitives [{:type :string :data "d" :style textrich/default-style}] }
+                               {:h 1.0 :primitives [{:type :string :data "e" :style textrich/default-style}] }]}
+        container (fg/defcomponent textrich/textrich :main {:rendition rendition
+                                                            :evolvers {:rendition nil}})
+        text (fgtest/evolve container :text nil)]
+    (test/is (= "abcde" text))))

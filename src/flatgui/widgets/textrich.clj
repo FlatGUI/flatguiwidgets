@@ -336,6 +336,10 @@ flatgui.widgets.textrich
         :else old-rendition)
       empty-rendition)))
 
+(fg/defevolverfn :text
+  (let [rendition (:rendition (get-property [:this] :rendition))]
+    (apply str (mapcat (fn [r-line] (map #(if (= :string (:type %)) (:data %)) (:primitives r-line))) rendition))))
+
 (fg/defevolverfn :content-size
   (let [rendition (get-property [:this] :rendition)
         lines (:lines rendition)]
@@ -380,7 +384,7 @@ flatgui.widgets.textrich
       old-viewport-matrix)))
 
 (fg/defwidget "textrich"
-              {                                             ;:model empty-model
+              {
                :rendition empty-rendition
                :caret-visible true;false
                :->clipboard nil
@@ -392,8 +396,9 @@ flatgui.widgets.textrich
                :foreground :prime-1
                :no-mouse-press-capturing true
                :editable true
-               :evolvers {                                  ;:model model-evolver
+               :evolvers {
                           :rendition rendition-evolver
+                          :text text-evolver
                           :content-size content-size-evolver
                           :viewport-matrix viewport-matrix-evolver
                           ;:caret-visible caret-visible-evolver

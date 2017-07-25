@@ -180,6 +180,32 @@ flatgui.widgets.textrich
         new-caret-line-len (second (nth lines new-line-index))]
     (+ (first new-line) (min caret-line-pos new-caret-line-len))))
 
+(defn dec-caretpos [lines old-caret-pos old-caret-line]
+  (let [new-pos (dec old-caret-pos)]
+    (if (< new-pos (first (nth lines old-caret-line)))
+      (if (pos? old-caret-line)
+        (+
+          (first (nth lines (dec old-caret-line)))
+          (second (nth lines (dec old-caret-line))))
+        (first (nth lines old-caret-line)))
+      new-pos)))
+
+(defn inc-caretpos [lines old-caret-pos old-caret-line]
+  (let [new-pos (inc old-caret-pos)]
+    (if (> new-pos (+ (first (nth lines old-caret-line)) (second (nth lines old-caret-line))))
+      (if (< old-caret-line (dec (count lines)))
+        (first (nth lines (inc old-caret-line)))
+        (second (nth lines old-caret-line)))
+      new-pos)))
+
+(defn inline-caretpos [lines old-caret-pos old-caret-line]
+  (let [line-start (first (nth lines old-caret-line))
+        line-end (+ (first (nth lines old-caret-line)) (second (nth lines old-caret-line)))]
+    (cond
+      (< old-caret-pos line-start) line-start
+      (> old-caret-pos line-end) line-end
+      :else old-caret-pos)))
+
 (fg/defaccessorfn evolve-caretpos [component lines old-caret-pos old-caret-line old-selection-mark old-glyph-count supplied-glyph-count]
   (cond
 
@@ -191,15 +217,20 @@ flatgui.widgets.textrich
     (keyboard/key-pressed? component)
     (let [key (keyboard/get-key component)]
       (condp = key
-        KeyEvent/VK_LEFT (textcommons/deccaretpos old-caret-pos)
-        KeyEvent/VK_RIGHT (textcommons/inccaretpos old-caret-pos old-glyph-count)
-        KeyEvent/VK_HOME 0
-        KeyEvent/VK_END old-glyph-count
+        KeyEvent/VK_LEFT (dec-caretpos lines old-caret-pos old-caret-line)
+        KeyEvent/VK_BACK_SPACE (dec-caretpos lines old-caret-pos old-caret-line)
+        KeyEvent/VK_RIGHT (inc-caretpos lines old-caret-pos old-caret-line)
+        KeyEvent/VK_HOME (if (inputbase/with-ctrl? component)
+                           (inline-caretpos lines 0 0)
+                           (first (nth lines old-caret-line)))
+        KeyEvent/VK_END (if (inputbase/with-ctrl? component)
+                          (inline-caretpos lines old-glyph-count (dec (count lines)))
+                          (+ (first (nth lines old-caret-line)) (second (nth lines old-caret-line))))
         KeyEvent/VK_UP (jump-to-line lines old-caret-pos old-caret-line (fn [l] (dec l)))
         KeyEvent/VK_DOWN (jump-to-line lines old-caret-pos old-caret-line (fn [l] (inc l)))
-        old-caret-pos))
+        (inline-caretpos lines old-caret-pos old-caret-line)))
 
-    :else old-caret-pos))
+    :else (inline-caretpos lines old-caret-pos old-caret-line)))
 
 (fg/defaccessorfn calc-caret-line [caret-pos lines]
   (loop [l 0]
@@ -212,23 +243,26 @@ flatgui.widgets.textrich
           (recur (inc l))))
       (throw (IllegalStateException. (str "caret-pos=" caret-pos " is out of model"))))))
 
+(def empty-caret-coords [0 0 0])
 ;; Caret coords: [<x> <y> <h>]
 (fg/defaccessorfn calc-caret-coords [glyphs caret-line caret-pos lines]
-  (loop [l 0
-         y 0]
-    (if (< l (count lines))
-      (let [line (nth lines l)
-            line-h (nth line 2)]
-        (if (= l caret-line)
-          (let [line-start (first line)
-                interop (get-property [:this] :interop)]
-            [(:w (line-size glyphs line-start (- caret-pos line-start) interop)) y line-h])
-          (recur
-            (inc l)
-            (+ y line-h))))
-      (throw (IllegalStateException. (str "caret-line=" caret-line " is out of model"))))))
+  (if (pos? (count lines))
+    (loop [l 0
+           y 0]
+      (if (< l (count lines))
+        (let [line (nth lines l)
+              line-h (nth line 2)]
+          (if (= l caret-line)
+            (let [line-start (first line)
+                  interop (get-property [:this] :interop)]
+              [(:w (line-size glyphs line-start (- caret-pos line-start) interop)) y line-h])
+            (recur
+              (inc l)
+              (+ y line-h))))
+        (throw (IllegalStateException. (str "caret-line=" caret-line " is out of model")))))
+    empty-caret-coords))
 
-(fg/defaccessorfn input-data-reson? [component] (and (map? (get-reason)) (= :string (:type (get-reason)))))
+(fg/defaccessorfn input-data-reson? [component] (and (map? (get-reason)) (not (nil? (:type (get-reason))))))
 
 (fg/defaccessorfn full-model-reinit [component old-model glyphs]
   (let [w (m/x (get-property [:this] :clip-size))
@@ -250,28 +284,32 @@ flatgui.widgets.textrich
      :w w
      :rendition rendition}))
 
-(fg/defaccessorfn caret-update [component old-model glyphs]
-  (let [lines (:lines old-model)
-
-        old-caret-pos (:caret-pos old-model)
-        old-caret-line (:caret-line old-model)
-        old-selection-mark (:selection-mark old-model)
-        caret-pos (evolve-caretpos component lines old-caret-pos old-caret-line old-selection-mark (count glyphs) 0)
-        caret-line (calc-caret-line caret-pos lines)]
-    (assoc
-      old-model
-      :caret-line caret-line
-      :caret-pos caret-pos
-      :selection-mark 0
-      :caret-coords (calc-caret-coords glyphs caret-line caret-pos lines))))
-
 (fg/defaccessorfn glyphs-> [component old-model glyphs input-glyphs]
   (let [old-caret-pos (:caret-pos old-model)
-        new-glyphs (vec (concat
-                          (take old-caret-pos glyphs)
-                          input-glyphs
-                          (take-last (- (count glyphs) old-caret-pos) glyphs)))
+        old-caret-line (:caret-line old-model)
+        old-selection-mark (:selection-mark old-model)
 
+        input-glyph-count (count input-glyphs)
+        sstart (min old-caret-pos old-selection-mark)
+        send (max old-selection-mark old-caret-pos)
+        has-selection (not= sstart send)
+
+        new-glyphs (cond
+
+                     (and
+                       (not has-selection)
+                       (keyboard/key-pressed? component)
+                       (= (keyboard/get-key component) KeyEvent/VK_BACK_SPACE))
+                     (vec (concat (take (max 0 (dec sstart)) glyphs) (take-last (- (count glyphs) sstart) glyphs)))
+
+                     (and
+                       (not has-selection)
+                       (keyboard/key-pressed? component)
+                       (= (keyboard/get-key component) KeyEvent/VK_DELETE))
+                     (vec (concat (take sstart glyphs) (take-last (- (count glyphs) sstart 1) glyphs)))
+
+                     :else
+                     (vec (concat (take sstart glyphs) input-glyphs (take-last (- (count glyphs) send) glyphs))))
 
         ;; TODO re-render starting from changed line, no need to re-render everything
         w (m/x (get-property [:this] :clip-size))
@@ -279,8 +317,10 @@ flatgui.widgets.textrich
         lines (wrap-lines new-glyphs w interop)
         rendition (render-lines new-glyphs lines)
 
-        caret-pos (+ old-caret-pos (count input-glyphs))
-        caret-line (calc-caret-line caret-pos lines)]
+        caret-pos (evolve-caretpos component lines old-caret-pos old-caret-line old-selection-mark (count glyphs) input-glyph-count)
+        selection-mark caret-pos
+        caret-line (calc-caret-line caret-pos lines)
+        caret-coords (calc-caret-coords new-glyphs caret-line caret-pos lines)]
     (assoc
       old-model
       :glyphs new-glyphs
@@ -288,8 +328,8 @@ flatgui.widgets.textrich
       :rendition rendition
       :caret-line caret-line
       :caret-pos caret-pos
-      :selection-mark 0
-      :caret-coords (calc-caret-coords new-glyphs caret-line caret-pos lines))))
+      :selection-mark selection-mark
+      :caret-coords caret-coords)))
 
 (fg/defaccessorfn rendition-input-data-evolver [component old-rendition input-data]
   (condp = (:type input-data)
@@ -312,29 +352,30 @@ flatgui.widgets.textrich
 
 (fg/defevolverfn :rendition
   (let [glyphs (:glyphs old-rendition)]
-    (if (pos? (count glyphs))                               ; TODO should work with empty initial glyphs
-      (cond
+    (cond
 
-        (nil? (:lines old-rendition))
-        (full-model-reinit component old-rendition glyphs)
+      (nil? (:lines old-rendition))
+      (full-model-reinit component old-rendition glyphs)
 
-        (not= (:w old-rendition) (m/x (get-property [:this] :clip-size)))
-        (full-model-reinit component old-rendition glyphs)  ;TODO optimize this one
+      (not= (:w old-rendition) (m/x (get-property [:this] :clip-size)))
+      (full-model-reinit component old-rendition glyphs)  ;TODO optimize this one
 
-        (keyboard/key-event? component)
-        (let [typed-text (textcommons/textfield-dflt-text-suplier component)]
-          (if (or (nil? typed-text) (.isEmpty typed-text))
-            (caret-update component old-rendition glyphs)
-            (rendition-input-data-evolver component old-rendition {:type :string :data typed-text})))
+      (keyboard/key-event? component)
+      (let [enter (= (keyboard/get-key component) KeyEvent/VK_ENTER)]
+        (if (and (keyboard/key-typed? component) (not enter))
+          (let [typed-text (textcommons/textfield-dflt-text-suplier component)]
+            (glyphs-> component old-rendition (:glyphs old-rendition) (map char-glyph typed-text)))
+          (if (keyboard/key-pressed? component)
+            (glyphs-> component old-rendition (:glyphs old-rendition) nil)
+            old-rendition)))
 
-        (input-data-reson? component)
-        (rendition-input-data-evolver component old-rendition (get-reason))
+      (input-data-reson? component)
+      (rendition-input-data-evolver component old-rendition (get-reason))
 
-        (clipboard/clipboard-paste? component)
-        (rendition-clipboard-paste-evolver component old-rendition)
+      (clipboard/clipboard-paste? component)
+      (rendition-clipboard-paste-evolver component old-rendition)
 
-        :else old-rendition)
-      empty-rendition)))
+      :else old-rendition)))
 
 (fg/defevolverfn :text
   (let [rendition (:rendition (get-property [:this] :rendition))]

@@ -40,8 +40,11 @@ flatgui.widgets.textrich
   ([c style]
    (condp = c
      \space (glyph :whitespace nil style)
+     \newline (glyph :linebreak nil style)
      (glyph :char c style)))
   ([c] (char-glyph c default-style)))
+
+(def linebreak-glyph (char-glyph \newline))
 
 (def whitespace-glyph (char-glyph \space))
 
@@ -61,6 +64,8 @@ flatgui.widgets.textrich
 
 (defmulti glyph-size (fn [g _interop] (:type g)))
 
+(def empty-glyph-size {:w 0 :h 0})
+
 (defn- text-size [interop text font]
   {:w (.getStringWidth interop text font)
    :h (.getFontHeight interop font)})
@@ -73,6 +78,8 @@ flatgui.widgets.textrich
 (defmethod glyph-size :whitespace [g interop]
   (let [font (:font (:style g))]
     (text-size interop " " font)))
+
+(defmethod glyph-size :linebreak [_g _interop] empty-glyph-size)
 
 (defmethod glyph-size :test [g _interop] {:w (:w (:style g)) :h (:h (:style g))})
 
@@ -115,7 +122,7 @@ flatgui.widgets.textrich
               current-len (:w current-size)
               current-h (:h current-size)
               g-line-h (max current-h line-h)]
-          (if (and is-delim (>= current-len w))
+          (if (and is-delim (or (>= current-len w) (= (:type g) :linebreak)))
             (let [step-back (and (> current-len w) (not= last-delim-index -1))
                   next-line-start (if step-back (inc last-delim-index) (inc g-index))]
               (recur
@@ -198,27 +205,41 @@ flatgui.widgets.textrich
         (second (nth lines old-caret-line)))
       new-pos)))
 
-(defn inline-caretpos [lines old-caret-pos old-caret-line]
-  (let [line-start (first (nth lines old-caret-line))
-        line-end (+ (first (nth lines old-caret-line)) (second (nth lines old-caret-line)))]
+(defn inline-caretpos [lines caret-pos caret-line]
+  (let [line-start (first (nth lines caret-line))
+        line-end (+ (first (nth lines caret-line)) (second (nth lines caret-line)))]
     (cond
-      (< old-caret-pos line-start) line-start
-      (> old-caret-pos line-end) line-end
-      :else old-caret-pos)))
+      (< caret-pos line-start) line-start
+      (> caret-pos line-end) line-end
+      :else caret-pos)))
 
-(fg/defaccessorfn evolve-caretpos [component lines old-caret-pos old-caret-line old-selection-mark old-glyph-count supplied-glyph-count]
+(defn find-next-page [lines old-caret-line clip-h dir-fn]
+  (loop [dh 0
+         l old-caret-line]
+    (let [in-range (and (>= l 0) (< l (count lines)))
+          lh (if in-range (nth (nth lines l) 2))]
+      (if (and in-range (< (+ dh lh) clip-h))
+        (recur
+          (+ dh lh)
+          (dir-fn l 1))
+        l))))
+
+(fg/defaccessorfn evolve-caretpos [component lines old-caret-pos old-caret-line old-selection-mark old-glyph-count input-glyphs]
   (cond
 
-    ;(or (keyboard/key-typed? component) (clipboard/clipboard-paste? component))
-    (pos? supplied-glyph-count)
-    ;; min here to take into account possible selection that is to be replaced with supplied text
-    (+ (min old-selection-mark old-caret-pos) supplied-glyph-count)
+    (pos? (count input-glyphs))
+    (let [;; min here to take into account possible selection that is to be replaced with supplied text
+          new-caret-pos (+ (min old-selection-mark old-caret-pos) (count input-glyphs))
+          input-linebreak-count (count (filter (fn [g] (= (:type g) :linebreak)) input-glyphs))]
+      (inline-caretpos lines new-caret-pos (min (+ old-caret-line input-linebreak-count) (dec (count lines)))))
 
     (keyboard/key-pressed? component)
     (let [key (keyboard/get-key component)]
       (condp = key
         KeyEvent/VK_LEFT (dec-caretpos lines old-caret-pos old-caret-line)
-        KeyEvent/VK_BACK_SPACE (dec-caretpos lines old-caret-pos old-caret-line)
+        KeyEvent/VK_BACK_SPACE (if (and (< old-caret-line (count lines)) (> old-caret-pos (first (nth lines old-caret-line))))
+                                 (dec-caretpos lines old-caret-pos old-caret-line)
+                                 (inline-caretpos lines (dec old-caret-pos) (dec old-caret-line)))
         KeyEvent/VK_RIGHT (inc-caretpos lines old-caret-pos old-caret-line)
         KeyEvent/VK_HOME (if (inputbase/with-ctrl? component)
                            (inline-caretpos lines 0 0)
@@ -228,6 +249,10 @@ flatgui.widgets.textrich
                           (+ (first (nth lines old-caret-line)) (second (nth lines old-caret-line))))
         KeyEvent/VK_UP (jump-to-line lines old-caret-pos old-caret-line (fn [l] (dec l)))
         KeyEvent/VK_DOWN (jump-to-line lines old-caret-pos old-caret-line (fn [l] (inc l)))
+        KeyEvent/VK_PAGE_UP (let [ch (m/y (get-property [:this] :clip-size))]
+                              (jump-to-line lines old-caret-pos old-caret-line (fn [l] (find-next-page lines l ch -))))
+        KeyEvent/VK_PAGE_DOWN (let [ch (m/y (get-property [:this] :clip-size))]
+                                (jump-to-line lines old-caret-pos old-caret-line (fn [l] (find-next-page lines l ch +))))
         (inline-caretpos lines old-caret-pos old-caret-line)))
 
     :else (inline-caretpos lines old-caret-pos old-caret-line)))
@@ -273,7 +298,7 @@ flatgui.widgets.textrich
         old-caret-pos (:caret-pos old-model)
         old-caret-line (:caret-line old-model)
         old-selection-mark (:selection-mark old-model)
-        caret-pos (evolve-caretpos component lines old-caret-pos old-caret-line old-selection-mark (count glyphs) 0)
+        caret-pos (evolve-caretpos component lines old-caret-pos old-caret-line old-selection-mark (count glyphs) [])
         caret-line (calc-caret-line caret-pos lines)]
     {:glyphs glyphs
      :lines lines
@@ -317,7 +342,7 @@ flatgui.widgets.textrich
         lines (wrap-lines new-glyphs w interop)
         rendition (render-lines new-glyphs lines)
 
-        caret-pos (evolve-caretpos component lines old-caret-pos old-caret-line old-selection-mark (count glyphs) input-glyph-count)
+        caret-pos (evolve-caretpos component lines old-caret-pos old-caret-line old-selection-mark (count glyphs) input-glyphs)
         selection-mark caret-pos
         caret-line (calc-caret-line caret-pos lines)
         caret-coords (calc-caret-coords new-glyphs caret-line caret-pos lines)]
@@ -362,9 +387,11 @@ flatgui.widgets.textrich
 
       (keyboard/key-event? component)
       (let [enter (= (keyboard/get-key component) KeyEvent/VK_ENTER)]
-        (if (and (keyboard/key-typed? component) (not enter))
+        (if
+          (keyboard/key-typed? component)
           (let [typed-text (textcommons/textfield-dflt-text-suplier component)]
-            (glyphs-> component old-rendition (:glyphs old-rendition) (map char-glyph typed-text)))
+            (glyphs-> component old-rendition (:glyphs old-rendition)
+                      (if enter [linebreak-glyph] (map char-glyph typed-text))))
           (if (keyboard/key-pressed? component)
             (glyphs-> component old-rendition (:glyphs old-rendition) nil)
             old-rendition)))

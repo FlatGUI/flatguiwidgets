@@ -57,6 +57,11 @@
   (test-lines "   11 22   " 2 ["11" "22"])
   (test-lines "   11   22 " 2 ["11" "22"]))
 
+(test/deftest wrap-test-1
+  (let [glyphs [(textrich/char-glyph \1) (textrich/char-glyph \1) (textrich/char-glyph \newline) (textrich/char-glyph \1) (textrich/char-glyph \1)]
+        lines (textrich/wrap-lines glyphs 6 dummy-interop)]
+    (test/is (= [[0 2 1.0 2.0] [3 2 1.0 2.0]] lines))))
+
 (test/deftest wrap-line-h-lines
   (let [glyphs [(test-glyph 1 1) (test-glyph 1 2) (test-glyph 1 1) textrich/whitespace-glyph (test-glyph 1 3) (test-glyph 1 2)]
         lines (textrich/wrap-lines glyphs 3 dummy-interop)]

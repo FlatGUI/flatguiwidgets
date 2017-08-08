@@ -415,7 +415,7 @@
    :->clipboard nil
    :first-visible-symbol 0
    :focusable true
-   :cursor :text
+   :cursor nil
    :skin-key [:textfield]
    :editable true
    :background :prime-4

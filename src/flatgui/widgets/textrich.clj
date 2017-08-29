@@ -102,6 +102,8 @@ flatgui.widgets.textrich
           (inc c)))
       {:w w :h h})))
 
+(defn- empty-line-h [interop] (:h (glyph-size whitespace-glyph interop)))
+
 ;; line: [<start> <len> <h> <w>]
 (defn wrap-lines [glyphs w interop]
   (let [g-count (count glyphs)]
@@ -111,23 +113,27 @@ flatgui.widgets.textrich
            line-w-to-last-delim -1
            line-h-to-last-delim -1
            g-index 0
-           line-h 0]
+           line-h (empty-line-h interop)]
       (if (>= g-index g-count)
         (if (and (> g-index line-start) (not (delimiters (:type (nth glyphs line-start)))))
           (conj lines [line-start (- g-index line-start) line-h (:w (line-size glyphs line-start (- g-index line-start) interop))])
-          lines)
+          (if (= :linebreak (:type (last glyphs)))
+            (conj lines [g-count 0 (empty-line-h interop) 0])
+            lines))
         (let [g (nth glyphs g-index)
               is-delim (delimiters (:type g))
+              is-linebreak (= (:type g) :linebreak)
               current-size (line-size glyphs line-start (- g-index line-start) interop)
               current-len (:w current-size)
               current-h (:h current-size)
               g-line-h (max current-h line-h)]
-          (if (and is-delim (or (>= current-len w) (= (:type g) :linebreak)))
+          (if (and is-delim (or (>= current-len w) is-linebreak))
             (let [step-back (and (> current-len w) (not= last-delim-index -1))
-                  next-line-start (if step-back (inc last-delim-index) (inc g-index))]
+                  next-line-start (if step-back (inc last-delim-index) (inc g-index))
+                  g-type (:type (nth glyphs line-start))]
               (recur
                 next-line-start
-                (if (delimiters (:type (nth glyphs line-start)))
+                (if (and (delimiters g-type) (not= :linebreak g-type))
                   lines
                   (conj lines [line-start
                                (if step-back (- last-delim-index line-start) (- g-index line-start))
@@ -137,7 +143,7 @@ flatgui.widgets.textrich
                 -1
                 -1
                 next-line-start
-                0))
+                (empty-line-h interop)))
             (recur
               (if (and is-delim (= g-index line-start)) (inc g-index) line-start)
               lines

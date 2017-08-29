@@ -206,12 +206,14 @@ flatgui.widgets.textrich
       new-pos)))
 
 (defn inline-caretpos [lines caret-pos caret-line]
-  (let [line-start (first (nth lines caret-line))
-        line-end (+ (first (nth lines caret-line)) (second (nth lines caret-line)))]
-    (cond
-      (< caret-pos line-start) line-start
-      (> caret-pos line-end) line-end
-      :else caret-pos)))
+  (if (not (empty? lines))
+    (let [line-start (first (nth lines caret-line))
+          line-end (+ (first (nth lines caret-line)) (second (nth lines caret-line)))]
+      (cond
+        (< caret-pos line-start) line-start
+        (> caret-pos line-end) line-end
+        :else caret-pos))
+    caret-pos))
 
 (defn find-next-page [lines old-caret-line clip-h dir-fn]
   (loop [dh 0
@@ -258,15 +260,17 @@ flatgui.widgets.textrich
     :else (inline-caretpos lines old-caret-pos old-caret-line)))
 
 (fg/defaccessorfn calc-caret-line [caret-pos lines]
-  (loop [l 0]
-    (if (< l (count lines))
-      (let [line (nth lines l)
-            line-start (first line)
-            line-len (second line)]
-        (if (and (>= caret-pos line-start) (<= caret-pos (+ line-start line-len)))
-          l
-          (recur (inc l))))
-      (throw (IllegalStateException. (str "caret-pos=" caret-pos " is out of model"))))))
+  (if (not (empty? lines))
+    (loop [l 0]
+      (if (< l (count lines))
+        (let [line (nth lines l)
+              line-start (first line)
+              line-len (second line)]
+          (if (and (>= caret-pos line-start) (<= caret-pos (+ line-start line-len)))
+            l
+            (recur (inc l))))
+        (throw (IllegalStateException. (str "caret-pos=" caret-pos " is out of model")))))
+    0))
 
 (def empty-caret-coords [0 0 0])
 ;; Caret coords: [<x> <y> <h>]
@@ -409,7 +413,8 @@ flatgui.widgets.textrich
     (apply str (mapcat (fn [r-line] (map #(if (= :string (:type %)) (:data %)) (:primitives r-line))) rendition))))
 
 (fg/defevolverfn :content-size
-  (let [rendition (get-property [:this] :rendition)
+  (let [cs (get-property component [:this] :clip-size)
+        rendition (get-property [:this] :rendition)
         lines (:lines rendition)]
     (loop [l 0
            w 0
@@ -420,7 +425,7 @@ flatgui.widgets.textrich
             (inc l)
             (max w (nth line 3))
             (+ h (nth line 2))))
-        (m/defpoint w h)))))
+        (m/defpoint (max w (m/x cs)) (max h (m/y cs)))))))
 
 (fg/defevolverfn :viewport-matrix
   (let [rendition (get-property [:this] :rendition)

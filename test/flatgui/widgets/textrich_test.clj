@@ -14,12 +14,15 @@
             [flatgui.widgets.textrich :as textrich]
             [flatgui.test :as fgtest])
   (:import (flatgui.core.engine IResultCollector Container ClojureContainerParser)
-           (flatgui.core IFGInteropUtil)))
+           (flatgui.core IFGInteropUtil)
+           (java.awt.event KeyEvent)))
 
 (def dummy-interop
   (proxy [IFGInteropUtil] []
     (getStringWidth [str _font] (.length str))
-    (getFontHeight [_font] 1)))
+    (getFontHeight [_font] 1)
+    (getFontAscent [_font] 0)
+    ))
 
 (defn test-glyph [w h] (textrich/glyph :test nil {:w w :h h}))
 
@@ -31,31 +34,48 @@
         lines (textrich/wrap-lines glyphs w dummy-interop)]
     (test/is (= expected-lines (lines->strings text lines)))))
 
+;; TODO Implement what happens in real life:
+;;  1. It allows trailing space to stay in line even if total line length exceeds w.
+;;     This means the cursor may blink on the right margin
+;;  2. When right arrow pressed when at the end of the line #1, or left arrow pressed when at
+;;     the beginning of line #2, then it jumps between lines skipping the trailing space of line #1
+;;
 (test/deftest wrap-test
-  (test-lines "The quick brown fox jumps over the lazy dog" 9 ["The quick" "brown fox" "jumps" "over the" "lazy dog"])
-  (test-lines "11 22" 2 ["11" "22"])
-  (test-lines "11 22 " 2 ["11" "22"])
-  (test-lines "11 22 3" 2 ["11" "22" "3"])
-  (test-lines "11 22 33 44" 5 ["11 22" "33 44"])
-  (test-lines "11 22 33 44 " 5 ["11 22" "33 44"])
-  (test-lines "11 22 33 44  " 5 ["11 22" "33 44"])
-  (test-lines "11 22 33 44   " 5 ["11 22" "33 44"])
-  (test-lines "11 22 33 44     " 5 ["11 22" "33 44"])
-  (test-lines "11 22 33 44      " 5 ["11 22" "33 44"])
-  (test-lines " 11 22" 2 ["11" "22"])
-  (test-lines "  11 22" 2 ["11" "22"])
-  (test-lines "   11 22" 2 ["11" "22"])
-  (test-lines "11  22" 2 ["11" "22"])
-  (test-lines "11   22" 2 ["11" "22"])
-  (test-lines "11    22" 2 ["11" "22"])
-  (test-lines "  11  22  " 2 ["11" "22"])
-  (test-lines "   11   22   " 2 ["11" "22"])
-  (test-lines "  11   22   " 2 ["11" "22"])
-  (test-lines "   11  22   " 2 ["11" "22"])
-  (test-lines "   11   22  " 2 ["11" "22"])
-  (test-lines " 11   22   " 2 ["11" "22"])
-  (test-lines "   11 22   " 2 ["11" "22"])
-  (test-lines "   11   22 " 2 ["11" "22"]))
+  ;(test-lines "The quick brown fox jumps over the lazy dog" 9 ["The quick" "brown fox" "jumps" "over the" "lazy dog"])
+
+  ;            0  3     9     15  19    25   30
+  (test-lines "The quick brown fox jumps over the lazy dog" 9 ["The quick " "brown fox " "jumps " "over the " "lazy dog"])
+
+  (test-lines "11 22" 2 ["11 " "22"])
+  (test-lines "11 22 " 2 ["11 " "22 "])
+  (test-lines "11 22 3" 2 ["11 " "22 " "3"])
+  (test-lines "11 22 33 44" 5 ["11 22 " "33 44"])
+  (test-lines "11 22 33 44 " 5 ["11 22 " "33 44 "])
+
+  (test-lines "11 22 33 44  " 5 ["11 22 " "33 44  "])
+  (test-lines "11 22  33 44  " 5 ["11 22  " "33 44  "])
+  (test-lines "11 22   33 44  " 5 ["11 22   " "33 44  "])
+  (test-lines "11 22 33 44   " 5 ["11 22 " "33 44   "])
+  (test-lines "11 22 33 44     " 5 ["11 22 " "33 44     "])
+  (test-lines "11 22 33 44      " 5 ["11 22 " "33 44      "])
+
+  (test-lines " 11 22" 2 [" 1" "1 " "22"])
+  (test-lines " 11 22" 4 [" 11 " "22"])
+
+  (test-lines "  11 22" 2 ["  " "11 " "22"])
+  (test-lines "   11 22" 2 ["   " "11 " "22"])
+  (test-lines "11  22" 2 ["11  " "22"])
+  (test-lines "11   22" 2 ["11   " "22"])
+  (test-lines "11    22" 2 ["11    " "22"])
+  (test-lines "  11  22  " 2 ["  " "11  " "22  "])
+  (test-lines "   11   22   " 2 ["   " "11   " "22   "])
+  (test-lines "  11   22   " 2 ["  " "11   " "22   "])
+  (test-lines "   11  22   " 2 ["   " "11  " "22   "])
+  (test-lines "   11   22  " 2 ["   " "11   " "22  "])
+  (test-lines " 11   22   " 2 [" 1" "1   " "22   "])
+  (test-lines "   11 22   " 2 ["   " "11 " "22   "])
+  (test-lines "   11   22 " 2 ["   " "11   " "22 "])
+  )
 
 (test/deftest wrap-test-1
   (let [glyphs [(textrich/char-glyph \1) (textrich/char-glyph \1) (textrich/char-glyph \newline) (textrich/char-glyph \1) (textrich/char-glyph \1)]
@@ -113,3 +133,29 @@
                                                             :evolvers {:rendition nil}})
         text (fgtest/evolve container :text nil)]
     (test/is (= "abcde" text))))
+
+(fgtest/enable-traces-for-failed-tests)
+
+(test/deftest type-text-live-test
+  (let [w 3
+        root (fg/defroot (fg/defcomponent textrich/textrich :main {:clip-size (m/defpoint w 10)}))
+        container (fgtest/init-container root dummy-interop)]
+
+    (fgtest/wait-for-property container [:main] :rendition (assoc textrich/empty-rendition :w w :lines [] :rendition []))
+
+    (fgtest/type-string container [:main] "12")
+
+    (fgtest/wait-for-property-pred container [:main] :rendition
+                                   (fn [r] (and (= (:caret-pos r) 2) (= (count (:lines r)) 1))))
+
+    (fgtest/type-key container [:main] KeyEvent/VK_ENTER KeyEvent/VK_ENTER 1)
+
+    (fgtest/wait-for-property-pred container [:main] :rendition
+                                   (fn [r] (and (= (:caret-pos r) 3) (= (:caret-line r) 1) (= (count (:lines r)) 2))))
+
+    (fgtest/type-string container [:main] "34 56")
+
+    (fgtest/wait-for-property-pred container [:main] :rendition
+                                   (fn [r] (and  (= (count (:lines r)) 3))))
+
+    ))

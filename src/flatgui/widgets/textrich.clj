@@ -104,55 +104,216 @@ flatgui.widgets.textrich
 
 (defn- empty-line-h [interop] (:h (glyph-size whitespace-glyph interop)))
 
+
+; 1. Split glyphs into words. New word starts in one of these cases:
+;    a. Non-whitespace character met after whitespace
+;    b. Any character met after linebreak
+;    c. A single word is wider than a line. It will be split into two parts
+;       i. first part will be the length of a line and will not contain trailing spaces
+; 2. For each word, should know two lengths: a) without trailing whitespaces b) with trailing whitespaces
+; 3. Split words into lines. Last word should go to next line if it cannot fit without trailing whitespaces.
+;    Word lengths prior to the last should be counted with trailing whitespaces
+;    a. Line end includes trailing whitespaces
+;    b. linebreak glyphs are not included anywhere
+
+(defrecord Word [start end w-content w-total h])
+
+(defn whitespace? [g] (= :whitespace (:type g)))
+
+(defn linebreak? [g] (= :linebreak (:type g)))
+
+(defn end-of-word? [glyphs w g-index word-w-content]
+  (let [;_ (println "eow? g-index" g-index "word-w-content" word-w-content)
+        g-count (count glyphs)]
+    (or
+      (= g-index (dec g-count))
+      (>= word-w-content w)
+      (whitespace? (nth glyphs (inc g-index)))
+      (linebreak? (nth glyphs (inc g-index))))))
+
+(defn find-word-total-end [glyphs g-index]
+  (loop [e-index (inc g-index)]
+    (if (< e-index (count glyphs))
+      (let [g (nth glyphs e-index)]
+        (if (whitespace? g)
+          (recur (inc e-index))
+          (dec e-index)))
+      (dec e-index))))
+
+; | 0  1  2 |
+;  ws     we  => len: (inc (- 2 0))
+(defn find-word [glyphs w interop word-start]
+  (let []
+    (loop [g-index word-start
+           leading-space true
+           word-w-content 0
+           word-w-total 0
+           h (empty-line-h interop)]
+      (let [g (nth glyphs g-index)
+            g-size (glyph-size g interop)
+            g-w (:w g-size)
+            is-char (not (delimiters (:type g)))
+            latest-word-w-content (if (or leading-space is-char) (+ word-w-content g-w) word-w-content)
+            latest-word-w-total (+ word-w-total g-w)
+            latest-h (max h (:h g-size))]
+        (if (end-of-word? glyphs w g-index latest-word-w-content)
+          (let [word-total-end (find-word-total-end glyphs g-index)
+                trailing-whitespace-cnt (- word-total-end g-index)
+                full-word-w-total (if (pos? trailing-whitespace-cnt)
+                                   (+ latest-word-w-total (* trailing-whitespace-cnt (:w (glyph-size whitespace-glyph interop))))
+                                   latest-word-w-total)
+                ;_ (println "eow g-index=" g-index " find-word-total-end=" find-word-total-end)
+                ]
+            (Word. word-start word-total-end latest-word-w-content full-word-w-total latest-h))
+          (recur
+            (inc g-index)
+            (if is-char false leading-space)
+            latest-word-w-content
+            latest-word-w-total
+            latest-h))))))
+
+(defn glyphs->words [glyphs w interop]
+  (let [g-count (count glyphs)]
+    (loop [words []
+           word-start 0]
+      (if (< word-start g-count)
+        (let [word (find-word glyphs w interop word-start)
+              word-end (:end word)
+              next-word-start (if (< word-end (dec g-count)) (if (linebreak? (nth glyphs (inc word-end))) (+ word-end 2) (inc word-end)) g-count)]
+          (recur
+            (conj words word)
+            next-word-start))
+        words))))
+
+(defn words->lines [words w interop]
+  (loop [lines []
+         current-line-start 0
+         current-line-w 0
+         current-line-h (empty-line-h interop)
+         w-index 0]
+
+    (let [in-range (< w-index (count words))
+          word (if in-range (nth words w-index))
+          w-content (if in-range (:w-content word))
+          w-total (if in-range (:w-total word))
+          wrap-line (or (not in-range) (> (+ current-line-w w-content) w))
+
+          ;_ (println "w-index=" w-index "cs=" current-line-start "cw=" current-line-w "cwi=" (if in-range (+ current-line-w w-content) "-") "w-content" w-content "wrap-line=" wrap-line "-" word)
+
+          latest-lines (if wrap-line
+                         (let [last-word (nth words (dec w-index))]
+                           (conj lines [current-line-start (inc (- (:end last-word) current-line-start)) current-line-h current-line-w]))
+                         lines)
+          latest-line-w (if in-range (+ current-line-w w-total))
+          latest-line-h (if in-range (max (max current-line-h (:h word))))
+          ;latest-lines (if (not wrap-line)
+          ;               lines
+          ;               (conj lines [current-line-start (inc (- (:end word) (:start word))) latest-line-h latest-line-w])
+          ;               )
+          ]
+       (if in-range
+         (recur
+           latest-lines
+           (if wrap-line (:start word) current-line-start)
+           (if wrap-line w-total latest-line-w)
+           (if wrap-line (:h word) latest-line-h)
+           (inc w-index))
+         latest-lines))))
+
+
+;(if (< w-index (count words))
+;  (let [word (nth words w-index)                          ;w-content w-total
+;        w-content (:w-content word)
+;        w-total (:w-total word)]
+;
+;    (if ())
+;
+;
+;    ;(if (<= (+ current-line-w w-content) w)
+;    ;  (recur
+;    ;    (if (< w-index (dec (count words)))
+;    ;      lines
+;    ;      (conj lines [(:start word) (inc (- (:end word) (:start word))) (max current-line-h (:h word)) (+ current-line-w w-content)]))
+;    ;    (+ current-line-w w-total)
+;    ;    (max current-line-h (:h word))
+;    ;    (inc w-index))
+;    ;  (recur
+;    ;    (conj lines [(:start word) (inc (- (:end word) (:start word))) current-line-h (+ current-line-w w-content)])
+;    ;    0
+;    ;    (empty-line-h interop)
+;    ;    (inc w-index)))
+;    )
+;  lines)
+
 ;; line: [<start> <len> <h> <w>]
 (defn wrap-lines [glyphs w interop]
-  (let [g-count (count glyphs)]
-    (loop [line-start 0
-           lines []
-           last-delim-index -1
-           line-w-to-last-delim -1
-           line-h-to-last-delim -1
-           g-index 0
-           line-h (empty-line-h interop)]
-      (if (>= g-index g-count)
-        (if (and (> g-index line-start) (not (delimiters (:type (nth glyphs line-start)))))
-          (conj lines [line-start (- g-index line-start) line-h (:w (line-size glyphs line-start (- g-index line-start) interop))])
-          (if (= :linebreak (:type (last glyphs)))
-            (conj lines [g-count 0 (empty-line-h interop) 0])
-            lines))
-        (let [g (nth glyphs g-index)
-              is-delim (delimiters (:type g))
-              is-linebreak (= (:type g) :linebreak)
-              current-size (line-size glyphs line-start (- g-index line-start) interop)
-              current-len (:w current-size)
-              current-h (:h current-size)
-              g-line-h (max current-h line-h)]
-          (if (and is-delim (or (>= current-len w) is-linebreak))
-            (let [step-back (and (> current-len w) (not= last-delim-index -1))
-                  next-line-start (if step-back (inc last-delim-index) (inc g-index))
-                  g-type (:type (nth glyphs line-start))]
-              (recur
-                next-line-start
-                (if (and (delimiters g-type) (not= :linebreak g-type))
-                  lines
-                  (conj lines [line-start
-                               (if step-back (- last-delim-index line-start) (- g-index line-start))
-                               (if step-back line-h-to-last-delim g-line-h)
-                               (if step-back line-w-to-last-delim current-len)]))
-                -1
-                -1
-                -1
-                next-line-start
-                (empty-line-h interop)))
-            (recur
-              (if (and is-delim (= g-index line-start)) (inc g-index) line-start)
-              lines
-              (if is-delim g-index last-delim-index)
-              (if is-delim current-len line-w-to-last-delim)
-              (if is-delim g-line-h line-h-to-last-delim)
-              (inc g-index)
-              g-line-h)
-            ))))))
+  (let [words (glyphs->words glyphs w interop)
+        ;_ (println "words=" words)
+        ]
+    (words->lines words w interop)))
+
+;; line: [<start> <len> <h> <w>]
+;(defn wrap-lines [glyphs w interop]
+;  (let [_ (println "=====================================================================================")
+;        g-count (count glyphs)]
+;    (loop [line-start 0
+;           lines []
+;           last-delim-index -1
+;           line-w-to-last-delim -1
+;           line-h-to-last-delim -1
+;           g-index 0
+;           line-h (empty-line-h interop)]
+;      (let [_ (println "=== line-start =" line-start " g-index =" g-index (if (< g-index g-count) (nth glyphs g-index)))]
+;        (if (>= g-index g-count)
+;          (if (and (> g-index line-start) (not (delimiters (:type (nth glyphs line-start)))))
+;            (conj lines [line-start (- g-index line-start) line-h (:w (line-size glyphs line-start (- g-index line-start) interop))])
+;            (if (= :linebreak (:type (last glyphs)))
+;              (conj lines [g-count 0 (empty-line-h interop) 0])
+;              lines))
+;          (let [g (nth glyphs g-index)
+;                is-end-of-text (= g-index (dec g-count))
+;                is-delim (delimiters (:type g))
+;                is-linebreak (= (:type g) :linebreak)
+;
+;                line-end (- g-index line-start)
+;                line-end-with-delim (if is-delim (inc line-end) line-end)
+;
+;                current-size (line-size glyphs line-start line-end interop)
+;                current-len (:w current-size)
+;
+;                current-h (:h current-size)
+;                g-line-h (max current-h line-h)
+;                _ (println "  --- " is-delim is-end-of-text (>= current-len w) is-linebreak " current-len=" current-len)]
+;            (if (and (or is-delim is-end-of-text) (or (>= current-len w) is-linebreak))
+;              (let [step-back (and (> current-len w) (not= last-delim-index -1))
+;                    next-line-start (if step-back (inc last-delim-index) (inc g-index))
+;                    _ (println "    --- step-back =" step-back "next-line-start =" next-line-start)
+;                    g-type (:type (nth glyphs line-start))]
+;                (recur
+;                  next-line-start
+;                  (if (and (delimiters g-type) (not= :linebreak g-type))
+;                    lines
+;                    (conj lines [line-start
+;                                 (if step-back (- last-delim-index line-start) line-end-with-delim)
+;                                 (if step-back line-h-to-last-delim g-line-h)
+;                                 (if step-back line-w-to-last-delim current-len)]))
+;                  -1
+;                  -1
+;                  -1
+;                  next-line-start
+;                  (empty-line-h interop)))
+;              (let [;upd-line-start (if (and is-delim (= g-index line-start)) (inc g-index) line-start)
+;                    upd-line-start line-start
+;                    _ (println "    --- recur with new line start =" upd-line-start  )]
+;                (recur
+;                  upd-line-start
+;                  lines
+;                  (if is-delim g-index last-delim-index)
+;                  (if is-delim current-len line-w-to-last-delim)
+;                  (if is-delim g-line-h line-h-to-last-delim)
+;                  (inc g-index)
+;                  g-line-h))
+;              )))))))
 
 (defn render-glyph [lr glyph]
   (let [last-primitive (last lr)]
@@ -238,8 +399,14 @@ flatgui.widgets.textrich
     (pos? (count input-glyphs))
     (let [;; min here to take into account possible selection that is to be replaced with supplied text
           new-caret-pos (+ (min old-selection-mark old-caret-pos) (count input-glyphs))
-          input-linebreak-count (count (filter (fn [g] (= (:type g) :linebreak)) input-glyphs))]
-      (inline-caretpos lines new-caret-pos (min (+ old-caret-line input-linebreak-count) (dec (count lines)))))
+          input-linebreak-count (count (filter (fn [g] (= (:type g) :linebreak)) input-glyphs))
+          _ (println "EV CP lines=" lines)
+
+          r (inline-caretpos lines new-caret-pos (min (+ old-caret-line input-linebreak-count) (dec (count lines))))
+
+          _ (println "       --new-caret-pos = " new-caret-pos "r =" r "old-caret-line =" old-caret-line
+                     " bf inl=" (min (+ old-caret-line input-linebreak-count) (dec (count lines))))]
+      r)
 
     (keyboard/key-pressed? component)
     (let [key (keyboard/get-key component)]
@@ -302,7 +469,8 @@ flatgui.widgets.textrich
 (fg/defaccessorfn full-model-reinit [component old-model glyphs]
   (let [w (m/x (get-property [:this] :clip-size))
         interop (get-property component [:this] :interop)
-        lines (wrap-lines glyphs w interop)
+        margin (* (get-property [:this] :margin) 2)
+        lines (wrap-lines glyphs (- w margin) interop)
         rendition (render-lines glyphs lines)
 
         old-caret-pos (:caret-pos old-model)
@@ -346,10 +514,13 @@ flatgui.widgets.textrich
                      :else
                      (vec (concat (take sstart glyphs) input-glyphs (take-last (- (count glyphs) send) glyphs))))
 
+        _ (println "new-glyphs =" new-glyphs)
+
         ;; TODO re-render starting from changed line, no need to re-render everything
         w (m/x (get-property [:this] :clip-size))
         interop (get-property component [:this] :interop)
-        lines (wrap-lines new-glyphs w interop)
+        margin (* (get-property [:this] :margin) 2)
+        lines (wrap-lines new-glyphs (- w margin) interop)
         rendition (render-lines new-glyphs lines)
 
         caret-pos (evolve-caretpos component lines old-caret-pos old-caret-line old-selection-mark (count glyphs) input-glyphs)
@@ -475,6 +646,7 @@ flatgui.widgets.textrich
                :foreground :prime-1
                :no-mouse-press-capturing true
                :editable true
+               :margin 0.0625
                :evolvers {
                           :rendition rendition-evolver
                           :text text-evolver

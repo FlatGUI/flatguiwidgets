@@ -136,18 +136,26 @@
         lines (textrich/wrap-lines glyphs 7 dummy-interop)]
     (test/is (= [[0 7 1.0 7.0] [7 8 2.0 8.0] [15 6 1.0 6.0]] lines))))
 
-(test/deftest wrap-line-h-lines-3
+(test/deftest wrap-line-h-lines-3a
+  ;            0    5 7    10                        15
   (let [data ["aaaaaa bbb" (test-glyph 2.0 2.0) "bbb cccccc"]
         glyphs (mapcat (fn [d] (if (string? d) (map textrich/char-glyph d) [d])) data)
         lines (textrich/wrap-lines glyphs 7 dummy-interop)]
     (test/is (= [[0 7 1.0 7.0] [7 6 2.0 7.0] [13 2 1.0 2.0] [15 6 1.0 6.0]] lines))))
 
-; TODO
-;(test/deftest wrap-line-h-lines-4
-;  (let [data ["aaaaaa bbbbbb" (test-glyph 2.0 2.0) "b cccccc"]
-;        glyphs (mapcat (fn [d] (if (string? d) (map textrich/char-glyph d) [d])) data)
-;        lines (textrich/wrap-lines glyphs 7 dummy-interop)]
-;    (test/is (= [[0 7 1.0 7.0] [7 6 2.0 7.0] [13 3 2.0 2.0] [15 6 1.0 6.0]] lines))))
+(test/deftest wrap-line-h-lines-3b
+  ;            0    5 7     10                      14
+  (let [data ["aaaaaa bbb" (test-glyph 2.0 2.0) "bb cccccc"]
+        glyphs (mapcat (fn [d] (if (string? d) (map textrich/char-glyph d) [d])) data)
+        lines (textrich/wrap-lines glyphs 7 dummy-interop)]
+    (test/is (= [[0 7 1.0 7.0] [7 7 2.0 8.0] [14 6 1.0 6.0]] lines))))
+
+(test/deftest wrap-line-h-lines-4
+  ;            0    5 7    12  13                  14
+  (let [data ["aaaaaa bbbbbb" (test-glyph 2.0 2.0) "b cccccc"]
+        glyphs (mapcat (fn [d] (if (string? d) (map textrich/char-glyph d) [d])) data)
+        lines (textrich/wrap-lines glyphs 7 dummy-interop)]
+    (test/is (= [[0 7 1.0 7.0] [7 6 1.0 6.0] [13 3 2.0 4.0] [16 6 1.0 6.0]] lines))))
 
 (test/deftest render-test
   (let [data ["The quick brown fox " (test-glyph 1.0 2.0) "jumps" (test-glyph 2.0 1.0) " over the lazy dog"]

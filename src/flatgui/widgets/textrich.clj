@@ -122,12 +122,12 @@ flatgui.widgets.textrich
 
 (defn linebreak? [g] (= :linebreak (:type g)))
 
-(defn end-of-word? [glyphs w g-index word-w-content]
+(defn end-of-word? [glyphs w g-index would-be-word-w-content]
   (let [;_ (println "eow? g-index" g-index "word-w-content" word-w-content)
         g-count (count glyphs)]
     (or
       (= g-index (dec g-count))
-      (>= word-w-content w)
+      (> would-be-word-w-content w)
       (whitespace? (nth glyphs (inc g-index)))
       (linebreak? (nth glyphs (inc g-index)))
       (and (linebreak? (nth glyphs g-index)) (not (linebreak? (nth glyphs (inc g-index))))))))
@@ -155,10 +155,13 @@ flatgui.widgets.textrich
             g-w (:w g-size)
             is-char (not (delimiters (:type g)))
             latest-word-w-content (if (or leading-space is-char) (+ word-w-content g-w) word-w-content)
+            would-be-word-w-content (if (and (or leading-space is-char) (< g-index (dec (count glyphs))))
+                                      (+ latest-word-w-content (:w (glyph-size (nth glyphs (inc g-index)) interop)))
+                                      latest-word-w-content)
             latest-word-w-total (+ word-w-total g-w)
             latest-h (max h (:h g-size))
-            _ (println "..word-start" word-start "g-index" g-index "eow?" (end-of-word? glyphs w g-index latest-word-w-content))]
-        (if (end-of-word? glyphs w g-index latest-word-w-content)
+            _ (println "..word-start" word-start "g-index" g-index "eow?" (end-of-word? glyphs w g-index would-be-word-w-content) "would-be-word-w-content=" would-be-word-w-content)]
+        (if (end-of-word? glyphs w g-index would-be-word-w-content)
           (let [ends-with-linebreak (cond
                                       (= word-start g-index) (linebreak? (nth glyphs g-index))
                                       (< g-index (dec (count glyphs))) (linebreak? (nth glyphs (inc g-index)))

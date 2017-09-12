@@ -125,6 +125,36 @@
         lines (textrich/wrap-lines glyphs 6 dummy-interop)]
     (test/is (= [[0 1 1.0 0] [1 1 1.0 0] [2 2 1.0 1.0] [4 1 1.0 0] [5 1 1.0 0] [6 2 1.0 1.0] [8 1 1.0 0]] lines))))
 
+(test/deftest wrap-test-10
+  (let [glyphs [(textrich/char-glyph \1)]
+        lines (textrich/wrap-lines glyphs 6 dummy-interop)]
+    (test/is (= [[0 1 1.0 1.0]] lines))))
+
+(test/deftest wrap-test-11
+  (let [glyphs [(textrich/char-glyph \1)]
+        lines (textrich/wrap-lines glyphs 1 dummy-interop)]
+    (test/is (= [[0 1 1.0 1.0]] lines))))
+
+(test/deftest wrap-test-12
+  (let [glyphs [(textrich/char-glyph \1)]
+        lines (textrich/wrap-lines glyphs 0.5 dummy-interop)]
+    (test/is (= [[0 1 1.0 1.0]] lines))))
+
+(test/deftest wrap-test-13
+  (let [glyphs [(textrich/char-glyph \newline)]
+        lines (textrich/wrap-lines glyphs 6 dummy-interop)]
+    (test/is (= [[0 1 1.0 0]] lines))))
+
+(test/deftest wrap-test-14
+  (let [glyphs [(textrich/char-glyph \newline)]
+        lines (textrich/wrap-lines glyphs 1 dummy-interop)]
+    (test/is (= [[0 1 1.0 0]] lines))))
+
+(test/deftest wrap-test-15
+  (let [glyphs [(textrich/char-glyph \newline)]
+        lines (textrich/wrap-lines glyphs 0.5 dummy-interop)]
+    (test/is (= [[0 1 1.0 0]] lines))))
+
 (test/deftest wrap-line-h-lines
   (let [glyphs [(test-glyph 1 1) (test-glyph 1 2) (test-glyph 1 1) textrich/whitespace-glyph (test-glyph 1 3) (test-glyph 1 2)]
         lines (textrich/wrap-lines glyphs 3 dummy-interop)]

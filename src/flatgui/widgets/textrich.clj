@@ -220,10 +220,12 @@ flatgui.widgets.textrich
           word (if in-range (nth words w-index))
           w-content (if in-range (:w-content word))
           w-total (if in-range (:w-total word))
-          wrap-line (or
-                      (not in-range)
-                      (and (> w-index 0) (:ends-with-linebreak (nth words (dec w-index))))
-                      (> (+ current-line-w w-content) w))
+          wrap-line (and
+                      (> w-index 0)
+                      (or
+                        (not in-range)
+                        (:ends-with-linebreak (nth words (dec w-index)))
+                        (> (+ current-line-w w-content) w)))
 
           _ (println "w-index=" w-index "cs=" current-line-start "cw=" current-line-w "cwi=" (if in-range (+ current-line-w w-content) "-") "w-content" w-content "wrap-line=" wrap-line "-" word)
 
@@ -377,8 +379,11 @@ flatgui.widgets.textrich
 (defn- jump-to-line [lines old-caret-pos old-caret-line jump-fn]
   (let [new-line-index (max (min (jump-fn old-caret-line) (dec (count lines))) 0)
         new-line (nth lines new-line-index)
-        caret-line-pos (- old-caret-pos (first (nth lines old-caret-line)))
-        new-caret-line-len (second (nth lines new-line-index))]
+        new-caret-line-len (second (nth lines new-line-index))
+        caret-line-pos (cond
+                         (= new-line-index old-caret-line) (- old-caret-pos (first (nth lines old-caret-line)))
+                         (< new-line-index old-caret-line) new-caret-line-len
+                         (> new-line-index old-caret-line) 0)]
     (+ (first new-line) (min caret-line-pos new-caret-line-len))))
 
 (defn dec-caretpos [lines old-caret-pos old-caret-line]
@@ -399,15 +404,17 @@ flatgui.widgets.textrich
         (second (nth lines old-caret-line)))
       new-pos)))
 
+;(defn inline-caretpos [lines caret-pos caret-line]
+;  (if (not (empty? lines))
+;    (let [line-start (first (nth lines caret-line))
+;          line-end (+ (first (nth lines caret-line)) (second (nth lines caret-line)))]
+;      (cond
+;        (< caret-pos line-start) line-start
+;        (> caret-pos line-end) line-end
+;        :else caret-pos))
+;    caret-pos))
 (defn inline-caretpos [lines caret-pos caret-line]
-  (if (not (empty? lines))
-    (let [line-start (first (nth lines caret-line))
-          line-end (+ (first (nth lines caret-line)) (second (nth lines caret-line)))]
-      (cond
-        (< caret-pos line-start) line-start
-        (> caret-pos line-end) line-end
-        :else caret-pos))
-    caret-pos))
+  (jump-to-line lines caret-pos caret-line identity))
 
 (defn find-next-page [lines old-caret-line clip-h dir-fn]
   (loop [dh 0

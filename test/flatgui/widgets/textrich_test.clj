@@ -103,7 +103,27 @@
         lines (textrich/wrap-lines glyphs 6 dummy-interop)]
     (test/is (= [[0 1 1.0 0] [1 1 1.0 0] [2 1 1.0 1.0]] lines))))
 
-;;; TODO test with several linebreaks between words
+(test/deftest wrap-test-6
+  (let [glyphs [(textrich/char-glyph \1) (textrich/char-glyph \newline)]
+        lines (textrich/wrap-lines glyphs 6 dummy-interop)]
+    (test/is (= [[0 1 1.0 1.0]] lines))))
+
+(test/deftest wrap-test-7
+  (let [glyphs [(textrich/char-glyph \1) (textrich/char-glyph \newline) (textrich/char-glyph \newline)]
+        lines (textrich/wrap-lines glyphs 6 dummy-interop)]
+    (test/is (= [[0 2 1.0 1.0] [2 1 1.0 0]] lines))))
+
+(test/deftest wrap-test-8
+  (let [glyphs [(textrich/char-glyph \1) (textrich/char-glyph \newline) (textrich/char-glyph \newline) (textrich/char-glyph \1)]
+        lines (textrich/wrap-lines glyphs 6 dummy-interop)]
+    (test/is (= [[0 2 1.0 1.0] [2 1 1.0 0] [3 1 1.0 1.0]] lines))))
+
+(test/deftest wrap-test-9
+  (let [glyphs [(textrich/char-glyph \newline) (textrich/char-glyph \newline) ; 0 1
+                (textrich/char-glyph \1) (textrich/char-glyph \newline) (textrich/char-glyph \newline) (textrich/char-glyph \newline) ; 2 3 4 5
+                (textrich/char-glyph \1) (textrich/char-glyph \newline) (textrich/char-glyph \newline)] ; 6 7 8
+        lines (textrich/wrap-lines glyphs 6 dummy-interop)]
+    (test/is (= [[0 1 1.0 0] [1 1 1.0 0] [2 2 1.0 1.0] [4 1 1.0 0] [5 1 1.0 0] [6 2 1.0 1.0] [8 1 1.0 0]] lines))))
 
 (test/deftest wrap-line-h-lines
   (let [glyphs [(test-glyph 1 1) (test-glyph 1 2) (test-glyph 1 1) textrich/whitespace-glyph (test-glyph 1 3) (test-glyph 1 2)]

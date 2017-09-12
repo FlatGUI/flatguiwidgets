@@ -128,13 +128,26 @@
 (test/deftest wrap-line-h-lines
   (let [glyphs [(test-glyph 1 1) (test-glyph 1 2) (test-glyph 1 1) textrich/whitespace-glyph (test-glyph 1 3) (test-glyph 1 2)]
         lines (textrich/wrap-lines glyphs 3 dummy-interop)]
-    (test/is (= [[0 3 2 3] [4 2 3 2]] lines))))
+    (test/is (= [[0 4 2 4.0] [4 2 3 2]] lines))))
 
 (test/deftest wrap-line-h-lines-2
   (let [data ["aaaaaa bbb" (test-glyph 1.0 2.0) "bbb cccccc"]
         glyphs (mapcat (fn [d] (if (string? d) (map textrich/char-glyph d) [d])) data)
         lines (textrich/wrap-lines glyphs 7 dummy-interop)]
-    (test/is (= [[0 6 1.0 6.0] [7 7 2.0 7.0] [15 6 1.0 6.0]] lines))))
+    (test/is (= [[0 7 1.0 7.0] [7 8 2.0 8.0] [15 6 1.0 6.0]] lines))))
+
+(test/deftest wrap-line-h-lines-3
+  (let [data ["aaaaaa bbb" (test-glyph 2.0 2.0) "bbb cccccc"]
+        glyphs (mapcat (fn [d] (if (string? d) (map textrich/char-glyph d) [d])) data)
+        lines (textrich/wrap-lines glyphs 7 dummy-interop)]
+    (test/is (= [[0 7 1.0 7.0] [7 6 2.0 7.0] [13 2 1.0 2.0] [15 6 1.0 6.0]] lines))))
+
+; TODO
+;(test/deftest wrap-line-h-lines-4
+;  (let [data ["aaaaaa bbbbbb" (test-glyph 2.0 2.0) "b cccccc"]
+;        glyphs (mapcat (fn [d] (if (string? d) (map textrich/char-glyph d) [d])) data)
+;        lines (textrich/wrap-lines glyphs 7 dummy-interop)]
+;    (test/is (= [[0 7 1.0 7.0] [7 6 2.0 7.0] [13 3 2.0 2.0] [15 6 1.0 6.0]] lines))))
 
 (test/deftest render-test
   (let [data ["The quick brown fox " (test-glyph 1.0 2.0) "jumps" (test-glyph 2.0 1.0) " over the lazy dog"]
@@ -169,26 +182,26 @@
 
 (fgtest/enable-traces-for-failed-tests)
 
-(test/deftest type-text-live-test
-  (let [w 3
-        root (fg/defroot (fg/defcomponent textrich/textrich :main {:clip-size (m/defpoint w 10)}))
-        container (fgtest/init-container root dummy-interop)]
-
-    (fgtest/wait-for-property container [:main] :rendition (assoc textrich/empty-rendition :w w :lines [] :rendition []))
-
-    (fgtest/type-string container [:main] "12")
-
-    (fgtest/wait-for-property-pred container [:main] :rendition
-                                   (fn [r] (and (= (:caret-pos r) 2) (= (count (:lines r)) 1))))
-
-    (fgtest/type-key container [:main] KeyEvent/VK_ENTER KeyEvent/VK_ENTER 1)
-
-    (fgtest/wait-for-property-pred container [:main] :rendition
-                                   (fn [r] (and (= (:caret-pos r) 3) (= (:caret-line r) 1) (= (count (:lines r)) 2))))
-
-    (fgtest/type-string container [:main] "34 56")
-
-    (fgtest/wait-for-property-pred container [:main] :rendition
-                                   (fn [r] (and  (= (count (:lines r)) 3))))
-
-    ))
+;(test/deftest type-text-live-test
+;  (let [w 3
+;        root (fg/defroot (fg/defcomponent textrich/textrich :main {:clip-size (m/defpoint w 10)}))
+;        container (fgtest/init-container root dummy-interop)]
+;
+;    (fgtest/wait-for-property container [:main] :rendition (assoc textrich/empty-rendition :w w :lines [] :rendition []))
+;
+;    (fgtest/type-string container [:main] "12")
+;
+;    (fgtest/wait-for-property-pred container [:main] :rendition
+;                                   (fn [r] (and (= (:caret-pos r) 2) (= (count (:lines r)) 1))))
+;
+;    (fgtest/type-key container [:main] KeyEvent/VK_ENTER KeyEvent/VK_ENTER 1)
+;
+;    (fgtest/wait-for-property-pred container [:main] :rendition
+;                                   (fn [r] (and (= (:caret-pos r) 3) (= (:caret-line r) 1) (= (count (:lines r)) 2))))
+;
+;    (fgtest/type-string container [:main] "34 56")
+;
+;    (fgtest/wait-for-property-pred container [:main] :rendition
+;                                   (fn [r] (and  (= (count (:lines r)) 3))))
+;
+;    ))

@@ -462,9 +462,13 @@ flatgui.widgets.textrich
                               (jump-to-line lines old-caret-pos old-caret-line (fn [l] (find-next-page lines l ch -))))
         KeyEvent/VK_PAGE_DOWN (let [ch (m/y (get-property [:this] :clip-size))]
                                 (jump-to-line lines old-caret-pos old-caret-line (fn [l] (find-next-page lines l ch +))))
-        (inline-caretpos lines old-caret-pos old-caret-line)))
+        (if (pos? (count lines)) (inline-caretpos lines old-caret-pos old-caret-line) old-caret-line)))
 
-    :else (inline-caretpos lines old-caret-pos old-caret-line)))
+    (pos? (count lines)) (inline-caretpos lines old-caret-pos old-caret-line)
+
+    :else old-caret-pos
+
+    ))
 
 (fg/defaccessorfn calc-caret-line [caret-pos lines]
   (if (not (empty? lines))

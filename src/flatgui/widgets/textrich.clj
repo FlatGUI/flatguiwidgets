@@ -160,18 +160,21 @@ flatgui.widgets.textrich
                                       latest-word-w-content)
             latest-word-w-total (+ word-w-total g-w)
             latest-h (max h (:h g-size))
-            _ (println "..word-start" word-start "g-index" g-index "eow?" (end-of-word? glyphs w g-index would-be-word-w-content) "would-be-word-w-content=" would-be-word-w-content)]
+            ;_ (println "..word-start" word-start "g-index" g-index "eow?" (end-of-word? glyphs w g-index would-be-word-w-content) "would-be-word-w-content=" would-be-word-w-content)
+            ]
         (if (end-of-word? glyphs w g-index would-be-word-w-content)
-          (let [ends-with-linebreak (cond
-                                      (= word-start g-index) (linebreak? (nth glyphs g-index))
-                                      (< g-index (dec (count glyphs))) (linebreak? (nth glyphs (inc g-index)))
+          (let [not-last-glyph (< g-index (dec (count glyphs)))
+                next-is-linebreak (if not-last-glyph (linebreak? (nth glyphs (inc g-index))))
+                ends-with-linebreak (cond
+                                      (= word-start g-index) (or next-is-linebreak (linebreak? (nth glyphs g-index)))
+                                      not-last-glyph next-is-linebreak
                                       :else nil)
                 word-total-end (find-word-total-end glyphs g-index)
                 trailing-whitespace-cnt (- word-total-end g-index)
                 full-word-w-total (if (pos? trailing-whitespace-cnt)
                                    (+ latest-word-w-total (* trailing-whitespace-cnt (:w (glyph-size whitespace-glyph interop))))
                                    latest-word-w-total)
-                _ (println "..eow g-index=" g-index " find-word-total-end=" word-total-end)
+                ;_ (println "..eow g-index=" g-index " find-word-total-end=" word-total-end)
                 ]
             (Word. word-start word-total-end latest-word-w-content full-word-w-total latest-h ends-with-linebreak))
           (recur
@@ -191,11 +194,11 @@ flatgui.widgets.textrich
               ;next-word-start (if (< word-end (dec g-count)) (if (linebreak? (nth glyphs (inc word-end))) (+ word-end 2) (inc word-end)) g-count)
 
               next-word-start (cond
-                                (and
-                                  (not (linebreak? (nth glyphs word-end linebreak-glyph)))
-                                  (linebreak? (nth glyphs (inc word-end) nil))
-                                  (not (linebreak? (nth glyphs (+ word-end 2) nil))))
-                                (+ word-end 2)
+                                ;(and
+                                ;  (not (linebreak? (nth glyphs word-end linebreak-glyph)))
+                                ;  (linebreak? (nth glyphs (inc word-end) nil))
+                                ;  (not (linebreak? (nth glyphs (+ word-end 2) nil))))
+                                ;(+ word-end 2)
 
                                 (>= word-end (dec g-count))
                                 g-count
@@ -203,7 +206,8 @@ flatgui.widgets.textrich
                                 :else
                                 (inc word-end))
 
-              _ (println "foundw " word "next-word-start=" next-word-start)]
+              ;_ (println "foundw " word "next-word-start=" next-word-start)
+              ]
           (recur
             (conj words word)
             next-word-start))
@@ -227,7 +231,7 @@ flatgui.widgets.textrich
                         (:ends-with-linebreak (nth words (dec w-index)))
                         (> (+ current-line-w w-content) w)))
 
-          _ (println "w-index=" w-index "cs=" current-line-start "cw=" current-line-w "cwi=" (if in-range (+ current-line-w w-content) "-") "w-content" w-content "wrap-line=" wrap-line "-" word)
+          ;_ (println "w-index=" w-index "cs=" current-line-start "cw=" current-line-w "cwi=" (if in-range (+ current-line-w w-content) "-") "w-content" w-content "wrap-line=" wrap-line "-" word)
 
           latest-lines (if wrap-line
                          (let [last-word (nth words (dec w-index))]
@@ -247,7 +251,12 @@ flatgui.widgets.textrich
            (if wrap-line w-total latest-line-w)
            (if wrap-line (:h word) latest-line-h)
            (inc w-index))
-         latest-lines))))
+         latest-lines
+         ;(if (:ends-with-linebreak (last words))
+         ;  (conj latest-lines [(inc (first (last latest-lines))) 0 (empty-line-h interop) 0])
+         ;  latest-lines)
+
+         ))))
 
 
 ;(if (< w-index (count words))
@@ -277,7 +286,7 @@ flatgui.widgets.textrich
 ;; line: [<start> <len> <h> <w>]
 (defn wrap-lines [glyphs w interop]
   (let [words (glyphs->words glyphs w interop)
-        _ (println "words=" words)
+        ;_ (println "words=" words)
         ]
     (words->lines words w interop)))
 

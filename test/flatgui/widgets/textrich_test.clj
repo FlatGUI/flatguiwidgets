@@ -106,7 +106,7 @@
 (test/deftest wrap-test-6
   (let [glyphs [(textrich/char-glyph \1) (textrich/char-glyph \newline)]
         lines (textrich/wrap-lines glyphs 6 dummy-interop)]
-    (test/is (= [[0 1 1.0 1.0]] lines))))
+    (test/is (= [[0 1 1.0 1.0] [1 1 1.0 0]] lines))))
 
 (test/deftest wrap-test-7
   (let [glyphs [(textrich/char-glyph \1) (textrich/char-glyph \newline) (textrich/char-glyph \newline)]

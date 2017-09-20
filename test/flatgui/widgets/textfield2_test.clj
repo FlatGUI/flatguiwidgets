@@ -65,3 +65,11 @@
     ;(test/is (= (list (Word. glyphs-1 nil 3.0 3.0) (Word. glyphs-2 1 1.0 1.0)) words-cp-4))
 
     ))
+
+(test/deftest make-words-test-3
+  (let [glyphs-1 [(textfield2/char-glyph \1) (textfield2/char-glyph \1) (textfield2/char-glyph \1)]
+        glyphs-2 [(textfield2/char-glyph \2) (textfield2/char-glyph \2) (textfield2/char-glyph \2)]
+        glyphs-3 [(textfield2/char-glyph \3) (textfield2/char-glyph \3)]
+        glyphs (vec (concat glyphs-1 glyphs-2 glyphs-3))
+        words (textfield2/make-words glyphs 7 3 dummy-interop)]
+    (test/is (= (list (Word. glyphs-1 nil 3.0 3.0) (Word. glyphs-2 nil 3.0 3.0) (Word. glyphs-3 1 2.0 2.0)) words))))

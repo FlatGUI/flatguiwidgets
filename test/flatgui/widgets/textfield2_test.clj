@@ -58,7 +58,10 @@
     (test/is (= (list (Word. glyphs-1 0 3.0 3.0) (Word. glyphs-2 nil 1.0 1.0)) words-cp-0))
     (test/is (= (list (Word. glyphs-1 1 3.0 3.0) (Word. glyphs-2 nil 1.0 1.0)) words-cp-1))
     (test/is (= (list (Word. glyphs-1 2 3.0 3.0) (Word. glyphs-2 nil 1.0 1.0)) words-cp-2))
-    ;(test/is (= (list (Word. glyphs-1 nil 3.0 3.0) (Word. glyphs-2 0 1.0 1.0)) words-cp-3))
+    (test/is (= (list (Word. glyphs-1 nil 3.0 3.0) (Word. glyphs-2 0 1.0 1.0)) words-cp-3))
+
+    ;; TODO which is correct here??
+    (test/is (= (list (Word. glyphs-1 nil 3.0 3.0) (Word. glyphs-2 nil 1.0 1.0)) words-cp-4))
     ;(test/is (= (list (Word. glyphs-1 nil 3.0 3.0) (Word. glyphs-2 1 1.0 1.0)) words-cp-4))
 
     ))

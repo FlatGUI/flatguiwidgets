@@ -100,12 +100,15 @@
 ;   :w 0
 ;   :rendition nil})
 
+(defn word->str [word] (apply str (map :data (:glyphs word))))
 
 (defrecord Model [lines caret-line])
 
 (defrecord Line [words caret-word])
 
-(defrecord Word [glyphs caret-pos w-content w-total])
+(defrecord Word [glyphs caret-pos w-content w-total]
+  Object
+  (toString [word] (word->str word)))
 
 ;(defn id-duplets
 ;  ([]
@@ -123,16 +126,17 @@
 ;          ))))
 ;  ([coll] (sequence (id-duplets) coll)))
 
+(defn make-word [caret-pos w-content w-total w-g total-g-count]
+  (Word.
+    (vec (.toArray w-g))
+    (if (and caret-pos (>= caret-pos (- total-g-count (.size w-g))) (< caret-pos total-g-count)) (- caret-pos (- total-g-count (.size w-g))))
+    w-content
+    w-total))
+
 (defn make-words
   ([caret-pos w interop]
     (fn [rf]
-      (let [state (volatile! {:w-content 0 :w-total 0 :w-g (ArrayList.) :total-g-count 0 :init-whitespace true})
-            make-word (fn [w-content w-total w-g total-g-count]
-                        (Word.
-                          (vec (.toArray w-g))
-                          (if (and (>= caret-pos (- total-g-count (.size w-g))) (< caret-pos total-g-count)) (- caret-pos (- total-g-count (.size w-g))))
-                          w-content
-                          w-total))]
+      (let [state (volatile! {:w-content 0 :w-total 0 :w-g (ArrayList.) :total-g-count 0 :init-whitespace true})]
         (fn
           ([] (rf))
           ([result]
@@ -141,7 +145,7 @@
                   w-total (:w-total s)
                   w-g (:w-g s)
                   total-g-count (:total-g-count s)]
-              (rf result (make-word w-content w-total w-g total-g-count))))
+              (if (pos? (count w-g)) (rf result (make-word caret-pos w-content w-total w-g total-g-count)))))
           ([result g]
             (let [s @state
                   w-content (:w-content s)
@@ -157,7 +161,7 @@
               (if (> w&g-content w)
                 (do
                   (vreset! state {:w-content effective-g-w :w-total g-w :w-g (let [a (ArrayList.)] (do (.add a g) a)) :total-g-count (inc total-g-count) :init-whitespace whitespace})
-                  (rf result (make-word w-content w-total w-g total-g-count)))
+                  (if (pos? (count w-g)) (rf result (make-word caret-pos w-content w-total w-g total-g-count))))
                 (do
                   (vreset! state {:w-content w&g-content :w-total w&g-total :w-g (do (.add w-g g) w-g) :total-g-count (inc total-g-count) :init-whitespace (if init-whitespace whitespace false)})
                   result)
@@ -176,6 +180,7 @@
 
 ;(def empty-model)
 
+
 (defmulti glyph-> (fn [entity _g _w _interop] (class entity)))
 
 (defmethod glyph-> Word [word g w interop]
@@ -183,8 +188,8 @@
         glyphs (:glyphs word)
         g-is-delimiter (delimiter? g)
         g-goes-after-whitespace (and (> caret-pos 0) (whitespace? (nth glyphs (dec caret-pos))))
-        part-before-caret-pos (take caret-pos glyphs)
-        part-after-caret-pos (drop caret-pos glyphs)]
+        part-before-caret-pos (vec (take caret-pos glyphs))
+        part-after-caret-pos (vec (drop caret-pos glyphs))]
     (cond
 
       (and (not g-is-delimiter) (not g-goes-after-whitespace))
@@ -198,11 +203,17 @@
         (make-words (vec (conj part-after-caret-pos g)) 1 w interop))
 
       (and (whitespace? g) (not g-goes-after-whitespace) (some #(not (whitespace? %)) part-before-caret-pos))
-      (concat
-        (make-words (vec (conj part-before-caret-pos g)) (inc caret-pos) w interop)
-        (make-words (vec part-after-caret-pos) nil  w interop))
+      (let [;_(println "------------------------------------whitespace after g")
+            ;_ (println "part-before-caret-pos=" part-before-caret-pos)
+            ;_ (println "before" (make-words (vec (conj part-before-caret-pos g)) (inc caret-pos) w interop))
+            ;_ (println "after" (make-words (vec part-after-caret-pos) nil  w interop))
+            ]
+        (concat
+          (make-words (vec (conj part-before-caret-pos g)) (inc caret-pos) w interop)
+          (make-words (vec part-after-caret-pos) nil  w interop)))
 
-      (and (whitespace? g) (not g-goes-after-whitespace))
+      ;(and (whitespace? g) (not g-goes-after-whitespace))
+      (whitespace? g)
       ;(list
       ;  (Word. (vec (concat part-before-caret-pos (list g) part-after-caret-pos)) (inc caret-pos)))
       (make-words (vec (concat part-before-caret-pos (list g) part-after-caret-pos)) (inc caret-pos) w interop)
@@ -213,6 +224,21 @@
         (make-words (vec part-after-caret-pos) 0 w interop))
       
       )))
+
+(defn make-glyph-line-reductor [w interop]
+  (fn [words g]
+    (let [                                                  ;_ (println "-----------words=" words " g=" g)
+          ;_ (println "------------>" (glyph-> (last words) g w interop))
+          ]
+
+      (concat (butlast words) (glyph-> (last words) g w interop)))
+    ))
+
+(defn glyphs->words [glyphs w interop]
+  (reduce
+    (make-glyph-line-reductor w interop)
+    [(make-word 0 0 0 [] 0)]
+    glyphs))
 
 ;(defmethod glyph-> Line [line g]
 ;  (let [words (:words line)
@@ -231,27 +257,37 @@
 ;      ))
 ;  ([glyphs w interop] (transduce (glyphs->words w interop) conj glyphs)))
 
+(defn lines->strings [lines]
+  (mapv (fn [line] (mapv (fn [word] (word->str word)) line)) lines))
+
 (defn wrap-lines
   ([w]
     (fn [rf]
-      (let [state (volatile! [])]
+      (let [line-state (volatile! [])
+            line-w-state (volatile! 0)]
         (fn
           ([] (rf))
           ([result]
-           (let [final-result (rf result @state)]
-             (rf final-result)))
+           (let [final-result (rf result @line-state)
+                 _ (println "FR: " (lines->strings result))
+                 ]
+             final-result))                             ;TODO add final line here, same as in words
           ([result word]
-           (let [s @state
-                 line {:line s}
-                 line-w {:line-w s}
+           (let [                                           ;_ (println "wrap-lines [result word]------" (lines->strings result) word)
+                 line @line-state
+                 line-w @line-w-state
                  w-content (:w-content word)
                  w-total (:w-total word)
                  end-line (> (+ line-w w-content) w)]
              (if end-line
                (do
-                 (vreset! state {:line [word] :line-w w-total})
+                 (vreset! line-state [word])
+                 (vreset! line-w-state w-total)
                  (rf result line))
-               (vreset! state {:line (conj (:line s) word) :line-w (+ (:line-w s) w-total)})
+               (do
+                 (vreset! line-state (conj line word))
+                 (vreset! line-w-state (+ line-w w-total))
+                 result)
                )))
           ))))
   ([words w] (transduce (wrap-lines w) conj words)))
@@ -282,7 +318,8 @@
   ([]
    (fn [rf]
      (let [_ (println "-----------------stepped into xf construction------------------------with rf=" rf)
-           pv (volatile! nil)]
+           pv (volatile! nil)
+           pv2 (volatile! nil)]
        (fn
          ([] (do (println "  --called xf[]") (rf)))
          ([result] (do (println "  --called xf[r]" result) (rf result)))
@@ -290,6 +327,7 @@
           (let [prior @pv
                 _ (println "  --called xf[r i]" result input ", prior=" prior)]
             (vreset! pv input)
+            (vreset! pv2 "x")
             (if (and prior (= 1 (- input prior)))
               (rf result 0)
               (rf result input))))

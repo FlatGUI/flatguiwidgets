@@ -234,7 +234,7 @@
         (fn
           ([] (rf))
           ([result]
-           (let [final-result (rf result @line-state)
+           (let [final-result (rf result (Line. @line-state @line-caret-index-state))
                  _ (println "FR: " (lines->strings result))
                  ]
              final-result))                             ;TODO add final line here, same as in words
@@ -253,7 +253,7 @@
                  (do
                    (vreset! line-state [word])
                    (vreset! line-w-state w-total)
-                   (rf result line))
+                   (rf result (Line. line @line-caret-index-state)))
                  (do
                    (vreset! line-state (conj line word))
                    (vreset! line-w-state (+ line-w w-total))

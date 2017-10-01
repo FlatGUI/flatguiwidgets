@@ -76,9 +76,7 @@
   (let [glyphs (map textfield2/char-glyph text)
         words (textfield2/glyphs->words glyphs w dummy-interop)
         state (textfield2/wrap-lines words w)
-        ;lines (:lines state)
-        lines state
-        ]
+        lines (mapv :words state)]
     (test/is (= expected-lines (textfield2/lines->strings lines)))
     (test/is (= expected-total-word-widths (textfield2/lines->total-word-widths lines)))
     ))

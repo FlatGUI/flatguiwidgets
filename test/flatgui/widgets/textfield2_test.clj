@@ -52,18 +52,16 @@
         words-cp-0 (textfield2/make-words glyphs 0 3 dummy-interop)
         words-cp-1 (textfield2/make-words glyphs 1 3 dummy-interop)
         words-cp-2 (textfield2/make-words glyphs 2 3 dummy-interop)
+        _ (println "=================================================== before words-cp-3 ======================================")
         words-cp-3 (textfield2/make-words glyphs 3 3 dummy-interop)
+        _ (println "=================================================== before words-cp-4 ======================================")
         words-cp-4 (textfield2/make-words glyphs 4 3 dummy-interop)
         ]
     (test/is (= (list (Word. glyphs-1 0 3.0 3.0) (Word. glyphs-2 nil 1.0 1.0)) words-cp-0))
     (test/is (= (list (Word. glyphs-1 1 3.0 3.0) (Word. glyphs-2 nil 1.0 1.0)) words-cp-1))
     (test/is (= (list (Word. glyphs-1 2 3.0 3.0) (Word. glyphs-2 nil 1.0 1.0)) words-cp-2))
     (test/is (= (list (Word. glyphs-1 nil 3.0 3.0) (Word. glyphs-2 0 1.0 1.0)) words-cp-3))
-
-    ;; TODO which is correct here??
-    (test/is (= (list (Word. glyphs-1 nil 3.0 3.0) (Word. glyphs-2 nil 1.0 1.0)) words-cp-4))
-    ;(test/is (= (list (Word. glyphs-1 nil 3.0 3.0) (Word. glyphs-2 1 1.0 1.0)) words-cp-4))
-
+    (test/is (= (list (Word. glyphs-1 nil 3.0 3.0) (Word. glyphs-2 1 1.0 1.0)) words-cp-4))
     ))
 
 (test/deftest make-words-test-3
@@ -94,45 +92,45 @@
 ;;  2. When right arrow pressed when at the end of the line #1, or left arrow pressed when at
 ;;     the beginning of line #2, then it jumps between lines skipping the trailing space of line #1
 ;;
-;(test/deftest wrap-test
-;
-;  ;;(test-lines "The quick brown fox jumps over the lazy dog" 9 ["The quick" "brown fox" "jumps" "over the" "lazy dog"])
-;  ;
-;  ;;            0  3     9     15  19    25   30
-;  ;(test-lines "The quick brown fox jumps over the lazy dog" 9 ["The quick " "brown fox " "jumps " "over the " "lazy dog"])
-;  ;
-;
-;  (test-lines "11 22" 2 [["11"] ["22"]])
-;  (test-lines "11 22 " 2 [["11"] ["22"]])
-;  (test-lines "11 22 3" 2 [["11"] ["22"] ["3"]])
-;  (test-lines "11 22 33 44" 5 [["11" "22"] ["33" "44"]])
-;  (test-lines "11 22 33 44 " 5 [["11" "22"] ["33" "44"]])
-;
-;  (test-lines "11 22 33 44   " 5 [["11" "22"] ["33" "44"]])
-;
-;  ;
-;  ;(test-lines "11 22 33 44  " 5 ["11 22 " "33 44  "])
-;  ;(test-lines "11 22  33 44  " 5 ["11 22  " "33 44  "])
-;  ;(test-lines "11 22   33 44  " 5 ["11 22   " "33 44  "])
-;  ;(test-lines "11 22 33 44   " 5 ["11 22 " "33 44   "])
-;  ;(test-lines "11 22 33 44     " 5 ["11 22 " "33 44     "])
-;  ;(test-lines "11 22 33 44      " 5 ["11 22 " "33 44      "])
-;  ;
-;  ;(test-lines " 11 22" 2 [" 1" "1 " "22"])
-;  ;(test-lines " 11 22" 4 [" 11 " "22"])
-;  ;
-;  ;(test-lines "  11 22" 2 ["  " "11 " "22"])
-;  ;(test-lines "   11 22" 2 ["   " "11 " "22"])
-;  ;(test-lines "11  22" 2 ["11  " "22"])
-;  ;(test-lines "11   22" 2 ["11   " "22"])
-;  ;(test-lines "11    22" 2 ["11    " "22"])
-;  ;(test-lines "  11  22  " 2 ["  " "11  " "22  "])
-;  ;(test-lines "   11   22   " 2 ["   " "11   " "22   "])
-;  ;(test-lines "  11   22   " 2 ["  " "11   " "22   "])
-;  ;(test-lines "   11  22   " 2 ["   " "11  " "22   "])
-;  ;(test-lines "   11   22  " 2 ["   " "11   " "22  "])
-;  ;(test-lines " 11   22   " 2 [" 1" "1   " "22   "])
-;  ;(test-lines "   11 22   " 2 ["   " "11 " "22   "])
-;  ;(test-lines "   11   22 " 2 ["   " "11   " "22 "])
-;  )
+(test/deftest wrap-test
+
+  ;;(test-lines "The quick brown fox jumps over the lazy dog" 9 ["The quick" "brown fox" "jumps" "over the" "lazy dog"])
+  ;
+  ;;            0  3     9     15  19    25   30
+  ;(test-lines "The quick brown fox jumps over the lazy dog" 9 ["The quick " "brown fox " "jumps " "over the " "lazy dog"])
+  ;
+
+  (test-lines "11 22" 2 [["11"] ["22"]])
+  (test-lines "11 22 " 2 [["11"] ["22"]])
+  (test-lines "11 22 3" 2 [["11"] ["22"] ["3"]])
+  (test-lines "11 22 33 44" 5 [["11" "22"] ["33" "44"]])
+  (test-lines "11 22 33 44 " 5 [["11" "22"] ["33" "44"]])
+
+  (test-lines "11 22 33 44   " 5 [["11" "22"] ["33" "44"]])
+
+  ;
+  ;(test-lines "11 22 33 44  " 5 ["11 22 " "33 44  "])
+  ;(test-lines "11 22  33 44  " 5 ["11 22  " "33 44  "])
+  ;(test-lines "11 22   33 44  " 5 ["11 22   " "33 44  "])
+  ;(test-lines "11 22 33 44   " 5 ["11 22 " "33 44   "])
+  ;(test-lines "11 22 33 44     " 5 ["11 22 " "33 44     "])
+  ;(test-lines "11 22 33 44      " 5 ["11 22 " "33 44      "])
+  ;
+  ;(test-lines " 11 22" 2 [" 1" "1 " "22"])
+  ;(test-lines " 11 22" 4 [" 11 " "22"])
+  ;
+  ;(test-lines "  11 22" 2 ["  " "11 " "22"])
+  ;(test-lines "   11 22" 2 ["   " "11 " "22"])
+  ;(test-lines "11  22" 2 ["11  " "22"])
+  ;(test-lines "11   22" 2 ["11   " "22"])
+  ;(test-lines "11    22" 2 ["11    " "22"])
+  ;(test-lines "  11  22  " 2 ["  " "11  " "22  "])
+  ;(test-lines "   11   22   " 2 ["   " "11   " "22   "])
+  ;(test-lines "  11   22   " 2 ["  " "11   " "22   "])
+  ;(test-lines "   11  22   " 2 ["   " "11  " "22   "])
+  ;(test-lines "   11   22  " 2 ["   " "11   " "22  "])
+  ;(test-lines " 11   22   " 2 [" 1" "1   " "22   "])
+  ;(test-lines "   11 22   " 2 ["   " "11 " "22   "])
+  ;(test-lines "   11   22 " 2 ["   " "11   " "22 "])
+  )
 

@@ -126,47 +126,50 @@
 ;          ))))
 ;  ([coll] (sequence (id-duplets) coll)))
 
-(defn make-word [caret-pos w-content w-total w-g total-g-count]
+(defn make-word [caret-pos w-content w-total w-g total-g-count source-g-count]
   (Word.
     (vec (.toArray w-g))
-    (if (and caret-pos (>= caret-pos (- total-g-count (.size w-g))) (< caret-pos total-g-count)) (- caret-pos (- total-g-count (.size w-g))))
+    (let [w-g-count (.size w-g)
+          _ (println "w-g-count =" w-g-count "total-g-count =" total-g-count "source-g-count =" source-g-count)
+          cp-up-bound-fn (if (< total-g-count source-g-count) < <=)]
+      (if (and caret-pos (>= caret-pos (- total-g-count w-g-count)) (cp-up-bound-fn caret-pos total-g-count)) (- caret-pos (- total-g-count (.size w-g)))))
     w-content
     w-total))
 
-(defn make-words
-  ([caret-pos w interop]
-    (fn [rf]
-      (let [state (volatile! {:w-content 0 :w-total 0 :w-g (ArrayList.) :total-g-count 0 :init-whitespace true})]
-        (fn
-          ([] (rf))
-          ([result]
-            (let [s @state
-                  w-content (:w-content s)
-                  w-total (:w-total s)
-                  w-g (:w-g s)
-                  total-g-count (:total-g-count s)]
-              (if (pos? (count w-g)) (rf result (make-word caret-pos w-content w-total w-g total-g-count)))))
-          ([result g]
-            (let [s @state
-                  w-content (:w-content s)
-                  w-total (:w-total s)
-                  w-g (:w-g s)
-                  total-g-count (:total-g-count s)
-                  whitespace (whitespace? g)
-                  init-whitespace (:init-whitespace s)
-                  g-w (:w (glyph-size g interop))
-                  effective-g-w (if (or (not whitespace) (:init-whitespace s)) g-w 0)
-                  w&g-content (+ w-content effective-g-w)
-                  w&g-total (+ w-total g-w)]
-              (if (> w&g-content w)
-                (do
-                  (vreset! state {:w-content effective-g-w :w-total g-w :w-g (let [a (ArrayList.)] (do (.add a g) a)) :total-g-count (inc total-g-count) :init-whitespace whitespace})
-                  (if (pos? (count w-g)) (rf result (make-word caret-pos w-content w-total w-g total-g-count))))
-                (do
-                  (vreset! state {:w-content w&g-content :w-total w&g-total :w-g (do (.add w-g g) w-g) :total-g-count (inc total-g-count) :init-whitespace (if init-whitespace whitespace false)})
-                  result)
-                )))))))
-  ([glyphs caret-pos w interop] (transduce (make-words caret-pos w interop) conj glyphs)))
+(defn create-make-words-transducer [caret-pos w interop source-g-count]
+  (fn [rf]
+    (let [state (volatile! {:w-content 0 :w-total 0 :w-g (ArrayList.) :total-g-count 0 :init-whitespace true})]
+      (fn
+        ([] (rf))
+        ([result]
+         (let [s @state
+               w-content (:w-content s)
+               w-total (:w-total s)
+               w-g (:w-g s)
+               total-g-count (:total-g-count s)]
+           (if (pos? (count w-g)) (rf result (make-word caret-pos w-content w-total w-g total-g-count source-g-count)))))
+        ([result g]
+         (let [s @state
+               w-content (:w-content s)
+               w-total (:w-total s)
+               w-g (:w-g s)
+               total-g-count (:total-g-count s)
+               whitespace (whitespace? g)
+               init-whitespace (:init-whitespace s)
+               g-w (:w (glyph-size g interop))
+               effective-g-w (if (or (not whitespace) (:init-whitespace s)) g-w 0)
+               w&g-content (+ w-content effective-g-w)
+               w&g-total (+ w-total g-w)]
+           (if (> w&g-content w)
+             (do
+               (vreset! state {:w-content effective-g-w :w-total g-w :w-g (let [a (ArrayList.)] (do (.add a g) a)) :total-g-count (inc total-g-count) :init-whitespace whitespace})
+               (if (pos? (count w-g)) (rf result (make-word caret-pos w-content w-total w-g total-g-count source-g-count))))
+             (do
+               (vreset! state {:w-content w&g-content :w-total w&g-total :w-g (do (.add w-g g) w-g) :total-g-count (inc total-g-count) :init-whitespace (if init-whitespace whitespace false)})
+               result)
+             )))))))
+
+(defn make-words ([glyphs caret-pos w interop] (transduce (create-make-words-transducer caret-pos w interop (count glyphs)) conj glyphs)))
 
 ;; TODO
 ;(defn make-words [glyphs caret-pos w interop]
@@ -237,7 +240,7 @@
 (defn glyphs->words [glyphs w interop]
   (reduce
     (make-glyph-line-reductor w interop)
-    [(make-word 0 0 0 [] 0)]
+    [(make-word 0 0 0 [] 0 0)]
     glyphs))
 
 ;(defmethod glyph-> Line [line g]

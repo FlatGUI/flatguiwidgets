@@ -90,16 +90,6 @@
 
 ;;;;;;;;;;;;;;;;;;;;;
 
-;(def empty-rendition
-;  {:glyphs []
-;   :lines nil
-;   :caret-line 0
-;   :caret-pos 0
-;   :selection-mark 0
-;   :caret-coords [0 0 0]
-;   :w 0
-;   :rendition nil})
-
 (defn word->str [word] (apply str (map :data (:glyphs word))))
 
 (defrecord Model [lines caret-line])
@@ -171,19 +161,6 @@
 
 (defn make-words ([glyphs caret-pos w interop] (transduce (create-make-words-transducer caret-pos w interop (count glyphs)) conj glyphs)))
 
-;; TODO
-;(defn make-words [glyphs caret-pos w interop]
-;  (let [w-content 0                                         ;; TODO
-;        w-total 0]
-;    (if (<= w-content w)
-;      (list
-;        (Word. glyphs caret-pos w-content w-total))
-;      (list ))
-;    ))
-
-;(def empty-model)
-
-
 (defmulti glyph-> (fn [entity _g _w _interop] (class entity)))
 
 (defmethod glyph-> Word [word g w interop]
@@ -196,8 +173,6 @@
     (cond
 
       (and (not g-is-delimiter) (not g-goes-after-whitespace))
-      ;(list
-      ;  (Word. (vec (concat part-before-caret-pos (list g) part-after-caret-pos)) (inc caret-pos)))
       (make-words (vec (concat part-before-caret-pos (list g) part-after-caret-pos)) (inc caret-pos) w interop)
 
       (and (not g-is-delimiter) g-goes-after-whitespace)
@@ -243,31 +218,19 @@
     [(make-word 0 0 0 [] 0 0)]
     glyphs))
 
-;(defmethod glyph-> Line [line g]
-;  (let [words (:words line)
-;        caret-word (:caret-word line)]
-;    (if (not (empty? words))
-;      (let [replacement-words (glyph-> (nth words caret-word))]
-;
-;        (Line. (vec (concat (take caret-word words) replacement-words (drop (inc caret-word) words))))
-;
-;        )
-;      (Line. [(Word. [g] 1)] 0))))
-
-;(defn glyphs->words
-;  ([w interop]
-;    (fn [rf]
-;      ))
-;  ([glyphs w interop] (transduce (glyphs->words w interop) conj glyphs)))
-
 (defn lines->strings [lines]
   (mapv (fn [line] (mapv (fn [word] (word->str word)) line)) lines))
+
+(defn lines->total-word-widths [lines]
+  (mapv (fn [line] (mapv (fn [word] (:w-total word)) line)) lines))
 
 (defn wrap-lines
   ([w]
     (fn [rf]
       (let [line-state (volatile! [])
-            line-w-state (volatile! 0)]
+            line-w-state (volatile! 0)
+            line-caret-index-state (volatile! 0)
+            line-caret-met-state (volatile! false)]
         (fn
           ([] (rf))
           ([result]
@@ -281,82 +244,64 @@
                  line-w @line-w-state
                  w-content (:w-content word)
                  w-total (:w-total word)
+                 has-caret (:caret-pos word)
                  end-line (> (+ line-w w-content) w)]
-             (if end-line
-               (do
-                 (vreset! line-state [word])
-                 (vreset! line-w-state w-total)
-                 (rf result line))
-               (do
-                 (vreset! line-state (conj line word))
-                 (vreset! line-w-state (+ line-w w-total))
-                 result)
-               )))
+             (do
+               (if (not @line-caret-met-state) (vswap! line-caret-index-state inc))
+               (if has-caret (vreset! line-caret-met-state true))
+               (if end-line
+                 (do
+                   (vreset! line-state [word])
+                   (vreset! line-w-state w-total)
+                   (rf result line))
+                 (do
+                   (vreset! line-state (conj line word))
+                   (vreset! line-w-state (+ line-w w-total))
+                   result)
+                 ))))
           ))))
   ([words w] (transduce (wrap-lines w) conj words)))
 
-;;;;;;
-;
-; Forward caret for model
-;   => do sequence through lines
-;     => do sequence with line to
-
 ;(defn id-duplets
 ;  ([]
-;    (fn [rf]
-;      (let [pv (volatile! nil)]
-;        (fn
-;          ([] (rf))
-;          ([result] (rf result))
-;          ([result input]
-;            (let [prior @pv]
-;              (vreset! pv input)
-;              (if (and prior (= 1 (- input prior)))
-;                (rf result 0)
-;                (rf result input))))
-;          ))))
+;   (fn [rf]
+;     (let [_ (println "-----------------stepped into xf construction------------------------with rf=" rf)
+;           pv (volatile! nil)
+;           pv2 (volatile! nil)]
+;       (fn
+;         ([] (do (println "  --called xf[]") (rf)))
+;         ([result] (do (println "  --called xf[r]" result) (rf result)))
+;         ([result input]
+;          (let [prior @pv
+;                _ (println "  --called xf[r i]" result input ", prior=" prior)]
+;            (vreset! pv input)
+;            (vreset! pv2 "x")
+;            (if (and prior (= 1 (- input prior)))
+;              (rf result 0)
+;              (rf result input))))
+;         ))))
 ;  ([coll] (sequence (id-duplets) coll)))
-
-(defn id-duplets
-  ([]
-   (fn [rf]
-     (let [_ (println "-----------------stepped into xf construction------------------------with rf=" rf)
-           pv (volatile! nil)
-           pv2 (volatile! nil)]
-       (fn
-         ([] (do (println "  --called xf[]") (rf)))
-         ([result] (do (println "  --called xf[r]" result) (rf result)))
-         ([result input]
-          (let [prior @pv
-                _ (println "  --called xf[r i]" result input ", prior=" prior)]
-            (vreset! pv input)
-            (vreset! pv2 "x")
-            (if (and prior (= 1 (- input prior)))
-              (rf result 0)
-              (rf result input))))
-         ))))
-  ([coll] (sequence (id-duplets) coll)))
-
-(defn id-duplets2
-  ([]
-   (fn [rf]
-     (let [_ (println "-----------------stepped into xf construction------------------------with rf=" rf)
-           pv (volatile! nil)]
-       (fn
-         ([] (do (println "  --called xf[]") (rf)))
-         ([result] (do (println "  --called xf[r]" result) (rf result)))
-         ([result input]
-          (let [prior @pv
-                _ (println "  --called xf[r i]" result input ", prior=" prior)]
-            (vreset! pv input)
-            (if (and prior (= 1 (- input prior)))
-              (do
-
-                (rf result 0)
-                (rf result "x")
-
-                )
-              (rf result input))))
-         ))))
-  ([coll] (sequence (id-duplets2) coll)))
+;
+;(defn id-duplets2
+;  ([]
+;   (fn [rf]
+;     (let [_ (println "-----------------stepped into xf construction------------------------with rf=" rf)
+;           pv (volatile! nil)]
+;       (fn
+;         ([] (do (println "  --called xf[]") (rf)))
+;         ([result] (do (println "  --called xf[r]" result) (rf result)))
+;         ([result input]
+;          (let [prior @pv
+;                _ (println "  --called xf[r i]" result input ", prior=" prior)]
+;            (vreset! pv input)
+;            (if (and prior (= 1 (- input prior)))
+;              (do
+;
+;                (rf result 0)
+;                (rf result "x")
+;
+;                )
+;              (rf result input))))
+;         ))))
+;  ([coll] (sequence (id-duplets2) coll)))
 

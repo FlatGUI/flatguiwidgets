@@ -145,6 +145,7 @@
     (Word. glyphs (if (>= caret-pos 0) caret-pos) w-content w-total)))
 
 (test/deftest wrap-test2
+
   (test-words
     [(tw "The ") (tw "quick ")
      (tw "brown ") (tw "fox ")
@@ -157,5 +158,52 @@
     2
     0)
 
+  (test-words
+    [(tw "|The ") (tw "quick ")
+     (tw "brown ") (tw "fox ")
+     (tw "jumps ")
+     (tw "over ") (tw "the ")
+     (tw "lazy ") (tw "dog")]
+    9
+    [["The" "quick"] ["brown" "fox"] ["jumps"] ["over" "the"] ["lazy" "dog"]]
+    [[4.0 6.0] [6.0 4.0] [6.0] [5.0 4.0] [5.0 3.0]]
+    0
+    0)
+
+  (test-words
+    [(tw "T|he ") (tw "quick ")
+     (tw "brown ") (tw "fox ")
+     (tw "jumps ")
+     (tw "over ") (tw "the ")
+     (tw "lazy ") (tw "dog")]
+    9
+    [["The" "quick"] ["brown" "fox"] ["jumps"] ["over" "the"] ["lazy" "dog"]]
+    [[4.0 6.0] [6.0 4.0] [6.0] [5.0 4.0] [5.0 3.0]]
+    0
+    0)
+
+  (test-words
+    [(tw "The ") (tw "quick ")
+     (tw "brown ") (tw "fox ")
+     (tw "jumps ")
+     (tw "over ") (tw "the ")
+     (tw "lazy ") (tw "do|g")]
+    9
+    [["The" "quick"] ["brown" "fox"] ["jumps"] ["over" "the"] ["lazy" "dog"]]
+    [[4.0 6.0] [6.0 4.0] [6.0] [5.0 4.0] [5.0 3.0]]
+    4
+    1)
+
+  (test-words
+    [(tw "The ") (tw "quick ")
+     (tw "brown ") (tw "fox ")
+     (tw "jumps ")
+     (tw "over ") (tw "the ")
+     (tw "lazy ") (tw "dog|")]
+    9
+    [["The" "quick"] ["brown" "fox"] ["jumps"] ["over" "the"] ["lazy" "dog"]]
+    [[4.0 6.0] [6.0 4.0] [6.0] [5.0 4.0] [5.0 3.0]]
+    4
+    1)
 
   )

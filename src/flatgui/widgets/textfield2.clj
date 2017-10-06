@@ -249,7 +249,7 @@
                  has-caret (:caret-pos word)
                  end-line (> (+ line-w w-content) w)]
              (do
-               (if (not @line-caret-met-state) (vswap! line-caret-index-state inc))
+               ;(if (not @line-caret-met-state) (vswap! line-caret-index-state inc))
                ;(if has-caret (vreset! line-caret-met-state true))
                (if end-line
                  (let [line-caret-index (if @line-caret-met-state @line-caret-index-state)]
@@ -262,12 +262,18 @@
                    (if has-caret
                      (do
                        (vreset! model-caret-met-state true)
-                       (vreset! line-caret-met-state true)))
+                       (vreset! line-caret-met-state true))
+                     (if (not @line-caret-met-state) (vswap! line-caret-index-state inc)))
                    (rf result (Line. line line-caret-index)))
                  (do
                    (vreset! line-state (conj line word))
                    (vreset! line-w-state (+ line-w w-total))
-                   (if has-caret (vreset! line-caret-met-state true))
+                   ;(if has-caret (vreset! line-caret-met-state true))
+                   (if has-caret
+                     (do
+                       (vreset! model-caret-met-state true)
+                       (vreset! line-caret-met-state true))
+                     (if (not @line-caret-met-state) (vswap! line-caret-index-state inc)))
                    result)
                  ))))
           ))))

@@ -230,14 +230,16 @@
       (let [line-state (volatile! [])
             line-w-state (volatile! 0)
             line-caret-index-state (volatile! 0)
-            line-caret-met-state (volatile! false)]
+            line-caret-met-state (volatile! false)
+            model-caret-index-state (volatile! 0)
+            model-caret-met-state (volatile! false)]
         (fn
           ([] (rf))
           ([result]
-           (let [final-result (rf result (Line. @line-state @line-caret-index-state))
+           (let [final-result (rf result (Line. @line-state (if @line-caret-met-state @line-caret-index-state)))
                  _ (println "FR: " (lines->strings result))
                  ]
-             final-result))                             ;TODO add final line here, same as in words
+             (Model. final-result (if @model-caret-met-state @model-caret-index-state))))                             ;TODO add final line here, same as in words
           ([result word]
            (let [                                           ;_ (println "wrap-lines [result word]------" (lines->strings result) word)
                  line @line-state
@@ -248,15 +250,24 @@
                  end-line (> (+ line-w w-content) w)]
              (do
                (if (not @line-caret-met-state) (vswap! line-caret-index-state inc))
-               (if has-caret (vreset! line-caret-met-state true))
+               ;(if has-caret (vreset! line-caret-met-state true))
                (if end-line
-                 (do
+                 (let [line-caret-index (if @line-caret-met-state @line-caret-index-state)]
                    (vreset! line-state [word])
                    (vreset! line-w-state w-total)
-                   (rf result (Line. line @line-caret-index-state)))
+                   (vreset! line-caret-index-state 0)
+                   (vreset! line-caret-met-state false)
+                   (if (not @model-caret-met-state) (vswap! model-caret-index-state inc))
+                   ;(if has-caret (vreset! model-caret-met-state true))
+                   (if has-caret
+                     (do
+                       (vreset! model-caret-met-state true)
+                       (vreset! line-caret-met-state true)))
+                   (rf result (Line. line line-caret-index)))
                  (do
                    (vreset! line-state (conj line word))
                    (vreset! line-w-state (+ line-w w-total))
+                   (if has-caret (vreset! line-caret-met-state true))
                    result)
                  ))))
           ))))

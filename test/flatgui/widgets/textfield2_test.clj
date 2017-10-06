@@ -72,13 +72,20 @@
         words (textfield2/make-words glyphs 7 3 dummy-interop)]
     (test/is (= (list (Word. glyphs-1 nil 3.0 3.0) (Word. glyphs-2 nil 3.0 3.0) (Word. glyphs-3 1 2.0 2.0)) words))))
 
-(defn test-lines [text w expected-lines expected-total-word-widths]
-  (let [glyphs (map textfield2/char-glyph text)
-        words (textfield2/glyphs->words glyphs w dummy-interop)
-        state (textfield2/wrap-lines words w)
-        lines (mapv :words state)]
+(defn test-words [words w expected-lines expected-total-word-widths expected-caret-line expected-caret-word]
+  (let [model (textfield2/wrap-lines words w)
+        model-lines (:lines model)
+        lines (mapv :words model-lines)]
     (test/is (= expected-lines (textfield2/lines->strings lines)))
     (test/is (= expected-total-word-widths (textfield2/lines->total-word-widths lines)))
+    (if expected-caret-line (test/is (= expected-caret-line (:caret-line model))))
+    (if expected-caret-word (test/is (= expected-caret-word (:caret-word (nth model-lines (:caret-line model))))))
+    ))
+
+(defn test-lines [text w expected-lines expected-total-word-widths]
+  (let [glyphs (map textfield2/char-glyph text)
+        words (textfield2/glyphs->words glyphs w dummy-interop)]
+    (test-words words w expected-lines expected-total-word-widths nil nil)
     ))
 
 (test/deftest wrap-test
@@ -128,3 +135,27 @@
   ;(test-lines "   11   22 " 2 ["   " "11   " "22 "])
   )
 
+(defn tw [s]
+  (let [caret-pos (.indexOf s "|")
+        s-clean (.replace s "|" "")
+        w-total (double (.length s-clean))
+        trailing-space-count (count (take-while #(= % \space) (reverse s-clean)))
+        w-content (- w-total trailing-space-count)
+        glyphs (mapv textfield2/char-glyph s-clean)]
+    (Word. glyphs (if (>= caret-pos 0) caret-pos) w-content w-total)))
+
+(test/deftest wrap-test2
+  (test-words
+    [(tw "The ") (tw "quick ")
+     (tw "brown ") (tw "fox ")
+     (tw "ju|mps ")
+     (tw "over ") (tw "the ")
+     (tw "lazy ") (tw "dog")]
+    9
+    [["The" "quick"] ["brown" "fox"] ["jumps"] ["over" "the"] ["lazy" "dog"]]
+    [[4.0 6.0] [6.0 4.0] [6.0] [5.0 4.0] [5.0 3.0]]
+    2
+    0)
+
+
+  )

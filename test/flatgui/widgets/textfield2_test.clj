@@ -265,3 +265,18 @@
       2
       0)
     (test/is (= 4 (:caret-pos caret-word)))))
+
+(test/deftest truncated-word-reducer-test-1
+  (let [words [(tw "The ") nil (tw "|  ")]
+        reduction (vec (reduce textfield2/truncated-word-reducer [] words))]
+    (test/is (= [(tw "The |  ")] reduction))))
+
+(test/deftest truncated-word-reducer-test-2
+  (let [words [(tw "The| ") nil (tw "  ")]
+        reduction (vec (reduce textfield2/truncated-word-reducer [] words))]
+    (test/is (= [(tw "The|   ")] reduction))))
+
+(test/deftest truncated-word-reducer-test-3
+  (let [words [(tw "The ") (tw " | ") (tw "  ")]
+        reduction (vec (reduce textfield2/truncated-word-reducer [] words))]
+    (test/is (= [(tw "The  |   ")] reduction))))

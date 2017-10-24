@@ -286,6 +286,26 @@
         remainder-model (wrap-lines words-to-wrap w)]
     (Model. (vec (concat prior-lines (:lines remainder-model))) (+ (count prior-lines) (:caret-line remainder-model)))))
 
+(defn truncated-word-reducer [words word]
+  (cond
+    (or (nil? word) (empty? (:glyphs word)))
+    words
+
+    (every? whitespace? (:glyphs word))
+    (let [last-word (last words)]
+      (conj
+        (vec (butlast words))
+        (Word.
+          (vec (concat (:glyphs last-word) (:glyphs word)))
+          (cond
+            (:caret-pos last-word) (:caret-pos last-word)
+            (:caret-pos word) (+ (:caret-pos word) (count (:glyphs last-word)))
+            :else nil)
+          (:w-content last-word)
+          (+ (:w-total last-word) (:w-total word)))))
+
+    :else
+    (conj words word)))
 
 ;(defn id-duplets
 ;  ([]

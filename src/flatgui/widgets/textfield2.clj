@@ -100,22 +100,6 @@
   Object
   (toString [word] (word->str word)))
 
-;(defn id-duplets
-;  ([]
-;    (fn [rf]
-;      (let [pv (volatile! nil)]
-;        (fn
-;          ([] (rf))
-;          ([result] (rf result))
-;          ([result input]
-;            (let [prior @pv]
-;              (vreset! pv input)
-;              (if (and prior (= 1 (- input prior)))
-;                (rf result 0)
-;                (rf result input))))
-;          ))))
-;  ([coll] (sequence (id-duplets) coll)))
-
 (defn make-word [caret-pos w-content w-total w-g total-g-count source-g-count]
   (Word.
     (vec (.toArray w-g))
@@ -306,47 +290,3 @@
 
     :else
     (conj words word)))
-
-;(defn id-duplets
-;  ([]
-;   (fn [rf]
-;     (let [_ (println "-----------------stepped into xf construction------------------------with rf=" rf)
-;           pv (volatile! nil)
-;           pv2 (volatile! nil)]
-;       (fn
-;         ([] (do (println "  --called xf[]") (rf)))
-;         ([result] (do (println "  --called xf[r]" result) (rf result)))
-;         ([result input]
-;          (let [prior @pv
-;                _ (println "  --called xf[r i]" result input ", prior=" prior)]
-;            (vreset! pv input)
-;            (vreset! pv2 "x")
-;            (if (and prior (= 1 (- input prior)))
-;              (rf result 0)
-;              (rf result input))))
-;         ))))
-;  ([coll] (sequence (id-duplets) coll)))
-;
-;(defn id-duplets2
-;  ([]
-;   (fn [rf]
-;     (let [_ (println "-----------------stepped into xf construction------------------------with rf=" rf)
-;           pv (volatile! nil)]
-;       (fn
-;         ([] (do (println "  --called xf[]") (rf)))
-;         ([result] (do (println "  --called xf[r]" result) (rf result)))
-;         ([result input]
-;          (let [prior @pv
-;                _ (println "  --called xf[r i]" result input ", prior=" prior)]
-;            (vreset! pv input)
-;            (if (and prior (= 1 (- input prior)))
-;              (do
-;
-;                (rf result 0)
-;                (rf result "x")
-;
-;                )
-;              (rf result input))))
-;         ))))
-;  ([coll] (sequence (id-duplets2) coll)))
-

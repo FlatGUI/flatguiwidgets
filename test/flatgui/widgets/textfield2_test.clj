@@ -27,19 +27,6 @@
 
 (defn test-glyph [w h] (textfield2/glyph :test nil {:w w :h h}))
 
-;(test/deftest id-duplets-test
-;  (let [c [1 4 7 10 11 22 34 45 46 8]]
-;    (test/is (= [1 4 7 10 0 22 34 45 0 8] (textfield2/id-duplets c)))))
-
-;(test/deftest id-duplets2-test
-;  (let [c [1 4 7 10 11 22 34 45 46 8]]
-;    (test/is (= [1 4 7 10 0 "x" 22 34 45 0 "x" 8] (textfield2/id-duplets2 c)))))
-
-;(test/deftest id-duplets2-test
-;  (let [c [1 4 7 10 11 22 34 45 46 8]
-;        r (textfield2/id-duplets2 c)]
-;    (test/is (= [1 4 7 10 0 "x" 22 34 45 0 "x" 8] r))))
-
 (test/deftest make-words-test-1
   (let [glyphs (mapv textfield2/char-glyph "111")
         words (textfield2/make-words glyphs 1 3 dummy-interop)]

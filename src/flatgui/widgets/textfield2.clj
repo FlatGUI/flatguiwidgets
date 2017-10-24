@@ -203,7 +203,7 @@
       
       )))
 
-(defn make-glyph-line-reductor [w interop]
+(defn make-glyph-line-reducer [w interop]
   (fn [words g]
     (let [                                                  ;_ (println "-----------words=" words " g=" g)
           ;_ (println "------------>" (glyph-> (last words) g w interop))
@@ -214,7 +214,7 @@
 
 (defn glyphs->words [glyphs w interop]
   (reduce
-    (make-glyph-line-reductor w interop)
+    (make-glyph-line-reducer w interop)
     [(make-word 0 0 0 [] 0 0)]
     glyphs))
 
@@ -272,6 +272,20 @@
                  ))))
           ))))
   ([words w] (transduce (wrap-lines w) conj words)))
+
+(defmethod glyph-> Model [model g w interop]
+  (let [line-num-to-start-rewrap (max 0 (dec (:caret-line model)))
+        prior-lines (take line-num-to-start-rewrap (:lines model))
+        line-with-caret (nth (:lines model) (:caret-line model))
+        caret-word-index (:caret-word line-with-caret)
+        word-with-caret (nth (:words line-with-caret) caret-word-index)
+        words-to-wrap (concat
+                        (if (not= line-num-to-start-rewrap (:caret-line model)) (:words (nth (:lines model) line-num-to-start-rewrap)))
+                        (flatten (assoc (:words line-with-caret) caret-word-index (glyph-> word-with-caret g w interop)))
+                        (mapcat :words (take-last (- (count (:lines model)) (:caret-line model) 1) (:lines model))))
+        remainder-model (wrap-lines words-to-wrap w)]
+    (Model. (vec (concat prior-lines (:lines remainder-model))) (+ (count prior-lines) (:caret-line remainder-model)))))
+
 
 ;(defn id-duplets
 ;  ([]

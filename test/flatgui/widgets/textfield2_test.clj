@@ -72,15 +72,19 @@
         words (textfield2/make-words glyphs 7 3 dummy-interop)]
     (test/is (= (list (Word. glyphs-1 nil 3.0 3.0) (Word. glyphs-2 nil 3.0 3.0) (Word. glyphs-3 1 2.0 2.0)) words))))
 
-(defn test-words [words w expected-lines expected-total-word-widths expected-caret-line expected-caret-word]
-  (let [model (textfield2/wrap-lines words w)
-        model-lines (:lines model)
+(defn test-model [model expected-lines expected-total-word-widths expected-caret-line expected-caret-word]
+  (let [model-lines (:lines model)
         lines (mapv :words model-lines)]
     (test/is (= expected-lines (textfield2/lines->strings lines)))
     (test/is (= expected-total-word-widths (textfield2/lines->total-word-widths lines)))
     (if expected-caret-line (test/is (= expected-caret-line (:caret-line model))))
     (if expected-caret-word (test/is (= expected-caret-word (:caret-word (nth model-lines (:caret-line model))))))
     ))
+
+(defn test-words [words w expected-lines expected-total-word-widths expected-caret-line expected-caret-word]
+  (let [model (textfield2/wrap-lines words w)]
+    (test-model model expected-lines expected-total-word-widths expected-caret-line expected-caret-word))
+  )
 
 (defn test-lines [text w expected-lines expected-total-word-widths]
   (let [glyphs (map textfield2/char-glyph text)
@@ -207,3 +211,57 @@
     1)
 
   )
+
+(test/deftest insert-symbol-test-1
+  (let [words [(tw "T|he ") (tw "quick ")
+               (tw "brown ") (tw "fox ")
+               (tw "jumps ")
+               (tw "over ") (tw "the ")
+               (tw "lazy ") (tw "dog")]
+        model-before (textfield2/wrap-lines words 9)
+        model-after  (textfield2/glyph-> model-before (textfield2/char-glyph \Z) 9 dummy-interop)
+        caret-line (nth (:lines model-after) (:caret-line model-after))
+        caret-word (nth (:words caret-line) (:caret-word caret-line))]
+    (test-model
+      model-after
+      [["TZhe"] ["quick"] ["brown" "fox"] ["jumps"] ["over" "the"] ["lazy" "dog"]]
+      [[5.0]    [6.0]     [6.0 4.0]       [6.0]     [5.0 4.0]      [5.0 3.0]]
+      0
+      0)
+    (test/is (= 2 (:caret-pos caret-word)))))
+
+(test/deftest insert-symbol-test-2
+  (let [words [(tw "The ") (tw "quick ")
+               (tw "brown ") (tw "fox ")
+               (tw "jumps| ")
+               (tw "over ") (tw "the ")
+               (tw "lazy ") (tw "dog")]
+        model-before (textfield2/wrap-lines words 9)
+        model-after  (textfield2/glyph-> model-before (textfield2/char-glyph \Z) 9 dummy-interop)
+        caret-line (nth (:lines model-after) (:caret-line model-after))
+        caret-word (nth (:words caret-line) (:caret-word caret-line))]
+    (test-model
+      model-after
+      [["The" "quick"] ["brown" "fox"] ["jumpsZ"] ["over" "the"] ["lazy" "dog"]]
+      [[4.0 6.0]       [6.0 4.0]       [7.0]     [5.0 4.0]      [5.0 3.0]]
+      2
+      0)
+    (test/is (= 6 (:caret-pos caret-word)))))
+
+(test/deftest insert-symbol-test-3
+  (let [words [(tw "The ") (tw "quick ")
+               (tw "brown ") (tw "fox| ")
+               (tw "jumps ")
+               (tw "over ") (tw "the ")
+               (tw "lazy ") (tw "dog")]
+        model-before (textfield2/wrap-lines words 9)
+        model-after  (textfield2/glyph-> model-before (textfield2/char-glyph \Z) 9 dummy-interop)
+        caret-line (nth (:lines model-after) (:caret-line model-after))
+        caret-word (nth (:words caret-line) (:caret-word caret-line))]
+    (test-model
+      model-after
+      [["The" "quick"] ["brown"] ["foxZ"] ["jumps"] ["over" "the"] ["lazy" "dog"]]
+      [[4.0 6.0]       [6.0]     [5.0]    [6.0]     [5.0 4.0]      [5.0 3.0]]
+      2
+      0)
+    (test/is (= 4 (:caret-pos caret-word)))))

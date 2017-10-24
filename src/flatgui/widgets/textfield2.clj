@@ -92,23 +92,24 @@
 
 (defn word->str [word] (apply str (map :data (:glyphs word))))
 
-(defrecord Model [lines caret-line])
+(defrecord Model [lines caret-line mark-line])
 
-(defrecord Line [words caret-word])
+(defrecord Line [words caret-word mark-word])
 
-(defrecord Word [glyphs caret-pos w-content w-total]
+(defrecord Word [glyphs caret-pos mark-pos w-content w-total]
   Object
   (toString [word] (word->str word)))
 
 (defn make-word [caret-pos w-content w-total w-g total-g-count source-g-count]
-  (Word.
-    (vec (.toArray w-g))
-    (let [w-g-count (.size w-g)
-          _ (println "w-g-count =" w-g-count "total-g-count =" total-g-count "source-g-count =" source-g-count)
-          cp-up-bound-fn (if (< total-g-count source-g-count) < <=)]
-      (if (and caret-pos (>= caret-pos (- total-g-count w-g-count)) (cp-up-bound-fn caret-pos total-g-count)) (- caret-pos (- total-g-count (.size w-g)))))
-    w-content
-    w-total))
+  (let [w-g-count (.size w-g)
+        cp-up-bound-fn (if (< total-g-count source-g-count) < <=)
+        word-caret-pos (if (and caret-pos (>= caret-pos (- total-g-count w-g-count)) (cp-up-bound-fn caret-pos total-g-count)) (- caret-pos (- total-g-count (.size w-g))))]
+    (Word.
+      (vec (.toArray w-g))
+      word-caret-pos
+      word-caret-pos
+      w-content
+      w-total)))
 
 (defn create-make-words-transducer [caret-pos w interop source-g-count]
   (fn [rf]
@@ -220,10 +221,12 @@
         (fn
           ([] (rf))
           ([result]
-           (let [final-result (rf result (Line. @line-state (if @line-caret-met-state @line-caret-index-state)))
+           (let [caret-word (if @line-caret-met-state @line-caret-index-state)
+                 final-result (rf result (Line. @line-state caret-word caret-word))
+                 caret-line (if @model-caret-met-state @model-caret-index-state)
                  _ (println "FR: " (lines->strings result))
                  ]
-             (Model. final-result (if @model-caret-met-state @model-caret-index-state))))                             ;TODO add final line here, same as in words
+             (Model. final-result caret-line caret-line)))                             ;TODO add final line here, same as in words
           ([result word]
            (let [                                           ;_ (println "wrap-lines [result word]------" (lines->strings result) word)
                  line @line-state
@@ -247,7 +250,7 @@
                    (vreset! line-caret-met-state false)
                    (if (not @model-caret-met-state) (vswap! model-caret-index-state inc))
                    (process-caret)
-                   (rf result (Line. line line-caret-index)))
+                   (rf result (Line. line line-caret-index line-caret-index)))
                  (do
                    (vreset! line-state (conj line word))
                    (vreset! line-w-state (+ line-w w-total))
@@ -267,8 +270,9 @@
                         (if (not= line-num-to-start-rewrap (:caret-line model)) (:words (nth (:lines model) line-num-to-start-rewrap)))
                         (flatten (assoc (:words line-with-caret) caret-word-index (glyph-> word-with-caret g w interop)))
                         (mapcat :words (take-last (- (count (:lines model)) (:caret-line model) 1) (:lines model))))
-        remainder-model (wrap-lines words-to-wrap w)]
-    (Model. (vec (concat prior-lines (:lines remainder-model))) (+ (count prior-lines) (:caret-line remainder-model)))))
+        remainder-model (wrap-lines words-to-wrap w)
+        result-caret-line (+ (count prior-lines) (:caret-line remainder-model))]
+    (Model. (vec (concat prior-lines (:lines remainder-model))) result-caret-line result-caret-line)))
 
 (defn truncated-word-reducer [words word]
   (cond
@@ -276,15 +280,17 @@
     words
 
     (every? whitespace? (:glyphs word))
-    (let [last-word (last words)]
+    (let [last-word (last words)
+          result-caret-pos (cond
+                            (:caret-pos last-word) (:caret-pos last-word)
+                            (:caret-pos word) (+ (:caret-pos word) (count (:glyphs last-word)))
+                            :else nil)]
       (conj
         (vec (butlast words))
         (Word.
           (vec (concat (:glyphs last-word) (:glyphs word)))
-          (cond
-            (:caret-pos last-word) (:caret-pos last-word)
-            (:caret-pos word) (+ (:caret-pos word) (count (:glyphs last-word)))
-            :else nil)
+          result-caret-pos
+          result-caret-pos
           (:w-content last-word)
           (+ (:w-total last-word) (:w-total word)))))
 

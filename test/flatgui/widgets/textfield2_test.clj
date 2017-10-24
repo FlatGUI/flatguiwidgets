@@ -30,7 +30,7 @@
 (test/deftest make-words-test-1
   (let [glyphs (mapv textfield2/char-glyph "111")
         words (textfield2/make-words glyphs 1 3 dummy-interop)]
-    (test/is (= (list (Word. glyphs 1 3.0 3.0)) words))))
+    (test/is (= (list (Word. glyphs 1 1 3.0 3.0)) words))))
 
 (test/deftest make-words-test-2
   (let [glyphs-1 (mapv textfield2/char-glyph "111")
@@ -44,11 +44,11 @@
         _ (println "=================================================== before words-cp-4 ======================================")
         words-cp-4 (textfield2/make-words glyphs 4 3 dummy-interop)
         ]
-    (test/is (= (list (Word. glyphs-1 0 3.0 3.0) (Word. glyphs-2 nil 1.0 1.0)) words-cp-0))
-    (test/is (= (list (Word. glyphs-1 1 3.0 3.0) (Word. glyphs-2 nil 1.0 1.0)) words-cp-1))
-    (test/is (= (list (Word. glyphs-1 2 3.0 3.0) (Word. glyphs-2 nil 1.0 1.0)) words-cp-2))
-    (test/is (= (list (Word. glyphs-1 nil 3.0 3.0) (Word. glyphs-2 0 1.0 1.0)) words-cp-3))
-    (test/is (= (list (Word. glyphs-1 nil 3.0 3.0) (Word. glyphs-2 1 1.0 1.0)) words-cp-4))
+    (test/is (= (list (Word. glyphs-1 0 0 3.0 3.0) (Word. glyphs-2 nil nil 1.0 1.0)) words-cp-0))
+    (test/is (= (list (Word. glyphs-1 1 1 3.0 3.0) (Word. glyphs-2 nil nil 1.0 1.0)) words-cp-1))
+    (test/is (= (list (Word. glyphs-1 2 2 3.0 3.0) (Word. glyphs-2 nil nil 1.0 1.0)) words-cp-2))
+    (test/is (= (list (Word. glyphs-1 nil nil 3.0 3.0) (Word. glyphs-2 0 0 1.0 1.0)) words-cp-3))
+    (test/is (= (list (Word. glyphs-1 nil nil 3.0 3.0) (Word. glyphs-2 1 1 1.0 1.0)) words-cp-4))
     ))
 
 (test/deftest make-words-test-3
@@ -57,7 +57,7 @@
         glyphs-3 (mapv textfield2/char-glyph "33")
         glyphs (vec (concat glyphs-1 glyphs-2 glyphs-3))
         words (textfield2/make-words glyphs 7 3 dummy-interop)]
-    (test/is (= (list (Word. glyphs-1 nil 3.0 3.0) (Word. glyphs-2 nil 3.0 3.0) (Word. glyphs-3 1 2.0 2.0)) words))))
+    (test/is (= (list (Word. glyphs-1 nil nil 3.0 3.0) (Word. glyphs-2 nil nil 3.0 3.0) (Word. glyphs-3 1 1 2.0 2.0)) words))))
 
 (defn test-model [model expected-lines expected-total-word-widths expected-caret-line expected-caret-word]
   (let [model-lines (:lines model)
@@ -132,8 +132,9 @@
         w-total (double (.length s-clean))
         trailing-space-count (count (take-while #(= % \space) (reverse s-clean)))
         w-content (- w-total trailing-space-count)
-        glyphs (mapv textfield2/char-glyph s-clean)]
-    (Word. glyphs (if (>= caret-pos 0) caret-pos) w-content w-total)))
+        glyphs (mapv textfield2/char-glyph s-clean)
+        result-caret-pos (if (>= caret-pos 0) caret-pos)]
+    (Word. glyphs result-caret-pos result-caret-pos w-content w-total)))
 
 (test/deftest wrap-test2
 

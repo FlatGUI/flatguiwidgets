@@ -96,11 +96,11 @@
 
 (defrecord Line [words caret-word mark-word])
 
-(defrecord Word [glyphs caret-pos mark-pos w-content w-total]
+(defrecord Word [glyphs caret-pos mark-pos w-content w-total h]
   Object
   (toString [word] (word->str word)))
 
-(defn make-word [caret-pos w-content w-total w-g total-g-count source-g-count]
+(defn make-word [caret-pos w-content w-total h w-g total-g-count source-g-count]
   (let [w-g-count (.size w-g)
         cp-up-bound-fn (if (< total-g-count source-g-count) < <=)
         word-caret-pos (if (and caret-pos (>= caret-pos (- total-g-count w-g-count)) (cp-up-bound-fn caret-pos total-g-count)) (- caret-pos (- total-g-count (.size w-g))))]
@@ -109,38 +109,44 @@
       word-caret-pos
       word-caret-pos
       w-content
-      w-total)))
+      w-total
+      h)))
 
 (defn create-make-words-transducer [caret-pos w interop source-g-count]
   (fn [rf]
-    (let [state (volatile! {:w-content 0 :w-total 0 :w-g (ArrayList.) :total-g-count 0 :init-whitespace true})]
+    (let [state (volatile! {:w-content 0 :w-total 0 :h 0 :w-g (ArrayList.) :total-g-count 0 :init-whitespace true})]
       (fn
         ([] (rf))
         ([result]
          (let [s @state
                w-content (:w-content s)
                w-total (:w-total s)
+               h (:h s)
                w-g (:w-g s)
                total-g-count (:total-g-count s)]
-           (if (pos? (count w-g)) (rf result (make-word caret-pos w-content w-total w-g total-g-count source-g-count)))))
+           (if (pos? (count w-g)) (rf result (make-word caret-pos w-content w-total h w-g total-g-count source-g-count)))))
         ([result g]
          (let [s @state
                w-content (:w-content s)
                w-total (:w-total s)
+               h (:h s)
                w-g (:w-g s)
                total-g-count (:total-g-count s)
                whitespace (whitespace? g)
                init-whitespace (:init-whitespace s)
-               g-w (:w (glyph-size g interop))
+               g-size (glyph-size g interop)
+               g-w (:w g-size)
                effective-g-w (if (or (not whitespace) (:init-whitespace s)) g-w 0)
+               g-h (:h g-size)
                w&g-content (+ w-content effective-g-w)
-               w&g-total (+ w-total g-w)]
+               w&g-total (+ w-total g-w)
+               w&h-h (max h g-h)]
            (if (> w&g-content w)
              (do
-               (vreset! state {:w-content effective-g-w :w-total g-w :w-g (let [a (ArrayList.)] (do (.add a g) a)) :total-g-count (inc total-g-count) :init-whitespace whitespace})
-               (if (pos? (count w-g)) (rf result (make-word caret-pos w-content w-total w-g total-g-count source-g-count))))
+               (vreset! state {:w-content effective-g-w :w-total g-w :h g-h :w-g (let [a (ArrayList.)] (do (.add a g) a)) :total-g-count (inc total-g-count) :init-whitespace whitespace})
+               (if (pos? (count w-g)) (rf result (make-word caret-pos w-content w-total h w-g total-g-count source-g-count))))
              (do
-               (vreset! state {:w-content w&g-content :w-total w&g-total :w-g (do (.add w-g g) w-g) :total-g-count (inc total-g-count) :init-whitespace (if init-whitespace whitespace false)})
+               (vreset! state {:w-content w&g-content :w-total w&g-total :h w&h-h :w-g (do (.add w-g g) w-g) :total-g-count (inc total-g-count) :init-whitespace (if init-whitespace whitespace false)})
                result)
              )))))))
 
@@ -200,7 +206,7 @@
 (defn glyphs->words [glyphs w interop]
   (reduce
     (make-glyph-line-reducer w interop)
-    [(make-word 0 0 0 [] 0 0)]
+    [(make-word 0 0 0 0 [] 0 0)]
     glyphs))
 
 (defn lines->strings [lines]
@@ -283,7 +289,7 @@
         (let [word (nth (:words line) (:caret-word line))]
           (not= (:caret-pos word) (:mark-pos word)))))))
 
-(defn move-caret-mark [model what where]
+(defn move-caret-mark [model what where viewport-h interop]
   (assert (#{:caret :mark :caret-&-mark} what))
   (assert (#{:text-home :home :left :right :end :text-end :up :down :page-up :page-down}) where)
   )
@@ -314,7 +320,8 @@
           result-caret-pos
           result-caret-pos
           (:w-content last-word)
-          (+ (:w-total last-word) (:w-total word)))))
+          (+ (:w-total last-word) (:w-total word))
+          (max (:h last-word) (:h word)))))
 
     :else
     (conj words word)))

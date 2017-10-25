@@ -268,3 +268,10 @@
   (let [words [(tw "The ") (tw " | ") (tw "  ")]
         reduction (vec (reduce textfield2/truncated-word-reducer [] words))]
     (test/is (= [(tw "The  |   ")] reduction))))
+
+(test/deftest has-selection?-test
+  (let [model-0 (textfield2/wrap-lines [(tw "The ") (tw "q|uick")] 3)
+        ;model-1 (textfield2/wrap-lines [(tw "The ") (assoc (tw "q|uick") :mark-pos 2)] 3)
+        ;model-2 (textfield2/wrap-lines [(tw "T|he ") (assoc (tw "quick") :mark-pos 2)] 3)
+        ;model-3 (textfield2/wrap-lines [(tw "T|he ") (tw "quick" ) (assoc (tw "brown ") :mark-pos 2) ] 9)
+        ]))

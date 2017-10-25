@@ -274,6 +274,28 @@
         result-caret-line (+ (count prior-lines) (:caret-line remainder-model))]
     (Model. (vec (concat prior-lines (:lines remainder-model))) result-caret-line result-caret-line)))
 
+(defn has-selection? [model]
+  (if (not= (:caret-line model) (:mark-line model))
+    true
+    (let [line (nth (:lines model) (:caret-line model))]
+      (if (not= (:caret-word line) (:mark-word line))
+        true
+        (let [word (nth (:words line) (:caret-word line))]
+          (not= (:caret-pos word) (:mark-pos word)))))))
+
+(defn move-caret-mark [model what where]
+  (assert (#{:caret :mark :caret-&-mark} what))
+  (assert (#{:text-home :home :left :right :end :text-end :up :down :page-up :page-down}) where)
+  )
+
+(defn do-backspace-no-sel [model] )
+
+(defn do-delete-no-sel [model] )
+
+(defn cut-selection [model] )
+
+(defn truncate-words [model] )
+
 (defn truncated-word-reducer [words word]
   (cond
     (or (nil? word) (empty? (:glyphs word)))

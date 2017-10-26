@@ -94,14 +94,14 @@
 
 (defrecord Model [lines caret-line mark-line])
 
-(defrecord Line [words caret-word mark-word])
+(defrecord Line [words caret-word mark-word h])
 
 (defrecord Word [glyphs caret-pos mark-pos w-content w-total h]
   Object
   (toString [word] (word->str word)))
 
 (defn make-word [caret-pos w-content w-total h w-g total-g-count source-g-count]
-  (let [w-g-count (.size w-g)
+  (let [w-g-count (.size w-g) ;TODO w-g-count
         cp-up-bound-fn (if (< total-g-count source-g-count) < <=)
         word-caret-pos (if (and caret-pos (>= caret-pos (- total-g-count w-g-count)) (cp-up-bound-fn caret-pos total-g-count)) (- caret-pos (- total-g-count (.size w-g))))]
     (Word.
@@ -215,11 +215,14 @@
 (defn lines->total-word-widths [lines]
   (mapv (fn [line] (mapv (fn [word] (:w-total word)) line)) lines))
 
+(defn lines->line-heights [lines] (mapv :h lines))
+
 (defn wrap-lines
   ([w]
     (fn [rf]
       (let [line-state (volatile! [])
             line-w-state (volatile! 0)
+            line-h-state (volatile! 0)
             line-caret-index-state (volatile! 0)
             line-caret-met-state (volatile! false)
             model-caret-index-state (volatile! 0)
@@ -228,17 +231,19 @@
           ([] (rf))
           ([result]
            (let [caret-word (if @line-caret-met-state @line-caret-index-state)
-                 final-result (rf result (Line. @line-state caret-word caret-word))
+                 final-result (rf result (Line. @line-state caret-word caret-word @line-h-state))
                  caret-line (if @model-caret-met-state @model-caret-index-state)
-                 _ (println "FR: " (lines->strings result))
+                 _ (println "FR: " (lines->strings result) "@line-h-state" @line-h-state)
                  ]
              (Model. final-result caret-line caret-line)))                             ;TODO add final line here, same as in words
           ([result word]
            (let [                                           ;_ (println "wrap-lines [result word]------" (lines->strings result) word)
                  line @line-state
                  line-w @line-w-state
+                 line-h @line-h-state
                  w-content (:w-content word)
                  w-total (:w-total word)
+                 word-h (:h word)
                  has-caret (:caret-pos word)
                  end-line (> (+ line-w w-content) w)
                  process-caret (fn []
@@ -252,18 +257,18 @@
                  (let [line-caret-index (if @line-caret-met-state @line-caret-index-state)]
                    (vreset! line-state [word])
                    (vreset! line-w-state w-total)
+                   (vreset! line-h-state word-h)
                    (vreset! line-caret-index-state 0)
                    (vreset! line-caret-met-state false)
                    (if (not @model-caret-met-state) (vswap! model-caret-index-state inc))
                    (process-caret)
-                   (rf result (Line. line line-caret-index line-caret-index)))
+                   (rf result (Line. line line-caret-index line-caret-index line-h)))
                  (do
                    (vreset! line-state (conj line word))
-                   (vreset! line-w-state (+ line-w w-total))
+                   (vreset! line-w-state (+ line-w w-total)) ;TODO vswap!
+                   (vswap! line-h-state max word-h)
                    (process-caret)
-                   result)
-                 ))))
-          ))))
+                   result)))))))))
   ([words w] (transduce (wrap-lines w) conj words)))
 
 (defmethod glyph-> Model [model g w interop]

@@ -69,25 +69,23 @@
         words (textfield2/make-words glyphs 6 3 dummy-interop)]
     (test/is (= (list (Word. glyphs-1 nil nil 3.0 3.0 1.5) (Word. glyphs-2 nil nil 3.0 3.0 0.5) (Word. glyphs-3 1 1 3.0 3.0 1.1)) words))))
 
-(defn test-model [model expected-lines expected-total-word-widths expected-caret-line expected-caret-word]
+(defn test-model [model expected-lines expected-total-word-widths expected-caret-line expected-caret-word expected-line-heights]
   (let [model-lines (:lines model)
         lines (mapv :words model-lines)]
     (test/is (= expected-lines (textfield2/lines->strings lines)))
     (test/is (= expected-total-word-widths (textfield2/lines->total-word-widths lines)))
     (if expected-caret-line (test/is (= expected-caret-line (:caret-line model))))
     (if expected-caret-word (test/is (= expected-caret-word (:caret-word (nth model-lines (:caret-line model))))))
-    ))
+    (if expected-line-heights (test/is (= expected-line-heights (textfield2/lines->line-heights model-lines))))))
 
 (defn test-words [words w expected-lines expected-total-word-widths expected-caret-line expected-caret-word]
   (let [model (textfield2/wrap-lines words w)]
-    (test-model model expected-lines expected-total-word-widths expected-caret-line expected-caret-word))
-  )
+    (test-model model expected-lines expected-total-word-widths expected-caret-line expected-caret-word nil)))
 
 (defn test-lines [text w expected-lines expected-total-word-widths]
   (let [glyphs (map textfield2/char-glyph text)
         words (textfield2/glyphs->words glyphs w dummy-interop)]
-    (test-words words w expected-lines expected-total-word-widths nil nil)
-    ))
+    (test-words words w expected-lines expected-total-word-widths nil nil)))
 
 (test/deftest wrap-test
 
@@ -144,7 +142,7 @@
         w-content (- w-total trailing-space-count)
         glyphs (mapv textfield2/char-glyph s-clean)
         result-caret-pos (if (>= caret-pos 0) caret-pos)]
-    (Word. glyphs result-caret-pos result-caret-pos w-content w-total 1)))
+    (Word. glyphs result-caret-pos result-caret-pos w-content w-total 1.0)))
 
 (test/deftest wrap-test2
 
@@ -225,7 +223,8 @@
       [["TZhe"] ["quick"] ["brown" "fox"] ["jumps"] ["over" "the"] ["lazy" "dog"]]
       [[5.0]    [6.0]     [6.0 4.0]       [6.0]     [5.0 4.0]      [5.0 3.0]]
       0
-      0)
+      0
+      [1.0      1.0       1.0             1.0       1.0            1.0])
     (test/is (= 2 (:caret-pos caret-word)))))
 
 (test/deftest insert-symbol-test-2
@@ -241,9 +240,10 @@
     (test-model
       model-after
       [["The" "quick"] ["brown" "fox"] ["jumpsZ"] ["over" "the"] ["lazy" "dog"]]
-      [[4.0 6.0]       [6.0 4.0]       [7.0]     [5.0 4.0]      [5.0 3.0]]
+      [[4.0 6.0]       [6.0 4.0]       [7.0]      [5.0 4.0]      [5.0 3.0]]
       2
-      0)
+      0
+      [1.0             1.0             1.0        1.0            1.0])
     (test/is (= 6 (:caret-pos caret-word)))))
 
 (test/deftest insert-symbol-test-3
@@ -261,8 +261,42 @@
       [["The" "quick"] ["brown"] ["foxZ"] ["jumps"] ["over" "the"] ["lazy" "dog"]]
       [[4.0 6.0]       [6.0]     [5.0]    [6.0]     [5.0 4.0]      [5.0 3.0]]
       2
-      0)
+      0
+      [1.0             1.0        1.0      1.0       1.0            1.0])
     (test/is (= 4 (:caret-pos caret-word)))))
+
+(test/deftest line-h-test-1
+  (let [words [(tw "The ")                  (assoc (tw "quick ") :h 2.0)
+               (assoc (tw "brown ") :h 0.5) (tw "fox| ")
+               (assoc (tw "jumps ") :h 1.2)
+               (assoc (tw "over ") :h 1.3)  (assoc (tw "the ") :h 1.4)
+               (assoc (tw "lazy ") :h 1.5)  (assoc (tw "dog") :h 1.4)]
+        model (textfield2/wrap-lines words 9)]
+    (test-model
+      model
+      [["The" "quick"] ["brown" "fox"] ["jumps"] ["over" "the"] ["lazy" "dog"]]
+      [[4.0 6.0]       [6.0 4.0]       [6.0]     [5.0 4.0]      [5.0 3.0]]
+      1
+      1
+      [2.0             1.0              1.2       1.4            1.5])))
+
+(test/deftest line-h-test-2
+  (let [words [(tw "aaa ")                  (tw "bbb ")              (assoc (tw "ccc ") :h 2.0)
+               (assoc (tw "dddd ") :h 0.5)  (tw "eeee ")
+               (assoc (tw "ffffffffff ") :h 1.2)
+               (assoc (tw "g|g ") :h 1.3)  (assoc (tw "hh ") :h 1.4) (assoc (tw "iii ") :h 1.5)
+               (assoc (tw "jjj ") :h 1.5)  (assoc (tw "lll ") :h 1.4) (assoc (tw "mmm") :h 1.3)]
+        model (textfield2/wrap-lines words 12)
+        caret-line (nth (:lines model) (:caret-line model))
+        caret-word (nth (:words caret-line) (:caret-word caret-line))]
+    (test-model
+      model
+      [["aaa" "bbb" "ccc"] ["dddd" "eeee"] ["ffffffffff"] ["gg" "hh" "iii"] ["jjj" "lll" "mmm"]]
+      [[4.0   4.0   4.0]   [5.0    5.0]    [11.0]         [3.0  3.0  4.0]   [4.0   4.0   3.0]]
+      3
+      0
+      [2.0                 1.0              1.2           1.5               1.5])
+    (test/is (= 1 (:caret-pos caret-word)))))
 
 (test/deftest truncated-word-reducer-test-1
   (let [words [(tw "The ") nil (tw "|  ")]

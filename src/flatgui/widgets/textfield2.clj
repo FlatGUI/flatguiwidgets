@@ -294,10 +294,124 @@
         (let [word (nth (:words line) (:caret-word line))]
           (not= (:caret-pos word) (:mark-pos word)))))))
 
-(defn move-caret-mark [model what where viewport-h interop]
-  (assert (#{:caret :mark :caret-&-mark} what))
-  (assert (#{:text-home :home :left :right :end :text-end :up :down :page-up :page-down}) where)
-  )
+(defmulti move-caret-mark (fn [_model what where _viewport-h _interop]
+                            (assert (#{:caret :mark :caret-&-mark} what))
+                            where))
+
+(defn- move-for-keys [model key-count model-transrofm-fn]
+  (loop [m model
+         k 0]
+    (if (< k key-count)
+      (recur
+        (model-transrofm-fn m k)
+        (inc k))
+      m)))
+
+(defn- move-mark-to-caret-if-needed [model move-caret move-mark]
+  (if (and move-caret move-mark)
+    (let [caret-line-index (:caret-line model)
+          mark-line-index (:mark-line model)
+          caret-line (nth (:lines model) caret-line-index)
+          mark-line (nth (:lines model) mark-line-index)
+          caret-word-index (:caret-word caret-line)
+          mark-word-index (:mark-word mark-line)
+          caret-word (nth (:words caret-line) caret-word-index)
+          mark-pos (:mark-pos caret-word)
+          caret-pos (:caret-pos caret-word)]
+      (if (or
+            (not= caret-pos mark-pos)
+            (not= caret-word-index mark-word-index)
+            (not= caret-line-index mark-line-index))
+        (->
+          (assoc-in model [:lines mark-line-index :words mark-word-index :mark-pos] nil)
+          (assoc-in [:lines mark-line-index :mark-word] nil)
+          (assoc-in [:lines caret-line-index :mark-word] caret-word-index)
+          (assoc-in [:lines caret-line-index :words caret-word-index :mark-pos] caret-pos)
+          (assoc :mark-line caret-line-index))
+        model))
+    model))
+
+(defn move-caret-mark-1-char [model move-caret move-mark edge-fn edge-last-in-line-fn move-fn]
+  (let [src-line-key (if move-caret :caret-line :mark-line)
+        src-word-key (if move-caret :caret-word :mark-word)
+        src-pos-key (if move-caret :caret-pos :mark-pos)
+        line-index (src-line-key model)
+        lines (:lines model)
+        line (nth lines line-index)
+        word-index (src-word-key line)
+        words (:words line)
+        word (nth words word-index)
+        pos (src-pos-key word)
+        edge-line (= line-index (edge-fn lines))
+        edge-word (= word-index (edge-fn words))
+        edge-glyph (= pos ((if (= word-index (dec (count words))) edge-last-in-line-fn edge-fn) (:glyphs word)))
+        dest-pos-keys (filter keyword? [(if move-caret :caret-pos) (if move-mark :mark-pos)])
+        dest-word-keys (filter keyword? [(if move-caret :caret-word) (if move-mark :mark-word)])
+        dest-line-keys (filter keyword? [(if move-caret :caret-line) (if move-mark :mark-line)])
+        key-count (count dest-pos-keys)]
+    (cond
+      (not edge-glyph) (move-mark-to-caret-if-needed
+                         (move-for-keys model key-count (fn [m k] (assoc-in m [:lines line-index :words word-index (nth dest-pos-keys k)] (move-fn pos))))
+                         move-caret move-mark)
+      (not edge-word) (move-mark-to-caret-if-needed
+                        (move-for-keys
+                          model
+                          key-count
+                          (fn [m k] (let [new-word-index (move-fn word-index)
+                                          backward (< new-word-index word-index)
+                                          new-pos (if backward
+                                                    (dec (count (get-in model [:lines line-index :words new-word-index :glyphs])))
+                                                    0)]
+                                      (->
+                                        (assoc-in m [:lines line-index :words word-index (nth dest-pos-keys k)] nil)
+                                        (assoc-in [:lines line-index (nth dest-word-keys k)] new-word-index)
+                                        (assoc-in [:lines line-index :words new-word-index (nth dest-pos-keys k)] new-pos)))))
+                        move-caret move-mark)
+      (not edge-line) (let [new-line-index (move-fn line-index)
+                            backward (< new-line-index line-index)
+                            new-word-index (if backward
+                                             (let [word-count (count (get-in model [:lines new-line-index :words]))] (dec word-count))
+                                             0)
+                            new-pos (if backward
+                                            (count (get-in model [:lines new-line-index :words new-word-index :glyphs]))
+                                            0)]
+                        (move-for-keys
+                          model
+                          key-count
+                          (fn [m k] (->
+                                      (assoc-in m [:lines line-index :words word-index (nth dest-pos-keys k)] nil)
+                                      (assoc-in [(nth dest-line-keys k)] new-line-index)
+                                      (assoc-in [:lines line-index (nth dest-word-keys k)] nil)
+                                      (assoc-in [:lines new-line-index (nth dest-word-keys k)] new-word-index)
+                                      (assoc-in [:lines new-line-index :words new-word-index (nth dest-pos-keys k)] new-pos)))))
+      :else model)))
+
+(defn move-caret-1-char [model edge-fn edge-last-in-line-fn move-fn]
+  (move-caret-mark-1-char model true false edge-fn edge-last-in-line-fn move-fn))
+
+(defn move-mark-1-char [model edge-fn edge-last-in-line-fn move-fn]
+  (move-caret-mark-1-char model false true edge-fn edge-last-in-line-fn move-fn))
+
+(defn move-caret-&-mark-1-char [model edge-fn edge-last-in-line-fn move-fn]
+  (move-caret-mark-1-char model true true edge-fn edge-last-in-line-fn move-fn))
+
+(defn move-caret-mark-generic [model what edge-fn edge-last-in-line-fn move-fn]
+  (condp = what
+    :caret (move-caret-1-char model edge-fn edge-last-in-line-fn move-fn)
+    :mark (move-mark-1-char model edge-fn edge-last-in-line-fn move-fn)
+    :caret-&-mark (move-caret-&-mark-1-char model edge-fn edge-last-in-line-fn move-fn)))
+
+(defmethod move-caret-mark :forward [model what _where _viewport-h _interop]
+  (move-caret-mark-generic model what (fn [coll] (dec (count coll))) (fn [coll] (count coll)) inc))
+
+(defmethod move-caret-mark :backward [model what _where _viewport-h _interop]
+  (move-caret-mark-generic model what (fn [_] 0) (fn [_] 0) dec))
+
+
+;(defn move-caret-mark [model what where viewport-h interop]
+;  (assert (#{:caret :mark :caret-&-mark} what))
+;  (assert (#{:text-home :home :backward :forward :end :text-end :up :down :page-up :page-down}) where)
+;  )
 
 (defn do-backspace-no-sel [model] )
 

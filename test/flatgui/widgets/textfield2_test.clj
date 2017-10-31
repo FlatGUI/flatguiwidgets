@@ -313,9 +313,149 @@
         reduction (vec (reduce textfield2/truncated-word-reducer [] words))]
     (test/is (= [(tw "The  |   ")] reduction))))
 
-(test/deftest has-selection?-test
-  (let [model-0 (textfield2/wrap-lines [(tw "The ") (tw "q|uick")] 3)
-        ;model-1 (textfield2/wrap-lines [(tw "The ") (assoc (tw "q|uick") :mark-pos 2)] 3)
-        ;model-2 (textfield2/wrap-lines [(tw "T|he ") (assoc (tw "quick") :mark-pos 2)] 3)
-        ;model-3 (textfield2/wrap-lines [(tw "T|he ") (tw "quick" ) (assoc (tw "brown ") :mark-pos 2) ] 9)
-        ]))
+;(test/deftest has-selection?-test
+;  (let [model-0 (textfield2/wrap-lines [(tw "The ") (tw "q|uick")] 3)
+;        ;model-1 (textfield2/wrap-lines [(tw "The ") (assoc (tw "q|uick") :mark-pos 2)] 3)
+;        ;model-2 (textfield2/wrap-lines [(tw "T|he ") (assoc (tw "quick") :mark-pos 2)] 3)
+;        ;model-3 (textfield2/wrap-lines [(tw "T|he ") (tw "quick" ) (assoc (tw "brown ") :mark-pos 2) ] 9)
+;        ]))
+
+(defn word-content-equal [w1 w2] (= (:glyphs w1) (:glyphs w2)))
+
+(defn line-content-equal [l1 l2]
+  (and
+    (= (count (:words l1)) (count (:words l2)))
+    (every? true? (map #(word-content-equal (nth (:words l1) %) (nth (:words l2) %)) (range (count (:words l1)))))))
+
+(defn model-content-equal [m1 m2]
+  (and
+    (= (count (:lines m1)) (count (:lines m2)))
+    (every? true? (map #(line-content-equal (nth (:lines m1) %) (nth (:lines m2) %)) (range (count (:lines m1)))))))
+
+(defn model->caret-mark-pos [model]
+  (let [caret-line-index (:caret-line model)
+        mark-line-index (:mark-line model)
+        caret-line (nth (:lines model) caret-line-index)
+        mark-line (nth (:lines model) mark-line-index)
+        caret-word-index (:caret-word caret-line)
+        mark-word-index (:mark-word mark-line)
+        caret-word (nth (:words caret-line) caret-word-index)
+        mark-word (nth (:words mark-line) mark-word-index)
+        caret-pos (:caret-pos caret-word)
+        mark-pos (:mark-pos mark-word)]
+    [caret-line-index caret-word-index caret-pos mark-line-index mark-word-index mark-pos]))
+
+(test/deftest move-caret-mark-test-1
+  (let [words [(tw "a|aa ") (tw "b ") (tw "cc ")
+               (tw "f ") (tw "gggg ") (tw "h ")
+               (tw "i ")]
+        model-cm-0-0-1 (textfield2/wrap-lines words 8)
+        model-cm-0-0-2 (textfield2/move-caret-mark model-cm-0-0-1 :caret-&-mark :forward nil nil)
+        model-cm-0-0-1a (textfield2/move-caret-mark model-cm-0-0-2 :caret-&-mark :backward nil nil)
+        model-cm-0-0-2a (textfield2/move-caret-mark model-cm-0-0-1a :caret-&-mark :forward nil nil)
+        model-cm-0-0-3 (textfield2/move-caret-mark model-cm-0-0-2 :caret-&-mark :forward nil nil)
+        model-cm-0-1-0 (textfield2/move-caret-mark model-cm-0-0-3 :caret-&-mark :forward nil nil)
+        model-cm-0-0-3a (textfield2/move-caret-mark model-cm-0-1-0 :caret-&-mark :backward nil nil)
+        model-cm-0-1-0a (textfield2/move-caret-mark model-cm-0-0-3a :caret-&-mark :forward nil nil)
+        model-cm-0-1-1 (textfield2/move-caret-mark model-cm-0-1-0 :caret-&-mark :forward nil nil)
+        model-m-0-1-1-c-0-2-0 (textfield2/move-caret-mark model-cm-0-1-1 :caret :forward nil nil)
+        model-m-0-1-1-c-0-2-1 (textfield2/move-caret-mark model-m-0-1-1-c-0-2-0 :caret :forward nil nil)
+        model-m-0-1-1-c-0-2-2 (textfield2/move-caret-mark model-m-0-1-1-c-0-2-1 :caret :forward nil nil)
+        model-m-0-1-1-c-0-2-3 (textfield2/move-caret-mark model-m-0-1-1-c-0-2-2 :caret :forward nil nil)
+        model-m-0-1-1-c-1-0-0 (textfield2/move-caret-mark model-m-0-1-1-c-0-2-3 :caret :forward nil nil)
+        model-m-0-1-1-c-1-0-1 (textfield2/move-caret-mark model-m-0-1-1-c-1-0-0 :caret :forward nil nil)
+        model-m-0-1-1-c-1-1-0 (textfield2/move-caret-mark model-m-0-1-1-c-1-0-1 :caret :forward nil nil)
+        model-cm-1-1-1 (textfield2/move-caret-mark model-m-0-1-1-c-1-1-0 :caret-&-mark :forward nil nil)
+        model-cm-1-1-2 (textfield2/move-caret-mark model-cm-1-1-1 :caret-&-mark :forward nil nil)
+        model-c-1-1-2-m-1-1-3 (textfield2/move-caret-mark model-cm-1-1-2 :mark :forward nil nil)
+        model-c-1-1-2-m-1-1-4 (textfield2/move-caret-mark model-c-1-1-2-m-1-1-3 :mark :forward nil nil)
+        model-c-1-1-2-m-1-2-0 (textfield2/move-caret-mark model-c-1-1-2-m-1-1-4 :mark :forward nil nil)
+        model-cm-1-1-1a (textfield2/move-caret-mark model-c-1-1-2-m-1-2-0 :caret-&-mark :backward nil nil)
+        model-cm-1-1-2a (textfield2/move-caret-mark model-cm-1-1-1a :caret-&-mark :forward nil nil)
+        model-cm-1-1-3 (textfield2/move-caret-mark model-cm-1-1-2a :caret-&-mark :forward nil nil)
+        model-cm-1-1-4 (textfield2/move-caret-mark model-cm-1-1-3 :caret-&-mark :forward nil nil)
+        model-cm-1-2-0 (textfield2/move-caret-mark model-cm-1-1-4 :caret-&-mark :forward nil nil)
+        model-cm-1-2-1 (textfield2/move-caret-mark model-cm-1-2-0 :caret-&-mark :forward nil nil)
+        model-cm-1-2-2 (textfield2/move-caret-mark model-cm-1-2-1 :caret-&-mark :forward nil nil)
+        model-cm-2-0-0 (textfield2/move-caret-mark model-cm-1-2-2 :caret-&-mark :forward nil nil)
+        model-cm-1-2-2a (textfield2/move-caret-mark model-cm-2-0-0 :caret-&-mark :backward nil nil)]
+    (test/is (= [0 0 1 0 0 1] (model->caret-mark-pos model-cm-0-0-1)))
+
+    (test/is (model-content-equal model-cm-0-0-1 model-cm-0-0-2))
+    (test/is (= [0 0 2 0 0 2] (model->caret-mark-pos model-cm-0-0-2)))
+
+    (test/is (= model-cm-0-0-1 model-cm-0-0-1a))
+    (test/is (= model-cm-0-0-2 model-cm-0-0-2a))
+
+    (test/is (model-content-equal model-cm-0-0-1 model-cm-0-0-3))
+    (test/is (= [0 0 3 0 0 3] (model->caret-mark-pos model-cm-0-0-3)))
+
+    (test/is (model-content-equal model-cm-0-0-1 model-cm-0-1-0))
+    (test/is (= [0 1 0 0 1 0] (model->caret-mark-pos model-cm-0-1-0)))
+
+    (test/is (= model-cm-0-0-3 model-cm-0-0-3a))
+    (test/is (= model-cm-0-1-0 model-cm-0-1-0a))
+
+    (test/is (model-content-equal model-cm-0-0-1 model-cm-0-1-1))
+    (test/is (= [0 1 1 0 1 1] (model->caret-mark-pos model-cm-0-1-1)))
+
+    (test/is (model-content-equal model-cm-0-0-1 model-m-0-1-1-c-0-2-0))
+    (test/is (= [0 2 0 0 1 1] (model->caret-mark-pos model-m-0-1-1-c-0-2-0)))
+
+    (test/is (model-content-equal model-cm-0-0-1 model-m-0-1-1-c-0-2-1))
+    (test/is (= [0 2 1 0 1 1] (model->caret-mark-pos model-m-0-1-1-c-0-2-1)))
+
+    (test/is (model-content-equal model-cm-0-0-1 model-m-0-1-1-c-0-2-2))
+    (test/is (= [0 2 2 0 1 1] (model->caret-mark-pos model-m-0-1-1-c-0-2-2)))
+
+    (test/is (model-content-equal model-cm-0-0-1 model-m-0-1-1-c-0-2-3))
+    (test/is (= [0 2 3 0 1 1] (model->caret-mark-pos model-m-0-1-1-c-0-2-3)))
+
+    (test/is (model-content-equal model-cm-0-0-1 model-m-0-1-1-c-1-0-0))
+    (test/is (= [1 0 0 0 1 1] (model->caret-mark-pos model-m-0-1-1-c-1-0-0)))
+
+    (test/is (model-content-equal model-cm-0-0-1 model-m-0-1-1-c-1-0-1))
+    (test/is (= [1 0 1 0 1 1] (model->caret-mark-pos model-m-0-1-1-c-1-0-1)))
+
+    (test/is (model-content-equal model-cm-0-0-1 model-m-0-1-1-c-1-1-0))
+    (test/is (= [1 1 0 0 1 1] (model->caret-mark-pos model-m-0-1-1-c-1-1-0)))
+
+    (test/is (model-content-equal model-cm-0-0-1 model-cm-1-1-1))
+    (test/is (= [1 1 1 1 1 1] (model->caret-mark-pos model-cm-1-1-1)))
+
+    (test/is (model-content-equal model-cm-0-0-1 model-cm-1-1-2))
+    (test/is (= [1 1 2 1 1 2] (model->caret-mark-pos model-cm-1-1-2)))
+
+    (test/is (model-content-equal model-cm-0-0-1 model-c-1-1-2-m-1-1-3))
+    (test/is (= [1 1 2 1 1 3] (model->caret-mark-pos model-c-1-1-2-m-1-1-3)))
+
+    (test/is (model-content-equal model-cm-0-0-1 model-c-1-1-2-m-1-1-4))
+    (test/is (= [1 1 2 1 1 4] (model->caret-mark-pos model-c-1-1-2-m-1-1-4)))
+
+    (test/is (model-content-equal model-cm-0-0-1 model-cm-1-1-2a))
+    (test/is (= [1 1 2 1 1 2] (model->caret-mark-pos model-cm-1-1-2a)))
+
+    (test/is (model-content-equal model-cm-0-0-1 model-cm-1-1-3))
+    (test/is (= [1 1 3 1 1 3] (model->caret-mark-pos model-cm-1-1-3)))
+
+    (test/is (model-content-equal model-cm-0-0-1 model-cm-1-1-4))
+    (test/is (= [1 1 4 1 1 4] (model->caret-mark-pos model-cm-1-1-4)))
+
+    (test/is (model-content-equal model-cm-0-0-1 model-cm-1-2-0))
+    (test/is (= [1 2 0 1 2 0] (model->caret-mark-pos model-cm-1-2-0)))
+
+    (test/is (model-content-equal model-cm-0-0-1 model-cm-1-2-1))
+    (test/is (= [1 2 1 1 2 1] (model->caret-mark-pos model-cm-1-2-1)))
+
+    (test/is (model-content-equal model-cm-0-0-1 model-cm-1-2-2))
+    (test/is (= [1 2 2 1 2 2] (model->caret-mark-pos model-cm-1-2-2)))
+
+    (test/is (= model-cm-1-1-1 model-cm-1-1-1a))
+
+    (test/is (model-content-equal model-cm-0-0-1 model-cm-2-0-0))
+    (test/is (= [2 0 0 2 0 0] (model->caret-mark-pos model-cm-2-0-0)))
+
+    (test/is (model-content-equal model-cm-0-0-1 model-cm-1-2-2a))
+    (test/is (= [1 2 2 1 2 2] (model->caret-mark-pos model-cm-1-2-2a)))
+    (test/is (= model-cm-1-2-2 model-cm-1-2-2a))
+    ))

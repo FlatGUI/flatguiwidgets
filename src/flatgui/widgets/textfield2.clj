@@ -423,6 +423,34 @@
 (defmethod move-caret-mark :backward [model what _where _viewport-h _interop]
   (move-caret-mark-generic model what (fn [_] 0) (fn [_] 0) dec))
 
+(defn truncated-word-reducer [words word]
+  (cond
+    (or (nil? word) (empty? (:glyphs word)))
+    words
+
+    (or
+      (every? whitespace? (:glyphs word))
+      (and (not (empty? words)) (not (whitespace? (last (:glyphs (last words)))))))
+    (let [last-word (last words)
+          result-caret-pos (cond
+                             (:caret-pos last-word) (:caret-pos last-word)
+                             (:caret-pos word) (+ (:caret-pos word) (count (:glyphs last-word)))
+                             :else nil)]
+      (conj
+        (vec (butlast words))
+        (Word.
+          (vec (concat (:glyphs last-word) (:glyphs word)))
+          result-caret-pos
+          result-caret-pos
+          (+ (:w-content last-word) (:w-content word))
+          (+ (:w-total last-word) (:w-total word))
+          (max (:h last-word) (:h word)))))
+
+    :else
+    (conj words word)))
+
+(defn truncate-words [words] (vec (reduce truncated-word-reducer [] words)))
+
 (defn- kill-glyph [model w interop]
   (let [line-index (:caret-line model)
         lines (:lines model)
@@ -437,7 +465,7 @@
         glyph-killed (assoc-in model [:lines line-index :words word-index] (first replacement-words))
         remainder-words (mapcat :words (take-last (- (count lines) line-index) (:lines glyph-killed)))]
     (assert (= (count replacement-words) 1))
-    (rewrap-partially model w remainder-words)))
+    (rewrap-partially model w (truncate-words remainder-words))))
 
 (defn do-delete-no-sel [model w interop]
   (let [line-index (:caret-line model)
@@ -450,7 +478,7 @@
         old-glyphs (:glyphs word)
         edge-line (= line-index (dec (count lines)))
         edge-word (= word-index (dec (count words)))
-        edge-glyph (= pos (dec (count old-glyphs)))]
+        edge-glyph (= pos (count old-glyphs))]
     (cond
       (and edge-line edge-word edge-glyph)
       model
@@ -486,31 +514,3 @@
         (do-delete-no-sel w interop)))))
 
 (defn cut-selection [model w interop] )
-
-(defn truncate-words [model w interop] )
-
-(defn truncated-word-reducer [words word]
-  (cond
-    (or (nil? word) (empty? (:glyphs word)))
-    words
-
-    (or
-      (every? whitespace? (:glyphs word))
-      (and (not (empty? words)) (not (whitespace? (last (:glyphs (last words)))))))
-    (let [last-word (last words)
-          result-caret-pos (cond
-                            (:caret-pos last-word) (:caret-pos last-word)
-                            (:caret-pos word) (+ (:caret-pos word) (count (:glyphs last-word)))
-                            :else nil)]
-      (conj
-        (vec (butlast words))
-        (Word.
-          (vec (concat (:glyphs last-word) (:glyphs word)))
-          result-caret-pos
-          result-caret-pos
-          (+ (:w-content last-word) (:w-content word))
-          (+ (:w-total last-word) (:w-total word))
-          (max (:h last-word) (:h word)))))
-
-    :else
-    (conj words word)))

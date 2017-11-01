@@ -300,22 +300,22 @@
 
 (test/deftest truncated-word-reducer-test-1
   (let [words [(tw "The ") nil (tw "|  ")]
-        reduction (vec (reduce textfield2/truncated-word-reducer [] words))]
+        reduction (textfield2/truncate-words words)]
     (test/is (= [(tw "The |  ")] reduction))))
 
 (test/deftest truncated-word-reducer-test-2
   (let [words [(tw "The| ") nil (tw "  ")]
-        reduction (vec (reduce textfield2/truncated-word-reducer [] words))]
+        reduction (textfield2/truncate-words words)]
     (test/is (= [(tw "The|   ")] reduction))))
 
 (test/deftest truncated-word-reducer-test-3
   (let [words [(tw "The ") (tw " | ") (tw "  ")]
-        reduction (vec (reduce textfield2/truncated-word-reducer [] words))]
+        reduction (textfield2/truncate-words words)]
     (test/is (= [(tw "The  |   ")] reduction))))
 
 (test/deftest truncated-word-reducer-test-4
   (let [words [(tw "aa") (tw "b|b")]
-        reduction (vec (reduce textfield2/truncated-word-reducer [] words))]
+        reduction (textfield2/truncate-words words)]
     (test/is (= [(tw "aab|b")] reduction))))
 
 (defn word-content-equal [w1 w2] (= (:glyphs w1) (:glyphs w2)))
@@ -457,6 +457,12 @@
     (test/is (= [1 2 2 1 2 2] (model->caret-mark-pos model-cm-1-2-2a)))
     (test/is (= model-cm-1-2-2 model-cm-1-2-2a))))
 
+(test/deftest move-caret-mark-test-2
+  (let [w 7
+        model-before (textfield2/wrap-lines [(tw "xyz ") (tw "|bb")] w)
+        model-after (textfield2/move-caret-mark model-before :caret-&-mark :backward nil nil)]
+    (test/is (= [0 0 3 0 0 3] (model->caret-mark-pos model-after)))))
+
 (test/deftest has-selection?-test
   (let [model-cm-0-1-1 (textfield2/wrap-lines [(tw "aa ") (tw "b|b")
                                                (tw "cc ") (tw "dd")] 5)
@@ -520,7 +526,7 @@
         model-after (textfield2/do-backspace-no-sel model-before w dummy-interop)]
     (test/is (= [(tw "aa ") (tw "bb " ) (tw "|c ")] (:words (second (:lines model-after)))))))
 
-(test/deftest nosel-delete-test-3
+(test/deftest nosel-delete-test-4
   (let [w 7
         model-before (textfield2/wrap-lines [(tw "xy|z ") (tw "bb ")
                                              (tw "aa ") (tw "bb ")
@@ -529,3 +535,17 @@
     (test/is (= [(tw "xy| ") (tw "bb " )] (:words (first (:lines model-after)))))
     (test/is (= [(tw "aa ") (tw "bb " )] (:words (second (:lines model-after)))))
     (test/is (= [(tw "cc ")] (:words (nth (:lines model-after) 2))))))
+
+(test/deftest nosel-delete-test-5
+  (let [w 7
+        model-before (textfield2/wrap-lines [(tw "xyz ") (tw "|bb")] w)
+        model-after (textfield2/do-backspace-no-sel model-before w dummy-interop)]
+    (test/is (= [(tw "xyz|bb")] (:words (first (:lines model-after)))))))
+
+(test/deftest nosel-delete-test-6
+  (let [w 7
+        model-before (textfield2/wrap-lines [(tw "xyz ") (tw "bb ")
+                                             (tw "aa ") (tw "bb|b")
+                                             (tw "cc ")] w)
+        model-after (textfield2/do-delete-no-sel model-before w dummy-interop)]
+    (test/is (= [(tw "aa ") (tw "bb|cc " )] (:words (second (:lines model-after)))))))

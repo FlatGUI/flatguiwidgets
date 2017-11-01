@@ -271,19 +271,35 @@
                    result)))))))))
   ([words w] (transduce (wrap-lines w) conj words)))
 
+;; Example 1:
+;; line 0 - will be contained in prior-lines
+;; line 1 - so line-num-to-start-rewrap will be = 1
+;; line 2 - caret line; caret-line-and-following-words will contain words of all lines starting from this one
+;; line 3 ...
+;;
+;; Example 2:
+;; line 0 - caret line; line-num-to-start-rewrap will be = -1;
+;; line 1 ...
+(defn rewrap-partially [model w caret-line-and-following-words]
+  (let [line-num-to-start-rewrap (dec (:caret-line model))]
+    (if (>= line-num-to-start-rewrap 0)
+      (let [prior-lines (take line-num-to-start-rewrap (:lines model))
+            words-to-wrap (concat
+                            (:words (nth (:lines model) line-num-to-start-rewrap))
+                            caret-line-and-following-words)
+            remainder-model (wrap-lines words-to-wrap w)
+            result-caret-line (+ (count prior-lines) (:caret-line remainder-model))]
+        (Model. (vec (concat prior-lines (:lines remainder-model))) result-caret-line result-caret-line))
+      (wrap-lines caret-line-and-following-words w))))
+
 (defmethod glyph-> Model [model g w interop]
-  (let [line-num-to-start-rewrap (max 0 (dec (:caret-line model)))
-        prior-lines (take line-num-to-start-rewrap (:lines model))
-        line-with-caret (nth (:lines model) (:caret-line model))
+  (let [line-with-caret (nth (:lines model) (:caret-line model))
         caret-word-index (:caret-word line-with-caret)
         word-with-caret (nth (:words line-with-caret) caret-word-index)
-        words-to-wrap (concat
-                        (if (not= line-num-to-start-rewrap (:caret-line model)) (:words (nth (:lines model) line-num-to-start-rewrap)))
-                        (flatten (assoc (:words line-with-caret) caret-word-index (glyph-> word-with-caret g w interop)))
-                        (mapcat :words (take-last (- (count (:lines model)) (:caret-line model) 1) (:lines model))))
-        remainder-model (wrap-lines words-to-wrap w)
-        result-caret-line (+ (count prior-lines) (:caret-line remainder-model))]
-    (Model. (vec (concat prior-lines (:lines remainder-model))) result-caret-line result-caret-line)))
+        remainder-words (concat
+                          (flatten (assoc (:words line-with-caret) caret-word-index (glyph-> word-with-caret g w interop)))
+                          (mapcat :words (take-last (- (count (:lines model)) (:caret-line model) 1) (:lines model))))]
+    (rewrap-partially model w remainder-words)))
 
 (defn has-selection? [model]
   (if (not= (:caret-line model) (:mark-line model))
@@ -407,26 +423,74 @@
 (defmethod move-caret-mark :backward [model what _where _viewport-h _interop]
   (move-caret-mark-generic model what (fn [_] 0) (fn [_] 0) dec))
 
+(defn- kill-glyph [model w]
+  (let [line-index (:caret-line model)
+        lines (:lines model)
+        line (nth lines line-index)
+        word-index (:caret-word line)
+        words (:words line)
+        word (nth words word-index)
+        pos (:caret-pos word)
+        old-glyphs (:glyphs word)
+        glyphs (mapv (fn [i] (nth old-glyphs i)) (filter (fn [i] (not= i pos)) (range (count old-glyphs))))
+        glyph-killed (assoc-in model [:lines line-index :words word-index :glyphs] glyphs)
+        remainder-words (mapcat :words (take-last (- (count lines) line-index 1) (:lines model)))]
+    (rewrap-partially glyph-killed w remainder-words)))
 
-;(defn move-caret-mark [model what where viewport-h interop]
-;  (assert (#{:caret :mark :caret-&-mark} what))
-;  (assert (#{:text-home :home :backward :forward :end :text-end :up :down :page-up :page-down}) where)
-;  )
+(defn do-delete-no-sel [model w]
+  (let [line-index (:caret-line model)
+        lines (:lines model)
+        line (nth lines line-index)
+        word-index (:caret-word line)
+        words (:words line)
+        word (nth words word-index)
+        pos (:caret-pos word)
+        old-glyphs (:glyphs word)
+        edge-line (= line-index (dec (count lines)))
+        edge-word (= word-index (dec (count words)))
+        edge-glyph (= pos (dec (count old-glyphs)))]
+    (cond
+      (and edge-line edge-word edge-glyph)
+      model
 
-(defn do-backspace-no-sel [model] )
+      (and edge-glyph (not edge-word))
+      (throw (IllegalStateException. "Cursor may be in edge glyph position of the word only at the end of the line"))
 
-(defn do-delete-no-sel [model] )
+      (and (not edge-line) (not edge-word) (not edge-glyph))
+      (kill-glyph model w)
 
-(defn cut-selection [model] )
+      :else
+      (-> (move-caret-mark model :caret-&-mark :forward nil nil) (kill-glyph w)))))
 
-(defn truncate-words [model] )
+(defn do-backspace-no-sel [model w]
+  (let [line-index (:caret-line model)
+        lines (:lines model)
+        line (nth lines line-index)
+        word-index (:caret-word line)
+        words (:words line)
+        word (nth words word-index)
+        pos (:caret-pos word)
+        edge-line (= line-index 0)
+        edge-word (= word-index 0)
+        edge-glyph (= pos 0)]
+    (if (and edge-line edge-word edge-glyph)
+      model
+      (->
+        (move-caret-mark model :caret-&-mark :backward nil nil)
+        (do-delete-no-sel w)))))
+
+(defn cut-selection [model w] )
+
+(defn truncate-words [model w] )
 
 (defn truncated-word-reducer [words word]
   (cond
     (or (nil? word) (empty? (:glyphs word)))
     words
 
-    (every? whitespace? (:glyphs word))
+    (or
+      (every? whitespace? (:glyphs word))
+      (and (not (empty? words)) (not (whitespace? (last (:glyphs (last words)))))))
     (let [last-word (last words)
           result-caret-pos (cond
                             (:caret-pos last-word) (:caret-pos last-word)
@@ -438,7 +502,7 @@
           (vec (concat (:glyphs last-word) (:glyphs word)))
           result-caret-pos
           result-caret-pos
-          (:w-content last-word)
+          (+ (:w-content last-word) (:w-content word))
           (+ (:w-total last-word) (:w-total word))
           (max (:h last-word) (:h word)))))
 

@@ -313,12 +313,10 @@
         reduction (vec (reduce textfield2/truncated-word-reducer [] words))]
     (test/is (= [(tw "The  |   ")] reduction))))
 
-;(test/deftest has-selection?-test
-;  (let [model-0 (textfield2/wrap-lines [(tw "The ") (tw "q|uick")] 3)
-;        ;model-1 (textfield2/wrap-lines [(tw "The ") (assoc (tw "q|uick") :mark-pos 2)] 3)
-;        ;model-2 (textfield2/wrap-lines [(tw "T|he ") (assoc (tw "quick") :mark-pos 2)] 3)
-;        ;model-3 (textfield2/wrap-lines [(tw "T|he ") (tw "quick" ) (assoc (tw "brown ") :mark-pos 2) ] 9)
-;        ]))
+(test/deftest truncated-word-reducer-test-4
+  (let [words [(tw "aa") (tw "b|b")]
+        reduction (vec (reduce textfield2/truncated-word-reducer [] words))]
+    (test/is (= [(tw "aab|b")] reduction))))
 
 (defn word-content-equal [w1 w2] (= (:glyphs w1) (:glyphs w2)))
 
@@ -457,5 +455,52 @@
 
     (test/is (model-content-equal model-cm-0-0-1 model-cm-1-2-2a))
     (test/is (= [1 2 2 1 2 2] (model->caret-mark-pos model-cm-1-2-2a)))
-    (test/is (= model-cm-1-2-2 model-cm-1-2-2a))
-    ))
+    (test/is (= model-cm-1-2-2 model-cm-1-2-2a))))
+
+(test/deftest has-selection?-test
+  (let [model-cm-0-1-1 (textfield2/wrap-lines [(tw "aa ") (tw "b|b")
+                                               (tw "cc ") (tw "dd")] 5)
+        model-m-0-1-1-c-0-1-2 (textfield2/move-caret-mark model-cm-0-1-1 :caret :forward nil nil)
+        model-c-0-1-1-m-0-1-2 (textfield2/move-caret-mark model-cm-0-1-1 :mark :forward nil nil)
+        model-c-0-1-1-m-1-0-0 (textfield2/move-caret-mark model-c-0-1-1-m-0-1-2 :mark :forward nil nil)
+        model-c-0-1-1-m-1-0-1 (textfield2/move-caret-mark model-c-0-1-1-m-1-0-0 :mark :forward nil nil)
+        model-c-0-1-1-m-1-0-2 (textfield2/move-caret-mark model-c-0-1-1-m-1-0-1 :mark :forward nil nil)
+        model-c-0-1-1-m-1-0-3 (textfield2/move-caret-mark model-c-0-1-1-m-1-0-2 :mark :forward nil nil)
+        model-c-0-1-1-m-1-1-0 (textfield2/move-caret-mark model-c-0-1-1-m-1-0-3 :mark :forward nil nil)
+        model-c-0-1-1-m-1-1-1 (textfield2/move-caret-mark model-c-0-1-1-m-1-1-0 :mark :forward nil nil)
+        model-cm-1-1-2 (textfield2/move-caret-mark model-c-0-1-1-m-1-1-1 :caret-&-mark :forward nil nil)
+        model-c-1-1-1-m-1-1-2 (textfield2/move-caret-mark model-cm-1-1-2 :caret :backward nil nil)
+        model-c-1-1-0-m-1-1-2 (textfield2/move-caret-mark model-c-1-1-1-m-1-1-2 :caret :backward nil nil)
+        model-c-1-0-3-m-1-1-2 (textfield2/move-caret-mark model-c-1-1-0-m-1-1-2 :caret :backward nil nil)
+        model-c-1-0-2-m-1-1-2 (textfield2/move-caret-mark model-c-1-0-3-m-1-1-2 :caret :backward nil nil)
+        model-cm-1-0-1 (textfield2/move-caret-mark model-c-1-0-2-m-1-1-2 :caret-&-mark :backward nil nil)
+        model-m-1-0-1-c-1-0-2 (textfield2/move-caret-mark model-cm-1-0-1 :caret :forward nil nil)
+        model-m-1-0-1-c-1-0-3 (textfield2/move-caret-mark model-m-1-0-1-c-1-0-2 :caret :forward nil nil)
+        model-m-1-0-1-c-1-1-0 (textfield2/move-caret-mark model-m-1-0-1-c-1-0-3 :caret :forward nil nil)
+        model-m-1-0-1-c-1-1-1 (textfield2/move-caret-mark model-m-1-0-1-c-1-1-0 :caret :forward nil nil)]
+    (test/is (false? (textfield2/has-selection? model-cm-0-1-1)))
+    (test/is (textfield2/has-selection? model-m-0-1-1-c-0-1-2))
+    (test/is (textfield2/has-selection? model-c-0-1-1-m-0-1-2))
+    (test/is (textfield2/has-selection? model-c-0-1-1-m-1-0-0))
+    (test/is (textfield2/has-selection? model-c-0-1-1-m-1-0-1))
+    (test/is (textfield2/has-selection? model-c-0-1-1-m-1-0-2))
+    (test/is (textfield2/has-selection? model-c-0-1-1-m-1-0-3))
+    (test/is (textfield2/has-selection? model-c-0-1-1-m-1-1-0))
+    (test/is (textfield2/has-selection? model-c-0-1-1-m-1-1-1))
+    (test/is (false? (textfield2/has-selection? model-cm-1-1-2)))
+    (test/is (textfield2/has-selection? model-c-1-1-1-m-1-1-2))
+    (test/is (textfield2/has-selection? model-c-1-1-0-m-1-1-2))
+    (test/is (textfield2/has-selection? model-c-1-0-3-m-1-1-2))
+    (test/is (textfield2/has-selection? model-c-1-0-2-m-1-1-2))
+    (test/is (false? (textfield2/has-selection? model-cm-1-0-1)))
+    (test/is (textfield2/has-selection? model-m-1-0-1-c-1-0-2))
+    (test/is (textfield2/has-selection? model-m-1-0-1-c-1-0-3))
+    (test/is (textfield2/has-selection? model-m-1-0-1-c-1-1-0))
+    (test/is (textfield2/has-selection? model-m-1-0-1-c-1-1-1))))
+
+;(test/deftest delete-test-1
+;  (let [w 7
+;        model-before (textfield2/wrap-lines [(tw "aa ") (tw "b|b ")
+;                                             (tw "cc ")] w)
+;        model-after (textfield2/do-backspace-no-sel model-before w)]
+;    (test/is (= [(tw "aa ") (tw "|b " ) (tw "cc ")] (:words (first (:lines model-after)))))))

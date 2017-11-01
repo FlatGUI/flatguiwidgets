@@ -498,9 +498,34 @@
     (test/is (textfield2/has-selection? model-m-1-0-1-c-1-1-0))
     (test/is (textfield2/has-selection? model-m-1-0-1-c-1-1-1))))
 
-;(test/deftest delete-test-1
-;  (let [w 7
-;        model-before (textfield2/wrap-lines [(tw "aa ") (tw "b|b ")
-;                                             (tw "cc ")] w)
-;        model-after (textfield2/do-backspace-no-sel model-before w)]
-;    (test/is (= [(tw "aa ") (tw "|b " ) (tw "cc ")] (:words (first (:lines model-after)))))))
+(test/deftest nosel-delete-test-1
+  (let [w 7
+        model-before (textfield2/wrap-lines [(tw "aa ") (tw "b|b ")
+                                             (tw "cc ")] w)
+        model-after (textfield2/do-backspace-no-sel model-before w dummy-interop)]
+    (test/is (= [(tw "aa ") (tw "|b " ) (tw "cc ")] (:words (first (:lines model-after)))))))
+
+(test/deftest nosel-delete-test-2
+  (let [w 7
+        model-before (textfield2/wrap-lines [(tw "aa ") (tw "b|b ")
+                                             (tw "cc ")] w)
+        model-after (textfield2/do-delete-no-sel model-before w dummy-interop)]
+    (test/is (= [(tw "aa ") (tw "b| " ) (tw "cc ")] (:words (first (:lines model-after)))))))
+
+(test/deftest nosel-delete-test-3
+  (let [w 7
+        model-before (textfield2/wrap-lines [(tw "xyz ") (tw "bb ")
+                                             (tw "aa ") (tw "bb ")
+                                             (tw "c|c ")] w)
+        model-after (textfield2/do-backspace-no-sel model-before w dummy-interop)]
+    (test/is (= [(tw "aa ") (tw "bb " ) (tw "|c ")] (:words (second (:lines model-after)))))))
+
+(test/deftest nosel-delete-test-3
+  (let [w 7
+        model-before (textfield2/wrap-lines [(tw "xy|z ") (tw "bb ")
+                                             (tw "aa ") (tw "bb ")
+                                             (tw "cc ")] w)
+        model-after (textfield2/do-delete-no-sel model-before w dummy-interop)]
+    (test/is (= [(tw "xy| ") (tw "bb " )] (:words (first (:lines model-after)))))
+    (test/is (= [(tw "aa ") (tw "bb " )] (:words (second (:lines model-after)))))
+    (test/is (= [(tw "cc ")] (:words (nth (:lines model-after) 2))))))

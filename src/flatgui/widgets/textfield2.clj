@@ -423,7 +423,7 @@
 (defmethod move-caret-mark :backward [model what _where _viewport-h _interop]
   (move-caret-mark-generic model what (fn [_] 0) (fn [_] 0) dec))
 
-(defn- kill-glyph [model w]
+(defn- kill-glyph [model w interop]
   (let [line-index (:caret-line model)
         lines (:lines model)
         line (nth lines line-index)
@@ -433,11 +433,13 @@
         pos (:caret-pos word)
         old-glyphs (:glyphs word)
         glyphs (mapv (fn [i] (nth old-glyphs i)) (filter (fn [i] (not= i pos)) (range (count old-glyphs))))
-        glyph-killed (assoc-in model [:lines line-index :words word-index :glyphs] glyphs)
-        remainder-words (mapcat :words (take-last (- (count lines) line-index 1) (:lines model)))]
-    (rewrap-partially glyph-killed w remainder-words)))
+        replacement-words (make-words glyphs pos w interop)
+        glyph-killed (assoc-in model [:lines line-index :words word-index] (first replacement-words))
+        remainder-words (mapcat :words (take-last (- (count lines) line-index) (:lines glyph-killed)))]
+    (assert (= (count replacement-words) 1))
+    (rewrap-partially model w remainder-words)))
 
-(defn do-delete-no-sel [model w]
+(defn do-delete-no-sel [model w interop]
   (let [line-index (:caret-line model)
         lines (:lines model)
         line (nth lines line-index)
@@ -456,13 +458,17 @@
       (and edge-glyph (not edge-word))
       (throw (IllegalStateException. "Cursor may be in edge glyph position of the word only at the end of the line"))
 
-      (and (not edge-line) (not edge-word) (not edge-glyph))
-      (kill-glyph model w)
+      edge-glyph
+      (-> (move-caret-mark model :caret-&-mark :forward nil nil) (kill-glyph w interop))
 
       :else
-      (-> (move-caret-mark model :caret-&-mark :forward nil nil) (kill-glyph w)))))
+      (kill-glyph model w interop)
 
-(defn do-backspace-no-sel [model w]
+      ;:else
+      ;(throw (IllegalStateException. (str "Inconsistent calculations: edge-line=" edge-line " edge-word=" edge-word " edge-glyph=" edge-glyph)))
+      )))
+
+(defn do-backspace-no-sel [model w interop]
   (let [line-index (:caret-line model)
         lines (:lines model)
         line (nth lines line-index)
@@ -477,11 +483,11 @@
       model
       (->
         (move-caret-mark model :caret-&-mark :backward nil nil)
-        (do-delete-no-sel w)))))
+        (do-delete-no-sel w interop)))))
 
-(defn cut-selection [model w] )
+(defn cut-selection [model w interop] )
 
-(defn truncate-words [model w] )
+(defn truncate-words [model w interop] )
 
 (defn truncated-word-reducer [words word]
   (cond

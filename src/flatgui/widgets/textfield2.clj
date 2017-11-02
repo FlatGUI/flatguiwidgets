@@ -37,8 +37,6 @@
    :data data
    :style style})
 
-;;;;;;;;;;;;;;
-
 (defn char-glyph
   ([c style]
    (condp = c
@@ -60,8 +58,6 @@
 (defn linebreak? [g] (= :linebreak (:type g)))
 
 (defn delimiter? [g] (#{:whitespace :linebreak} (:type g)))
-
-;;;;;;;;;;;;;;;
 
 (defmulti glyph-size (fn [g _interop] (:type g)))
 
@@ -87,8 +83,6 @@
 (defmethod glyph-size :image [g _interop] (:size (:style g)))
 
 (defmethod glyph-size :video [g _interop] (:size (:style g)))
-
-;;;;;;;;;;;;;;;;;;;;;
 
 (defn word->str [word] (apply str (map :data (:glyphs word))))
 
@@ -147,8 +141,7 @@
                (if (pos? (count w-g)) (rf result (make-word caret-pos w-content w-total h w-g total-g-count source-g-count))))
              (do
                (vreset! state {:w-content w&g-content :w-total w&g-total :h w&h-h :w-g (do (.add w-g g) w-g) :total-g-count (inc total-g-count) :init-whitespace (if init-whitespace whitespace false)})
-               result)
-             )))))))
+               result))))))))
 
 (defn make-words ([glyphs caret-pos w interop] (transduce (create-make-words-transducer caret-pos w interop (count glyphs)) conj glyphs)))
 
@@ -172,36 +165,21 @@
         (make-words (vec (conj part-after-caret-pos g)) 1 w interop))
 
       (and (whitespace? g) (not g-goes-after-whitespace) (some #(not (whitespace? %)) part-before-caret-pos))
-      (let [;_(println "------------------------------------whitespace after g")
-            ;_ (println "part-before-caret-pos=" part-before-caret-pos)
-            ;_ (println "before" (make-words (vec (conj part-before-caret-pos g)) (inc caret-pos) w interop))
-            ;_ (println "after" (make-words (vec part-after-caret-pos) nil  w interop))
-            ]
-        (concat
-          (make-words (vec (conj part-before-caret-pos g)) (inc caret-pos) w interop)
-          (make-words (vec part-after-caret-pos) nil  w interop)))
+      (concat
+        (make-words (vec (conj part-before-caret-pos g)) (inc caret-pos) w interop)
+        (make-words (vec part-after-caret-pos) nil  w interop))
 
-      ;(and (whitespace? g) (not g-goes-after-whitespace))
       (whitespace? g)
-      ;(list
-      ;  (Word. (vec (concat part-before-caret-pos (list g) part-after-caret-pos)) (inc caret-pos)))
       (make-words (vec (concat part-before-caret-pos (list g) part-after-caret-pos)) (inc caret-pos) w interop)
 
       (and (linebreak? g))
       (concat
         (make-words (vec part-before-caret-pos) nil w interop)
-        (make-words (vec part-after-caret-pos) 0 w interop))
-      
-      )))
+        (make-words (vec part-after-caret-pos) 0 w interop)))))
 
 (defn make-glyph-line-reducer [w interop]
   (fn [words g]
-    (let [                                                  ;_ (println "-----------words=" words " g=" g)
-          ;_ (println "------------>" (glyph-> (last words) g w interop))
-          ]
-
-      (concat (butlast words) (glyph-> (last words) g w interop)))
-    ))
+    (concat (butlast words) (glyph-> (last words) g w interop))))
 
 (defn glyphs->words [glyphs w interop]
   (reduce
@@ -232,13 +210,10 @@
           ([result]
            (let [caret-word (if @line-caret-met-state @line-caret-index-state)
                  final-result (rf result (Line. @line-state caret-word caret-word @line-h-state))
-                 caret-line (if @model-caret-met-state @model-caret-index-state)
-                 _ (println "FR: " (lines->strings result) "@line-h-state" @line-h-state)
-                 ]
-             (Model. final-result caret-line caret-line)))                             ;TODO add final line here, same as in words
+                 caret-line (if @model-caret-met-state @model-caret-index-state)]
+             (Model. final-result caret-line caret-line)))
           ([result word]
-           (let [                                           ;_ (println "wrap-lines [result word]------" (lines->strings result) word)
-                 line @line-state
+           (let [line @line-state
                  line-w @line-w-state
                  line-h @line-h-state
                  w-content (:w-content word)
@@ -274,14 +249,14 @@
 ;; Example 1:
 ;; line 0 - will be contained in prior-lines
 ;; line 1 - so line-num-to-start-rewrap will be = 1
-;; line 2 - caret line; caret-line-and-following-words will contain words of all lines starting from this one
+;; line 2 - caret/mark line; caret-line-and-following-words will contain words of all lines starting from this one
 ;; line 3 ...
 ;;
 ;; Example 2:
-;; line 0 - caret line; line-num-to-start-rewrap will be = -1;
+;; line 0 - caret/mark line; line-num-to-start-rewrap will be = -1;
 ;; line 1 ...
 (defn rewrap-partially [model w caret-line-and-following-words]
-  (let [line-num-to-start-rewrap (dec (:caret-line model))]
+  (let [line-num-to-start-rewrap (dec (min (:caret-line model) (:mark-line model)))]
     (if (>= line-num-to-start-rewrap 0)
       (let [prior-lines (take line-num-to-start-rewrap (:lines model))
             words-to-wrap (concat
@@ -451,21 +426,75 @@
 
 (defn truncate-words [words] (vec (reduce truncated-word-reducer [] words)))
 
-(defn- kill-glyph [model w interop]
-  (let [line-index (:caret-line model)
+(defn- kill-glyph-range-in-word [word from-index-incl to-index-excl w interop]
+  (let [old-glyphs (:glyphs word)
+        glyphs (mapv (fn [i] (nth old-glyphs i)) (filter (fn [i] (not (and (>= i from-index-incl) (< i to-index-excl)))) (range (count old-glyphs))))
+        replacement-words (make-words glyphs (min from-index-incl to-index-excl) w interop)]
+    (assert (= (count replacement-words) 1) (str "Kill resulted in words: " (mapv str replacement-words)))
+    (first replacement-words)))
+
+(defn- kill-glyphs-in-word [word first-in-word-range last-in-word-range w interop]
+  (let [                                                    ;old-glyphs (:glyphs word)
+        old-glyph-count (count (:glyphs word))
+        caret (:caret-pos word)
+        mark (:mark-pos word)]
+    (cond
+      (or
+        (and (nil? caret) (nil? mark))
+        (and (= caret 0) (= mark old-glyph-count))
+        (and (= caret old-glyph-count) (= mark 0)))
+      (if (or first-in-word-range last-in-word-range) (throw (IllegalStateException.)))
+
+      (and caret mark)
+      (do
+        (if (not (or first-in-word-range last-in-word-range)) (throw (IllegalStateException.)))
+        (let [from (min caret mark)
+              to (if (= caret mark) (inc caret) (max caret mark))]
+          (kill-glyph-range-in-word word from to w interop)))
+
+      :else
+      (let [sel-edge (if caret caret mark)]
+        (cond
+          first-in-word-range (kill-glyph-range-in-word word sel-edge old-glyph-count w interop)
+          last-in-word-range (kill-glyph-range-in-word word 0 sel-edge w interop)
+          :else (throw (IllegalStateException.)))))))
+
+(defn- kill-glyphs [model w interop]
+  (let [caret-line-index (:caret-line model)
+        mark-line-index (:mark-line model)
+        same-line (= caret-line-index mark-line-index)
+        caret-line-first (<= caret-line-index mark-line-index)
+        from-line-index (if caret-line-first caret-line-index mark-line-index)
+        to-line-index (if caret-line-first mark-line-index caret-line-index)
         lines (:lines model)
-        line (nth lines line-index)
-        word-index (:caret-word line)
-        words (:words line)
-        word (nth words word-index)
-        pos (:caret-pos word)
-        old-glyphs (:glyphs word)
-        glyphs (mapv (fn [i] (nth old-glyphs i)) (filter (fn [i] (not= i pos)) (range (count old-glyphs))))
-        replacement-words (make-words glyphs pos w interop)
-        glyph-killed (assoc-in model [:lines line-index :words word-index] (first replacement-words))
-        remainder-words (mapcat :words (take-last (- (count lines) line-index) (:lines glyph-killed)))]
-    (assert (= (count replacement-words) 1))
-    (rewrap-partially model w (truncate-words remainder-words))))
+        from-line (nth lines from-line-index)
+        to-line (nth lines to-line-index)
+        from-word-index (cond
+                          same-line (min (:caret-word from-line) (:mark-word from-line))
+                          caret-line-first (:caret-word from-line)
+                          :else (:mark-word from-line))
+        to-word-index (cond
+                        same-line (max (:mark-word to-line) (:caret-word to-line))
+                        caret-line-first (:mark-word to-line)
+                        :else (:caret-word to-line))
+        lines (:lines model)]
+    (loop [m model
+           li from-line-index
+           wi from-word-index
+           first-w-of-all true]
+      (if (<= li to-line-index)
+        (let [words (:words (nth lines li))
+              last-line (= li to-line-index)
+              last-wi-in-line (if last-line to-word-index (dec (count words)))
+              now-is-last-wi (= wi last-wi-in-line)
+              now-is-last-w-of-all (and last-line now-is-last-wi)]
+          (recur
+            (assoc-in m [:lines li :words wi] (kill-glyphs-in-word (nth words wi) first-w-of-all now-is-last-w-of-all w interop))
+            (if now-is-last-wi (inc li) li)
+            (if now-is-last-wi 0 (inc wi))
+            false))
+        (let [remainder-words (mapcat :words (take-last (- (count lines) from-line-index) (:lines m)))]
+          (rewrap-partially model w (truncate-words remainder-words)))))))
 
 (defn do-delete-no-sel [model w interop]
   (let [line-index (:caret-line model)
@@ -487,14 +516,10 @@
       (throw (IllegalStateException. "Cursor may be in edge glyph position of the word only at the end of the line"))
 
       edge-glyph
-      (-> (move-caret-mark model :caret-&-mark :forward nil nil) (kill-glyph w interop))
+      (-> (move-caret-mark model :caret-&-mark :forward nil nil) (kill-glyphs w interop))
 
       :else
-      (kill-glyph model w interop)
-
-      ;:else
-      ;(throw (IllegalStateException. (str "Inconsistent calculations: edge-line=" edge-line " edge-word=" edge-word " edge-glyph=" edge-glyph)))
-      )))
+      (kill-glyphs model w interop))))
 
 (defn do-backspace-no-sel [model w interop]
   (let [line-index (:caret-line model)
@@ -512,5 +537,3 @@
       (->
         (move-caret-mark model :caret-&-mark :backward nil nil)
         (do-delete-no-sel w interop)))))
-
-(defn cut-selection [model w interop] )

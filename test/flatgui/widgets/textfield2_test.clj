@@ -29,14 +29,24 @@
   ([data w h] (textfield2/glyph :test data {:w (double w) :h (double h)}))
   ([w h] (test-glyph nil w h)))
 
+(defn test-sized-glyph
+  ([data w h]
+   (let [g (textfield2/glyph :test data {:w (double w) :h (double h)})]
+     (assoc g :size (textfield2/glyph-size g dummy-interop))))
+  ([w h] (test-sized-glyph nil w h)))
+
+(defn test-sized-char-glyph [c]
+  (let [g (textfield2/char-glyph c)]
+    (assoc g :size (textfield2/glyph-size g dummy-interop))))
+
 (test/deftest make-words-test-1
-  (let [glyphs (mapv textfield2/char-glyph "111")
+  (let [glyphs (mapv test-sized-char-glyph "111")
         words (textfield2/make-words glyphs 1 3 dummy-interop)]
     (test/is (= (list (Word. glyphs 1 1 3.0 3.0 1.0)) words))))
 
 (test/deftest make-words-test-2
-  (let [glyphs-1 (mapv textfield2/char-glyph "111")
-        glyphs-2 [(textfield2/char-glyph \2)]
+  (let [glyphs-1 (mapv test-sized-char-glyph "111")
+        glyphs-2 [(test-sized-char-glyph \2)]
         glyphs (vec (concat glyphs-1 glyphs-2))
         words-cp-0 (textfield2/make-words glyphs 0 3 dummy-interop)
         words-cp-1 (textfield2/make-words glyphs 1 3 dummy-interop)
@@ -50,17 +60,17 @@
     (test/is (= (list (Word. glyphs-1 nil nil 3.0 3.0 1.0) (Word. glyphs-2 1 1 1.0 1.0 1.0)) words-cp-4))))
 
 (test/deftest make-words-test-3
-  (let [glyphs-1 (mapv textfield2/char-glyph "111")
-        glyphs-2 (mapv textfield2/char-glyph "222")
-        glyphs-3 (mapv textfield2/char-glyph "33")
+  (let [glyphs-1 (mapv test-sized-char-glyph "111")
+        glyphs-2 (mapv test-sized-char-glyph "222")
+        glyphs-3 (mapv test-sized-char-glyph "33")
         glyphs (vec (concat glyphs-1 glyphs-2 glyphs-3))
         words (textfield2/make-words glyphs 7 3 dummy-interop)]
     (test/is (= (list (Word. glyphs-1 nil nil 3.0 3.0 1.0) (Word. glyphs-2 nil nil 3.0 3.0 1.0) (Word. glyphs-3 1 1 2.0 2.0 1.0)) words))))
 
 (test/deftest make-words-test-4
-  (let [glyphs-1 [(test-glyph 2 1.5) (test-glyph 1 1)]
-        glyphs-2 [(test-glyph 1 0.5) (test-glyph 1 0.5) (test-glyph 1 0.5)]
-        glyphs-3 [(test-glyph 2 1) (test-glyph 1 1.1)]
+  (let [glyphs-1 [(test-sized-glyph 2 1.5) (test-sized-glyph 1 1)]
+        glyphs-2 [(test-sized-glyph 1 0.5) (test-sized-glyph 1 0.5) (test-sized-glyph 1 0.5)]
+        glyphs-3 [(test-sized-glyph 2 1) (test-sized-glyph 1 1.1)]
         glyphs (vec (concat glyphs-1 glyphs-2 glyphs-3))
         words (textfield2/make-words glyphs 6 3 dummy-interop)]
     (test/is (= (list (Word. glyphs-1 nil nil 3.0 3.0 1.5) (Word. glyphs-2 nil nil 3.0 3.0 0.5) (Word. glyphs-3 1 1 3.0 3.0 1.1)) words))))
@@ -136,7 +146,7 @@
         w-total (double (.length s-clean))
         trailing-space-count (count (take-while #(= % \space) (reverse s-clean)))
         w-content (- w-total trailing-space-count)
-        glyphs (mapv textfield2/char-glyph s-clean)
+        glyphs (mapv test-sized-char-glyph s-clean)
         result-caret-pos (if (>= caret-pos 0) caret-pos)]
     (Word. glyphs result-caret-pos result-caret-pos w-content w-total 1.0)))
 
@@ -638,3 +648,32 @@
     (test/is (= expected-words (:words (first (:lines model-after-cm)))))
     (test/is (= expected-words (:words (first (:lines model-after-mc)))))
     (test/is (= model-after-cm model-after-mc))))
+;
+;;;;
+;;;; Live tests
+;;;;
+;
+;(test/deftest type-text-test
+;  (let [root (fg/defroot
+;               (fg/defcomponent table/table :main
+;                                {:header-model-loc {:positions init-header-model-pos
+;                                                    :sizes init-header-model-size}
+;                                 :selection [nil nil]
+;                                 :avg-min-cell-w 1
+;                                 :avg-min-cell-h 1
+;                                 :child-count-dim-margin 1
+;                                 :viewport-matrix m/identity-matrix
+;                                 :clip-size (m/defpoint 3 4)
+;                                 :evolvers {:header-model-loc table/shift-header-model-loc-evolver
+;                                            :selection table/cbc-selection}}))
+;
+;        container (fgtest/init-container root)
+;        cid-0-0 (fgtest/wait-table-cell-id container [:main] [0 0])
+;        cid-1-0 (fgtest/wait-table-cell-id container [:main] [1 0])
+;        _cid-0-1 (fgtest/wait-table-cell-id container [:main] [0 1]) ;Even if cell id is not used, the call still checks that cell has been created
+;        cid-1-1 (fgtest/wait-table-cell-id container [:main] [1 1])
+;        cid-0-2 (fgtest/wait-table-cell-id container [:main] [0 2])
+;        _cid-1-2 (fgtest/wait-table-cell-id container [:main] [1 2])]
+;
+;    (fgtest/wait-table-cell-property container [:main] [0 0] :atomic-state (fn [as] (not (:selected as))))
+;    ))

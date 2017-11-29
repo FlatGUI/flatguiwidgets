@@ -67,6 +67,7 @@
   {:w (.getStringWidth interop text font)
    :h (.getFontHeight interop font)})
 
+;; TODO cache the size in the word instance
 (defmethod glyph-size :char [g interop]
   (let [font (:font (:style g))
         text (str (:data g))]
@@ -86,13 +87,78 @@
 
 (defn word->str [word] (apply str (map :data (:glyphs word))))
 
+
 (defrecord Model [lines caret-line mark-line])
 
-(defrecord Line [words caret-word mark-word h])
+(defrecord Line [words caret-word mark-word h primitives])
 
 (defrecord Word [glyphs caret-pos mark-pos w-content w-total h]
   Object
   (toString [word] (word->str word)))
+
+(defrecord Primitive [type data style x])
+
+
+(defn glyph-type->primitive-type [g]
+  (let [type (:type g)]
+    (cond
+      (= type :char) :string
+      (= type :whitespace) :string
+      (= type :linebreak) nil
+      :else type)))
+
+(defn glyps->primitive-data [glyphs primitive-type]
+  (if (= primitive-type :string)
+    (apply str (map :data glyphs))
+    glyphs))
+
+(defn create-render-line-primitives-transducer []
+  (fn [rf]
+    (let [glyphs-state (volatile! [])
+          type-state (volatile! nil)
+          style-state (volatile! nil)
+          w-total-state (volatile! 0)
+          x-state (volatile! 0)]
+      (fn
+        ([] (rf))
+        ([result]
+         (let [glyphs @glyphs-state]                         ; TODO if last glyph is linebreak then this will go to else branch, right?
+           (if (not (empty? glyphs))
+             (let [style @style-state
+                   type @type-state
+                   x @x-state
+                   data (glyps->primitive-data glyphs type)
+                   p (Primitive. type data style x)]
+               (rf result p))
+             result)))
+        ([result g]
+         (if-let [g-type (glyph-type->primitive-type g)]
+           (let [glyphs @glyphs-state
+                 style @style-state
+                 type @type-state
+                 ;g-w (:w (if-let [size (:size g)] size (throw (IllegalStateException. (str "Glyph must be sized at this point. g=" g)))))
+                 g-w (:w (if-let [size (:size g)] size 1))
+                 g-style (:style g)]
+             (if (or (empty? glyphs) (= style g-style) (= type g-type))
+               (do
+                 (vswap! glyphs-state conj g)
+                 (vswap! w-total-state + g-w)
+                 result)
+               (let [data (glyps->primitive-data glyphs type)
+                     p (Primitive. type data style @x-state)]
+                 (vreset! glyphs-state [g])
+                 (vreset! type-state g-type)
+                 (vreset! style-state g-style)
+                 (vswap! x-state + @w-total-state)
+                 (vreset! w-total-state g-w)
+                 (rf result p))
+               ))
+           result))))))
+
+(defn make-line [words caret-word mark-word h]
+  (let [glyphs (mapcat :glyphs words)
+        primitives (transduce (create-render-line-primitives-transducer) conj glyphs)]
+    (Line. words caret-word mark-word h primitives)))
 
 (defn make-word [caret-pos w-content w-total h w-g total-g-count source-g-count]
   (let [w-g-count (.size w-g) ;TODO w-g-count
@@ -118,7 +184,7 @@
                h (:h s)
                w-g (:w-g s)
                total-g-count (:total-g-count s)]
-           (if (pos? (count w-g)) (rf result (make-word caret-pos w-content w-total h w-g total-g-count source-g-count)))))
+           (if (pos? (count w-g)) (rf result (make-word caret-pos w-content w-total h w-g total-g-count source-g-count)))))   ;TODO else result?
         ([result g]
          (let [s @state
                w-content (:w-content s)
@@ -128,7 +194,9 @@
                total-g-count (:total-g-count s)
                whitespace (whitespace? g)
                init-whitespace (:init-whitespace s)
-               g-size (glyph-size g interop)
+               cached-g-size (:size g) ; Size might be already cached in glyph, e.g. if this called from kill-glyphs. Also will need size further.
+               g-size (if cached-g-size (:size g) (glyph-size g interop))
+               sized-g (if cached-g-size g (assoc g :size g-size))
                g-w (:w g-size)
                effective-g-w (if (or (not whitespace) (:init-whitespace s)) g-w 0)
                g-h (:h g-size)
@@ -137,10 +205,10 @@
                w&h-h (max h g-h)]
            (if (> w&g-content w)
              (do
-               (vreset! state {:w-content effective-g-w :w-total g-w :h g-h :w-g (let [a (ArrayList.)] (do (.add a g) a)) :total-g-count (inc total-g-count) :init-whitespace whitespace})
+               (vreset! state {:w-content effective-g-w :w-total g-w :h g-h :w-g (let [a (ArrayList.)] (do (.add a sized-g) a)) :total-g-count (inc total-g-count) :init-whitespace whitespace})
                (if (pos? (count w-g)) (rf result (make-word caret-pos w-content w-total h w-g total-g-count source-g-count))))
              (do
-               (vreset! state {:w-content w&g-content :w-total w&g-total :h w&h-h :w-g (do (.add w-g g) w-g) :total-g-count (inc total-g-count) :init-whitespace (if init-whitespace whitespace false)})
+               (vreset! state {:w-content w&g-content :w-total w&g-total :h w&h-h :w-g (do (.add w-g sized-g) w-g) :total-g-count (inc total-g-count) :init-whitespace (if init-whitespace whitespace false)})
                result))))))))
 
 (defn make-words ([glyphs caret-pos w interop] (transduce (create-make-words-transducer caret-pos w interop (count glyphs)) conj glyphs)))
@@ -209,7 +277,7 @@
           ([] (rf))
           ([result]
            (let [caret-word (if @line-caret-met-state @line-caret-index-state)
-                 final-result (rf result (Line. @line-state caret-word caret-word @line-h-state))
+                 final-result (rf result (make-line @line-state caret-word caret-word @line-h-state))
                  caret-line (if @model-caret-met-state @model-caret-index-state)]
              (Model. final-result caret-line caret-line)))
           ([result word]
@@ -237,7 +305,7 @@
                    (vreset! line-caret-met-state false)
                    (if (not @model-caret-met-state) (vswap! model-caret-index-state inc))
                    (process-caret)
-                   (rf result (Line. line line-caret-index line-caret-index line-h)))
+                   (rf result (make-line line line-caret-index line-caret-index line-h)))
                  (do
                    (vreset! line-state (conj line word))
                    (vreset! line-w-state (+ line-w w-total)) ;TODO vswap!
@@ -266,6 +334,9 @@
             result-caret-line (+ (count prior-lines) (:caret-line remainder-model))]
         (Model. (vec (concat prior-lines (:lines remainder-model))) result-caret-line result-caret-line))
       (wrap-lines caret-line-and-following-words w))))
+
+
+;;; TODO more than one glyph at once (e.g. from clipboard) and only then rewrap
 
 (defmethod glyph-> Model [model g w interop]
   (let [line-with-caret (nth (:lines model) (:caret-line model))
@@ -537,3 +608,48 @@
       (->
         (move-caret-mark model :caret-&-mark :backward nil nil)
         (do-delete-no-sel w interop)))))
+
+
+(fg/defevolverfn :model
+  (cond
+
+    ;; TODO not good because might need to rewrap aacording to :clip-size
+    ;(false? (get-property [:this] :editable))
+    ;old-model
+
+    (mouse/is-mouse-event? component)
+    old-model
+
+    :else
+    (let [supplied-text (if (clipboard/clipboard-paste? component)
+                          (clipboard/get-plain-text component)
+                          ((:text-supplier component) component))
+          glyphs (mapv char-glyph supplied-text)
+          w (- (m/x (get-property component [:this] :clip-size)) (awt/strh component))]
+      (glyph-> old-model (first glyphs) w (get-property component [:this] :interop)))))
+
+(fg/defwidget "textfield"
+  {:text-supplier textcommons/textfield-dflt-text-suplier
+   :caret-visible true;false
+   :model (Model. [] nil nil)
+   ;:text ""
+   ;:->clipboard nil
+
+   :focusable true
+   :cursor nil
+   :skin-key [:textfield]
+   :editable true
+   :background :prime-4
+   :foreground :prime-1
+   :no-mouse-press-capturing true
+   :paint-border true
+   :evolvers {:model model-evolver
+              ;:text text-evolver
+
+              ;:caret-visible caret-visible-evolver
+              ;:->clipboard ->clipboard-evolver
+              ;:cursor cursor-evolver
+              ;:clip-size auto-size-evolver
+              :background (fg/accessorfn (if (get-property component [:this] :editable) :prime-4 :prime-1))
+              :foreground (fg/accessorfn (if (get-property component [:this] :editable) :prime-1 :prime-4))}}
+  flatgui.widgets.component/component)

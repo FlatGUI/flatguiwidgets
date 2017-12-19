@@ -332,7 +332,7 @@
                             caret-line-and-following-words)
             remainder-model (wrap-lines words-to-wrap w)
             result-caret-line (+ (count prior-lines) (:caret-line remainder-model))]
-        (Model. (vec (concat prior-lines (:lines remainder-model))) result-caret-line result-caret-line))
+        (Model. (vec (concat prior-lines (:lines remainder-model))) result-caret-line result-caret-line)) ;TODO resut-mark-line
       (wrap-lines caret-line-and-following-words w))))
 
 
@@ -567,32 +567,50 @@
         (let [remainder-words (mapcat :words (take-last (- (count lines) from-line-index) (:lines m)))]
           (rewrap-partially model w (truncate-words remainder-words)))))))
 
-(defn do-delete-no-sel [model w interop]
+(defn do-delete [model w interop]
   (let [line-index (:caret-line model)
+        mark-line-index (:mark-line model)
         lines (:lines model)
         line (nth lines line-index)
+        mark-line (nth lines mark-line-index)
         word-index (:caret-word line)
-        words (:words line)
-        word (nth words word-index)
-        pos (:caret-pos word)
-        old-glyphs (:glyphs word)
-        edge-line (= line-index (dec (count lines)))
-        edge-word (= word-index (dec (count words)))
-        edge-glyph (= pos (count old-glyphs))]
+        mark-word-index (:mark-word mark-line)
+        caret-line-words (:words line)
+        mark-line-words (:words mark-line)
+        word (nth caret-line-words word-index)
+        caret-pos (:caret-pos word)
+        mark-word (nth mark-line-words mark-word-index)
+        mark-pos (:mark-pos mark-word)
+        caret-word-glyphs (:glyphs word)
+        mark-word-glyphs (:glyphs mark-word)
+        last-line-index (dec (count lines))
+        edge-line-by-caret (= line-index last-line-index)
+        edge-line-by-mark (= mark-line-index last-line-index)
+        edge-word-by-caret (= word-index (dec (count caret-line-words)))
+        edge-word-by-mark (= mark-word-index (dec (count mark-line-words)))
+        edge-glyph-by-caret (= caret-pos (count caret-word-glyphs))
+        edge-glyph-by-mark (= mark-pos (count mark-word-glyphs))]
     (cond
-      (and edge-line edge-word edge-glyph)
+      (and
+        edge-line-by-caret edge-word-by-caret edge-glyph-by-caret
+        edge-line-by-mark  edge-word-by-mark edge-glyph-by-mark)
       model
 
-      (and edge-glyph (not edge-word))
+      (or
+        (and edge-glyph-by-caret (not edge-word-by-caret))
+        (and edge-glyph-by-mark (not edge-word-by-mark)))
       (throw (IllegalStateException. "Cursor may be in edge glyph position of the word only at the end of the line"))
 
-      edge-glyph
-      (-> (move-caret-mark model :caret-&-mark :forward nil nil) (kill-glyphs w interop))
+      (or edge-glyph-by-caret edge-glyph-by-mark)
+      (let [caret-first (if (= line-index mark-line-index)
+                          (if (= word-index mark-word-index) (< caret-pos mark-pos) (< word-index mark-word-index))
+                          (< line-index mark-line-index))]
+        (-> (move-caret-mark model (cond (= (:mark-pos word) caret-pos) :caret-&-mark caret-first :caret :else :mark) :forward nil nil) (kill-glyphs w interop)))
 
       :else
       (kill-glyphs model w interop))))
 
-(defn do-backspace-no-sel [model w interop]
+(defn do-backspace [model w interop]
   (let [line-index (:caret-line model)
         lines (:lines model)
         line (nth lines line-index)
@@ -607,7 +625,7 @@
       model
       (->
         (move-caret-mark model :caret-&-mark :backward nil nil)
-        (do-delete-no-sel w interop)))))
+        (do-delete w interop)))))
 
 
 (fg/defevolverfn :model

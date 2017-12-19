@@ -514,14 +514,14 @@
   (let [w 7
         model-before (textfield2/wrap-lines [(tw "aa ") (tw "b|b ")
                                              (tw "cc ")] w)
-        model-after (textfield2/do-backspace-no-sel model-before w dummy-interop)]
+        model-after (textfield2/do-backspace model-before w dummy-interop)]
     (test/is (= [(tw "aa ") (tw "|b " ) (tw "cc ")] (:words (first (:lines model-after)))))))
 
 (test/deftest nosel-delete-test-2
   (let [w 7
         model-before (textfield2/wrap-lines [(tw "aa ") (tw "b|b ")
                                              (tw "cc ")] w)
-        model-after (textfield2/do-delete-no-sel model-before w dummy-interop)]
+        model-after (textfield2/do-delete model-before w dummy-interop)]
     (test/is (= [(tw "aa ") (tw "b| " ) (tw "cc ")] (:words (first (:lines model-after)))))))
 
 (test/deftest nosel-delete-test-3
@@ -529,7 +529,7 @@
         model-before (textfield2/wrap-lines [(tw "xyz ") (tw "bb ")
                                              (tw "aa ") (tw "bb ")
                                              (tw "c|c ")] w)
-        model-after (textfield2/do-backspace-no-sel model-before w dummy-interop)]
+        model-after (textfield2/do-backspace model-before w dummy-interop)]
     (test/is (= [(tw "aa ") (tw "bb " ) (tw "|c ")] (:words (second (:lines model-after)))))))
 
 (test/deftest nosel-delete-test-4
@@ -537,7 +537,7 @@
         model-before (textfield2/wrap-lines [(tw "xy|z ") (tw "bb ")
                                              (tw "aa ") (tw "bb ")
                                              (tw "cc ")] w)
-        model-after (textfield2/do-delete-no-sel model-before w dummy-interop)]
+        model-after (textfield2/do-delete model-before w dummy-interop)]
     (test/is (= [(tw "xy| ") (tw "bb " )] (:words (first (:lines model-after)))))
     (test/is (= [(tw "aa ") (tw "bb " )] (:words (second (:lines model-after)))))
     (test/is (= [(tw "cc ")] (:words (nth (:lines model-after) 2))))))
@@ -545,7 +545,7 @@
 (test/deftest nosel-delete-test-5
   (let [w 7
         model-before (textfield2/wrap-lines [(tw "xyz ") (tw "|bb")] w)
-        model-after (textfield2/do-backspace-no-sel model-before w dummy-interop)]
+        model-after (textfield2/do-backspace model-before w dummy-interop)]
     (test/is (= [(tw "xyz|bb")] (:words (first (:lines model-after)))))))
 
 (test/deftest nosel-delete-test-6
@@ -553,8 +553,22 @@
         model-before (textfield2/wrap-lines [(tw "xyz ") (tw "bb ")
                                              (tw "aa ") (tw "bb|b")
                                              (tw "cc ")] w)
-        model-after (textfield2/do-delete-no-sel model-before w dummy-interop)]
+        model-after (textfield2/do-delete model-before w dummy-interop)]
     (test/is (= [(tw "aa ") (tw "bb|cc " )] (:words (second (:lines model-after)))))))
+
+(test/deftest nosel-delete-test-7
+  (let [w 7
+        model-before (textfield2/wrap-lines [(tw "aa ") (tw "bb |")
+                                             (tw "cc ")] w)
+        model-after (textfield2/do-delete model-before w dummy-interop)]
+    (test/is (= [(tw "aa ") (tw "bb " ) (tw "|c ")] (:words (first (:lines model-after)))))))
+
+(test/deftest nosel-delete-test-8
+  (let [w 7
+        model-before (textfield2/wrap-lines [(tw "aa ") (tw "bb ")
+                                             (tw "cc |")] w)
+        model-after (textfield2/do-delete model-before w dummy-interop)]
+    (test/is (= [(tw "aa ") (tw "bb " ) (tw "cc |")] (concat (:words (first (:lines model-after))) (:words (second (:lines model-after))))))))
 
 (test/deftest sel-delete-test-1
   (let [w 7
@@ -562,8 +576,8 @@
                                       (tw "cc ")] w)
         model-before-cm (textfield2/move-caret-mark model :mark :forward nil nil)
         model-before-mc (textfield2/move-caret-mark model :caret :forward nil nil)
-        model-after-cm (textfield2/do-delete-no-sel model-before-cm w dummy-interop)
-        model-after-mc (textfield2/do-delete-no-sel model-before-mc w dummy-interop)
+        model-after-cm (textfield2/do-delete model-before-cm w dummy-interop)
+        model-after-mc (textfield2/do-delete model-before-mc w dummy-interop)
         expected-words [(tw "aa ") (tw "|b " ) (tw "cc ")]]
     (test/is (= expected-words (:words (first (:lines model-after-cm)))))
     (test/is (= expected-words (:words (first (:lines model-after-mc)))))
@@ -579,8 +593,8 @@
         model-before-mc (->
                           (textfield2/move-caret-mark model :caret :forward nil nil)
                           (textfield2/move-caret-mark :caret :forward nil nil))
-        model-after-cm (textfield2/do-delete-no-sel model-before-cm w dummy-interop)
-        model-after-mc (textfield2/do-delete-no-sel model-before-mc w dummy-interop)
+        model-after-cm (textfield2/do-delete model-before-cm w dummy-interop)
+        model-after-mc (textfield2/do-delete model-before-mc w dummy-interop)
         expected-words [(tw "aa|b ") (tw "cc ")]]
     (test/is (= expected-words (:words (first (:lines model-after-cm)))))
     (test/is (= expected-words (:words (first (:lines model-after-mc)))))
@@ -592,14 +606,14 @@
                                       (tw "cc ")] w)
         model-before-cm (textfield2/move-caret-mark model :mark :forward nil nil)
         model-before-mc (textfield2/move-caret-mark model :caret :forward nil nil)
-        model-after-cm (textfield2/do-delete-no-sel model-before-cm w dummy-interop)
-        model-after-mc (textfield2/do-delete-no-sel model-before-mc w dummy-interop)
+        model-after-cm (textfield2/do-delete model-before-cm w dummy-interop)
+        model-after-mc (textfield2/do-delete model-before-mc w dummy-interop)
         expected-words [(tw "aa|bb ") (tw "cc ")]]
     (test/is (= expected-words (:words (first (:lines model-after-cm)))))
     (test/is (= expected-words (:words (first (:lines model-after-mc)))))
     (test/is (= model-after-cm model-after-mc))))
 
-(test/deftest sel-delete-test-2
+(test/deftest sel-delete-test-4
   (let [w 7
         model (textfield2/wrap-lines [(tw "aa ") (tw "b|b ")
                                       (tw "cc ")] w)
@@ -613,14 +627,14 @@
                           (textfield2/move-caret-mark :caret :forward nil nil)
                           (textfield2/move-caret-mark :caret :forward nil nil)
                           (textfield2/move-caret-mark :caret :forward nil nil))
-        model-after-cm (textfield2/do-delete-no-sel model-before-cm w dummy-interop)
-        model-after-mc (textfield2/do-delete-no-sel model-before-mc w dummy-interop)
+        model-after-cm (textfield2/do-delete model-before-cm w dummy-interop)
+        model-after-mc (textfield2/do-delete model-before-mc w dummy-interop)
         expected-words [(tw "aa ") (tw "b|c ")]]
     (test/is (= expected-words (:words (first (:lines model-after-cm)))))
     (test/is (= expected-words (:words (first (:lines model-after-mc)))))
     (test/is (= model-after-cm model-after-mc))))
 
-(test/deftest sel-delete-test-2
+(test/deftest sel-delete-test-5
   (let [w 5
         model (textfield2/wrap-lines [(tw "a|a ") (tw "b ")
                                       (tw "c ") (tw "dd ")] w)
@@ -642,12 +656,32 @@
                           (textfield2/move-caret-mark :caret :forward nil nil)
                           (textfield2/move-caret-mark :caret :forward nil nil)
                           (textfield2/move-caret-mark :caret :forward nil nil))
-        model-after-cm (textfield2/do-delete-no-sel model-before-cm w dummy-interop)
-        model-after-mc (textfield2/do-delete-no-sel model-before-mc w dummy-interop)
+        model-after-cm (textfield2/do-delete model-before-cm w dummy-interop)
+        model-after-mc (textfield2/do-delete model-before-mc w dummy-interop)
         expected-words [(tw "a|d ")]]
     (test/is (= expected-words (:words (first (:lines model-after-cm)))))
     (test/is (= expected-words (:words (first (:lines model-after-mc)))))
     (test/is (= model-after-cm model-after-mc))))
+
+(test/deftest sel-delete-test-6
+  (let [w 7
+        model (textfield2/wrap-lines [(tw "aa ") (tw "bb |")
+                                      (tw "cccc ")] w)
+        model-before-cm (->
+                          (textfield2/move-caret-mark model :mark :forward nil nil)
+                          (textfield2/move-caret-mark :mark :forward nil nil)
+                          (textfield2/move-caret-mark :mark :forward nil nil))
+        model-before-mc (->
+                          (textfield2/move-caret-mark model :caret :forward nil nil)
+                          (textfield2/move-caret-mark :caret :forward nil nil)
+                          (textfield2/move-caret-mark :caret :forward nil nil))
+        model-after-cm (textfield2/do-delete model-before-cm w dummy-interop)
+        model-after-mc (textfield2/do-delete model-before-mc w dummy-interop)
+        expected-words [(tw "aa ") (tw "bb ") (tw "|cc ")]]
+    (test/is (= expected-words (concat (:words (first (:lines model-after-cm))) (:words (second (:lines model-after-cm))))))
+    (test/is (= expected-words (concat (:words (first (:lines model-after-mc))) (:words (second (:lines model-after-mc))))))
+    (test/is (= model-after-cm model-after-mc))))
+
 ;
 ;;;;
 ;;;; Live tests

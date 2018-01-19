@@ -67,7 +67,6 @@
   {:w (.getStringWidth interop text font)
    :h (.getFontHeight interop font)})
 
-;; TODO cache the size in the word instance
 (defmethod glyph-size :char [g interop]
   (let [font (:font (:style g))
         text (str (:data g))]
@@ -77,7 +76,7 @@
   (let [font (:font (:style g))]
     (text-size interop " " font)))
 
-(defmethod glyph-size :linebreak [_g _interop] empty-glyph-size)
+(defmethod glyph-size :linebreak [g interop] {:w 0 :h (.getFontHeight interop (:font (:style g)))})
 
 (defmethod glyph-size :test [g _interop] {:w (:w (:style g)) :h (:h (:style g))})
 
@@ -247,8 +246,10 @@
 
       (and (linebreak? g))
       (concat
-        (make-words (vec part-before-caret-pos) nil w interop)
-        (make-words (vec part-after-caret-pos) 0 w interop)))))
+        (make-words (vec (conj part-before-caret-pos g)) nil w interop)
+        (if (empty? part-after-caret-pos)
+          [(make-word 0 0 0 0 [] 0 0)]
+          (make-words (vec part-after-caret-pos) 0 w interop))))))
 
 (defn make-glyph-line-reducer [w interop]
   (fn [words g]
@@ -293,7 +294,7 @@
                  w-total (:w-total word)
                  word-h (:h word)
                  has-caret (:caret-pos word)
-                 end-line (> (+ line-w w-content) w)
+                 end-line (or (> (+ line-w w-content) w) (linebreak? (last (:glyphs (last line)))))
                  process-caret (fn []
                                  (if has-caret
                                    (do

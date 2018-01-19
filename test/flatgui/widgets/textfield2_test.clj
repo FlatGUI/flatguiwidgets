@@ -272,7 +272,53 @@
       [1.0             1.0        1.0      1.0       1.0            1.0])
     (test/is (= 4 (:caret-pos caret-word)))))
 
-(test/deftest test-primitives-2
+(test/deftest insert-symbol-test-4
+  (let [words [(tw "aaa |")]
+        model-before (textfield2/wrap-lines words 9)
+        model-after  (textfield2/glyph-> model-before (textfield2/char-glyph \Z) 9 dummy-interop)
+        caret-line (nth (:lines model-after) (:caret-line model-after))
+        caret-word (nth (:words caret-line) (:caret-word caret-line))]
+    (test-model
+      model-after
+      [["aaa" "Z"]]
+      [[4.0 1.0]]
+      0
+      1
+      [1.0])
+    (test/is (= 1 (:caret-pos caret-word)))))
+
+(test/deftest insert-symbol-test-5
+  (let [words [(tw "aa|a")]
+        model-before (textfield2/wrap-lines words 9)
+        model-after  (textfield2/glyph-> model-before textfield2/linebreak-glyph 9 dummy-interop)
+        caret-line (nth (:lines model-after) (:caret-line model-after))
+        caret-word (nth (:words caret-line) (:caret-word caret-line))]
+    (test-model
+      model-after
+      [["aa"] ["a"]]
+      [[2.0] [1.0]]
+      1
+      0
+      [1.0 1.0])
+    (test/is (= 0 (:caret-pos caret-word)))))
+
+(test/deftest insert-symbol-test-6
+  (let [words [(tw "aa|a")]
+        model-before (textfield2/wrap-lines words 9)
+        model-after-0 (textfield2/glyph-> model-before textfield2/linebreak-glyph 9 dummy-interop)
+        model-after-1 (textfield2/glyph-> model-after-0 textfield2/linebreak-glyph 9 dummy-interop)
+        caret-line (nth (:lines model-after-1) (:caret-line model-after-1))
+        caret-word (nth (:words caret-line) (:caret-word caret-line))]
+    (test-model
+      model-after-1
+      [["aa"] [""] ["a"]]
+      [[2.0] [0] [1.0]]
+      2
+      0
+      [1.0 1.0 1.0])
+    (test/is (= 0 (:caret-pos caret-word)))))
+
+(test/deftest test-primitives-1
   (let [w 5
         glyphs (map textfield2/char-glyph "a")
         words (textfield2/glyphs->words glyphs w dummy-interop)
@@ -284,18 +330,16 @@
     (test/is (= :string (:type primitive)))
     (test/is (= "a" (:data primitive)))))
 
-; TODO
-;(test/deftest test-primitives-2
-;  (let [w 5
-;        glyphs (concat (map textfield2/char-glyph "abc") [textfield2/linebreak-glyph] (map textfield2/char-glyph "d"))
-;        words (textfield2/glyphs->words glyphs w dummy-interop)
-;        model (textfield2/wrap-lines words w)
-;        lines (:lines model)
-;        ]
-;    (test/is (= :string (:type (first (:primitives (first lines))))))
-;    (test/is (= "abc" (:data (first (:primitives (first lines))))))
-;    (test/is (= :string (:type (first (:primitives (second lines))))))
-;    (test/is (= "d" (:data (first (:primitives (second lines))))))))
+(test/deftest test-primitives-2
+  (let [w 5
+        glyphs (concat (map textfield2/char-glyph "abc") [textfield2/linebreak-glyph] (map textfield2/char-glyph "d"))
+        words (textfield2/glyphs->words glyphs w dummy-interop)
+        model (textfield2/wrap-lines words w)
+        lines (:lines model)]
+    (test/is (= :string (:type (first (:primitives (first lines))))))
+    (test/is (= "abc" (:data (first (:primitives (first lines))))))
+    (test/is (= :string (:type (first (:primitives (second lines))))))
+    (test/is (= "d" (:data (first (:primitives (second lines))))))))
 
 (test/deftest line-h-test-1
   (let [words [(tw "The ")                  (assoc (tw "quick ") :h 2.0)

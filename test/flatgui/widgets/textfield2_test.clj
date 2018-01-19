@@ -12,7 +12,8 @@
             [flatgui.base :as fg]
             [flatgui.util.matrix :as m]
             [flatgui.widgets.textfield2 :as textfield2]
-            [flatgui.test :as fgtest])
+            [flatgui.test :as fgtest]
+            [flatgui.awt :as awt])
   (:import (flatgui.core.engine IResultCollector Container ClojureContainerParser)
            (flatgui.core IFGInteropUtil)
            (java.awt.event KeyEvent)
@@ -270,6 +271,31 @@
       0
       [1.0             1.0        1.0      1.0       1.0            1.0])
     (test/is (= 4 (:caret-pos caret-word)))))
+
+(test/deftest test-primitives-2
+  (let [w 5
+        glyphs (map textfield2/char-glyph "a")
+        words (textfield2/glyphs->words glyphs w dummy-interop)
+        model (textfield2/wrap-lines words w)
+        lines (:lines model)
+        line (first lines)
+        primitives (:primitives line)
+        primitive (first primitives)]
+    (test/is (= :string (:type primitive)))
+    (test/is (= "a" (:data primitive)))))
+
+; TODO
+;(test/deftest test-primitives-2
+;  (let [w 5
+;        glyphs (concat (map textfield2/char-glyph "abc") [textfield2/linebreak-glyph] (map textfield2/char-glyph "d"))
+;        words (textfield2/glyphs->words glyphs w dummy-interop)
+;        model (textfield2/wrap-lines words w)
+;        lines (:lines model)
+;        ]
+;    (test/is (= :string (:type (first (:primitives (first lines))))))
+;    (test/is (= "abc" (:data (first (:primitives (first lines))))))
+;    (test/is (= :string (:type (first (:primitives (second lines))))))
+;    (test/is (= "d" (:data (first (:primitives (second lines))))))))
 
 (test/deftest line-h-test-1
   (let [words [(tw "The ")                  (assoc (tw "quick ") :h 2.0)
@@ -682,32 +708,24 @@
     (test/is (= expected-words (concat (:words (first (:lines model-after-mc))) (:words (second (:lines model-after-mc))))))
     (test/is (= model-after-cm model-after-mc))))
 
-;
-;;;;
-;;;; Live tests
-;;;;
-;
+
+;;;
+;;; Live tests
+;;;
+
 ;(test/deftest type-text-test
-;  (let [root (fg/defroot
-;               (fg/defcomponent table/table :main
-;                                {:header-model-loc {:positions init-header-model-pos
-;                                                    :sizes init-header-model-size}
-;                                 :selection [nil nil]
-;                                 :avg-min-cell-w 1
-;                                 :avg-min-cell-h 1
-;                                 :child-count-dim-margin 1
-;                                 :viewport-matrix m/identity-matrix
-;                                 :clip-size (m/defpoint 3 4)
-;                                 :evolvers {:header-model-loc table/shift-header-model-loc-evolver
-;                                            :selection table/cbc-selection}}))
+;  (let [initial-size (m/defpoint 6 4)
+;        text-component (fg/defcomponent textfield2/textfield :text
+;                                        {:clip-size initial-size
+;                                         :evolvers {:clip-size (fg/accessorfn (get-property [] :clip-size))}})
+;        root (fg/defcomponent
+;               panel/panel
+;               :main
+;               {:clip-size  initial-size}
+;               text-component)
 ;
 ;        container (fgtest/init-container root)
-;        cid-0-0 (fgtest/wait-table-cell-id container [:main] [0 0])
-;        cid-1-0 (fgtest/wait-table-cell-id container [:main] [1 0])
-;        _cid-0-1 (fgtest/wait-table-cell-id container [:main] [0 1]) ;Even if cell id is not used, the call still checks that cell has been created
-;        cid-1-1 (fgtest/wait-table-cell-id container [:main] [1 1])
-;        cid-0-2 (fgtest/wait-table-cell-id container [:main] [0 2])
-;        _cid-1-2 (fgtest/wait-table-cell-id container [:main] [1 2])]
+;        ]
 ;
 ;    (fgtest/wait-table-cell-property container [:main] [0 0] :atomic-state (fn [as] (not (:selected as))))
 ;    ))

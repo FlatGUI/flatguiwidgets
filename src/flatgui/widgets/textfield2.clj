@@ -138,11 +138,16 @@
                  type @type-state
                  ;g-w (:w (if-let [size (:size g)] size (throw (IllegalStateException. (str "Glyph must be sized at this point. g=" g)))))
                  g-w (:w (if-let [size (:size g)] size 1))
-                 g-style (:style g)]
-             (if (or (empty? glyphs) (= style g-style) (= type g-type))
+                 g-style (:style g)
+                 empty-glyphs (empty? glyphs)]
+             (if (or empty-glyphs (= style g-style) (= type g-type))
                (do
                  (vswap! glyphs-state conj g)
                  (vswap! w-total-state + g-w)
+                 (if empty-glyphs
+                   (do
+                     (vreset! type-state g-type)
+                     (vreset! style-state g-style)))
                  result)
                (let [data (glyps->primitive-data glyphs type)
                      p (Primitive. type data style @x-state)]
@@ -184,7 +189,7 @@
                h (:h s)
                w-g (:w-g s)
                total-g-count (:total-g-count s)]
-           (if (pos? (count w-g)) (rf result (make-word caret-pos w-content w-total h w-g total-g-count source-g-count)))))   ;TODO else result?
+           (if (pos? (count w-g)) (rf result (make-word caret-pos w-content w-total h w-g total-g-count source-g-count)) result)))
         ([result g]
          (let [s @state
                w-content (:w-content s)
@@ -638,29 +643,42 @@
     (mouse/is-mouse-event? component)
     old-model
 
-    :else
-    (let [supplied-text (if (clipboard/clipboard-paste? component)
-                          (clipboard/get-plain-text component)
-                          ((:text-supplier component) component))
-          glyphs (mapv char-glyph supplied-text)
-          w (- (m/x (get-property component [:this] :clip-size)) (awt/strh component))]
-      (glyph-> old-model (first glyphs) w (get-property component [:this] :interop)))))
+    (or (keyboard/key-event? component) (clipboard/clipboard-paste? component))
+    (if-let [supplied-text (if (clipboard/clipboard-paste? component)
+                             (clipboard/get-plain-text component)
+                             ((get-property [:this] :text-supplier) component))]
+      (let [_ (println "Supplied text = " supplied-text)
+            glyphs (mapv char-glyph supplied-text)
+            w (- (m/x (get-property component [:this] :clip-size)) (awt/strh component))
+            r (glyph-> old-model (first glyphs) w (get-property component [:this] :interop))
+            _ (println "Model: " r)]
+        r)
+      old-model)
+
+    :else old-model))
+
+(def empty-model (Model.
+                   [(make-line
+                      [(make-word 0 0 0 0 [] 0 0)] ;(make-words [] 0 0 nil)
+                      0 0 0)]
+                   0 0))
 
 (fg/defwidget "textfield"
   {:text-supplier textcommons/textfield-dflt-text-suplier
    :caret-visible true;false
-   :model (Model. [] nil nil)
+   :model empty-model
    ;:text ""
    ;:->clipboard nil
 
    :focusable true
    :cursor nil
-   :skin-key [:textfield]
+   :skin-key [:textfield2]
    :editable true
    :background :prime-4
    :foreground :prime-1
    :no-mouse-press-capturing true
    :paint-border true
+   :margin 0.0625
    :evolvers {:model model-evolver
               ;:text text-evolver
 

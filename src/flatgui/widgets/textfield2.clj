@@ -95,7 +95,7 @@
   Object
   (toString [word] (word->str word)))
 
-(defrecord Primitive [type data style x])
+(defrecord Primitive [type data style x caret-x s-start s-end])
 
 
 (defn glyph-type->primitive-type [g]
@@ -106,9 +106,14 @@
       (= type :linebreak) nil
       :else type)))
 
+(defn- glyph-data-mapper [g]
+  (if (= :whitespace (:type g))
+    " "
+    (:data g)))
+
 (defn glyps->primitive-data [glyphs primitive-type]
   (if (= primitive-type :string)
-    (apply str (map :data glyphs))
+    (apply str (map glyph-data-mapper glyphs))
     glyphs))
 
 (defn create-render-line-primitives-transducer []
@@ -117,7 +122,9 @@
           type-state (volatile! nil)
           style-state (volatile! nil)
           w-total-state (volatile! 0)
-          x-state (volatile! 0)]
+          x-state (volatile! 0)
+          caret-state (volatile! nil)
+          ]              ;TODO selection state
       (fn
         ([] (rf))
         ([result]
@@ -127,7 +134,7 @@
                    type @type-state
                    x @x-state
                    data (glyps->primitive-data glyphs type)
-                   p (Primitive. type data style x)]
+                   p (Primitive. type data style x @caret-state nil nil)]
                (rf result p))
              result)))
         ([result g]
@@ -135,10 +142,12 @@
            (let [glyphs @glyphs-state
                  style @style-state
                  type @type-state
-                 ;g-w (:w (if-let [size (:size g)] size (throw (IllegalStateException. (str "Glyph must be sized at this point. g=" g)))))
-                 g-w (:w (if-let [size (:size g)] size 1))
+                 x @x-state
+                 g-w (:w (if-let [size (:size g)] size (throw (IllegalStateException. (str "Glyph must be sized at this point. g=" g)))))
                  g-style (:style g)
-                 empty-glyphs (empty? glyphs)]
+                 empty-glyphs (empty? glyphs)
+                 caret (:caret g)
+                 caret-x (if caret (if (= :before caret) (+ x @w-total-state) (+ x @w-total-state g-w)))]
              (if (or empty-glyphs (= style g-style) (= type g-type))
                (do
                  (vswap! glyphs-state conj g)
@@ -147,20 +156,38 @@
                    (do
                      (vreset! type-state g-type)
                      (vreset! style-state g-style)))
+                 (if caret-x (vreset! caret-state caret-x))
                  result)
                (let [data (glyps->primitive-data glyphs type)
-                     p (Primitive. type data style @x-state)]
+                     p (Primitive. type data style x @caret-state nil nil)]
                  (vreset! glyphs-state [g])
                  (vreset! type-state g-type)
                  (vreset! style-state g-style)
                  (vswap! x-state + @w-total-state)
                  (vreset! w-total-state g-w)
+                 (vreset! caret-state nil)
                  (rf result p))
                ))
            result))))))
 
+(defn- insert-g-marker [glyphs pos mark-type]
+  (if pos
+    (let [inside (or (= pos 0) (< pos (count glyphs)))
+          g-index (if inside pos (dec pos))
+          location (if inside :before :after)]
+      (assoc-in glyphs [g-index mark-type] location))
+    glyphs))
+
+(defn- glyph-primitive-extractor [word]
+  (let [caret-pos (:caret-pos word)
+        mark-pos (:mark-pos word)
+        glyphs (:glyphs word)]
+    (->
+      (insert-g-marker glyphs caret-pos :caret)
+      (insert-g-marker mark-pos :mark))))
+
 (defn make-line [words caret-word mark-word h]
-  (let [glyphs (mapcat :glyphs words)
+  (let [glyphs (mapcat glyph-primitive-extractor words)
         primitives (transduce (create-render-line-primitives-transducer) conj glyphs)]
     (Line. words caret-word mark-word h primitives)))
 
@@ -644,7 +671,7 @@
     (mouse/is-mouse-event? component)
     old-model
 
-    (or (keyboard/key-event? component) (clipboard/clipboard-paste? component))
+    (or (keyboard/key-typed? component) (clipboard/clipboard-paste? component))
     (if-let [supplied-text (if (clipboard/clipboard-paste? component)
                              (clipboard/get-plain-text component)
                              ((get-property [:this] :text-supplier) component))]

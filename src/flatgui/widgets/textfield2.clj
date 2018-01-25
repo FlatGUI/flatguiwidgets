@@ -244,6 +244,16 @@
 
 (defn make-words ([glyphs caret-pos w interop] (transduce (create-make-words-transducer caret-pos w interop (count glyphs)) conj glyphs)))
 
+
+(def empty-word-with-caret-&-mark (make-word 0 0 0 0 [] 0 0))
+
+(def empty-model (Model.
+                   [(make-line
+                      [empty-word-with-caret-&-mark]
+                      0 0 0)]
+                   0 0))
+
+
 (defmulti glyph-> (fn [entity _g _w _interop] (class entity)))
 
 (defmethod glyph-> Word [word g w interop]
@@ -357,7 +367,7 @@
 ;; line 0 - caret/mark line; line-num-to-start-rewrap will be = -1;
 ;; line 1 ...
 (defn rewrap-partially [model w caret-line-and-following-words]
-  (let [line-num-to-start-rewrap (dec (min (:caret-line model) (:mark-line model)))]
+   (let [line-num-to-start-rewrap (dec (min (:caret-line model) (:mark-line model)))]
     (if (>= line-num-to-start-rewrap 0)
       (let [prior-lines (take line-num-to-start-rewrap (:lines model))
             words-to-wrap (concat
@@ -504,6 +514,11 @@
 
 (defn truncated-word-reducer [words word]
   (cond
+
+    ;; This is for the last word of a line survival
+    (= empty-word-with-caret-&-mark word)
+    (conj words word)
+
     (or (nil? word) (empty? (:glyphs word)))
     words
 
@@ -534,7 +549,6 @@
   (let [old-glyphs (:glyphs word)
         glyphs (mapv (fn [i] (nth old-glyphs i)) (filter (fn [i] (not (and (>= i from-index-incl) (< i to-index-excl)))) (range (count old-glyphs))))
         replacement-words (make-words glyphs (min from-index-incl to-index-excl) w interop)]
-    (assert (= (count replacement-words) 1) (str "Kill resulted in words: " (mapv str replacement-words)))
     (first replacement-words)))
 
 (defn- kill-glyphs-in-word [word first-in-word-range last-in-word-range w interop]
@@ -543,6 +557,8 @@
         caret (:caret-pos word)
         mark (:mark-pos word)]
     (cond
+      (= word empty-word-with-caret-&-mark) nil
+
       (or
         (and (nil? caret) (nil? mark))
         (and (= caret 0) (= mark old-glyph-count))
@@ -591,14 +607,23 @@
               last-line (= li to-line-index)
               last-wi-in-line (if last-line to-word-index (dec (count words)))
               now-is-last-wi (= wi last-wi-in-line)
-              now-is-last-w-of-all (and last-line now-is-last-wi)]
+              now-is-last-w-of-all (and last-line now-is-last-wi)
+              word (nth words wi)
+              adj-word (kill-glyphs-in-word word first-w-of-all now-is-last-w-of-all w interop)] ;(make-word 0 0 0 0 [] 0 0)
           (recur
-            (assoc-in m [:lines li :words wi] (kill-glyphs-in-word (nth words wi) first-w-of-all now-is-last-w-of-all w interop))
+            (assoc-in m [:lines li :words wi]
+                      ;; This 'if' handles backspace that kills the line. The last word of a line should survive with cursor in it.
+                      ;; On the next step it should be finally killed and cursor should move up one line
+                      (if (and now-is-last-wi (= (count words) 1) (= li caret-line-index) (nil? adj-word) (not (empty? (:glyphs word))))
+                        empty-word-with-caret-&-mark
+                        adj-word))
             (if now-is-last-wi (inc li) li)
             (if now-is-last-wi 0 (inc wi))
             false))
         (let [remainder-words (mapcat :words (take-last (- (count lines) from-line-index) (:lines m)))]
-          (rewrap-partially model w (truncate-words remainder-words)))))))
+          (if (and (= (count (:lines model)) 1) (= (count remainder-words) 1) (nil? (first remainder-words)))
+            empty-model
+            (rewrap-partially model w (truncate-words remainder-words))))))))
 
 (defn do-delete [model w interop]
   (let [line-index (:caret-line model)
@@ -635,10 +660,15 @@
       (throw (IllegalStateException. "Cursor may be in edge glyph position of the word only at the end of the line"))
 
       (or edge-glyph-by-caret edge-glyph-by-mark)
+      ;; Move from the end of the word to the beginning of the next word
       (let [caret-first (if (= line-index mark-line-index)
                           (if (= word-index mark-word-index) (< caret-pos mark-pos) (< word-index mark-word-index))
                           (< line-index mark-line-index))]
-        (-> (move-caret-mark model (cond (= (:mark-pos word) caret-pos) :caret-&-mark caret-first :caret :else :mark) :forward nil nil) (kill-glyphs w interop)))
+        (->
+          (move-caret-mark model (cond (= (:mark-pos word) caret-pos) :caret-&-mark caret-first :caret :else :mark) :forward nil nil)
+          (kill-glyphs w interop))                          ;TODO ???
+
+        )
 
       :else
       (kill-glyphs model w interop))))
@@ -654,12 +684,24 @@
         edge-line (= line-index 0)
         edge-word (= word-index 0)
         edge-glyph (= pos 0)]
-    (if (and edge-line edge-word edge-glyph)
+    (cond
+      (and edge-line edge-word edge-glyph)
       model
+
+      (and (= 1 (count words)) (= empty-word-with-caret-&-mark word))
+      (->
+        (move-caret-mark model :caret-&-mark :backward nil nil)
+        (move-caret-mark :caret-&-mark :backward nil nil)   ; One more to kill trailing linebreak symbol in previous line
+        (do-delete w interop)
+        (do-delete w interop))
+
+      :else
       (->
         (move-caret-mark model :caret-&-mark :backward nil nil)
         (do-delete w interop)))))
 
+(fg/defaccessorfn get-effective-w [component]
+  (- (m/x (get-property component [:this] :clip-size)) (awt/strh component)))
 
 (fg/defevolverfn :model
   (cond
@@ -675,21 +717,36 @@
     (if-let [supplied-text (if (clipboard/clipboard-paste? component)
                              (clipboard/get-plain-text component)
                              ((get-property [:this] :text-supplier) component))]
-      (let [_ (println "Supplied text = " supplied-text)
-            glyphs (mapv char-glyph supplied-text)
-            w (- (m/x (get-property component [:this] :clip-size)) (awt/strh component))
-            r (glyph-> old-model (first glyphs) w (get-property component [:this] :interop))
-            _ (println "Model: " r)]
-        r)
+      (if (pos? (count supplied-text))
+        (let [_ (println "  typed = " (keyboard/key-typed? component))
+              _ (println "pressed = " (keyboard/key-pressed? component))
+              _ (println "Supplied text = " supplied-text)
+              glyphs (mapv char-glyph supplied-text)
+              w (get-effective-w component)
+              r (glyph-> old-model (first glyphs) w (get-property component [:this] :interop))
+              _ (println "Model: " r)]
+          r)
+        old-model)
       old-model)
 
-    :else old-model))
+    (keyboard/key-pressed? component)
+    (let [key (keyboard/get-key component)
+          w (get-effective-w component)
+          _ (println "-----pressed " + key)]
+      (condp = key
+        KeyEvent/VK_BACK_SPACE (do-backspace old-model w (get-property component [:this] :interop))
+        KeyEvent/VK_DELETE old-model
+        KeyEvent/VK_LEFT old-model
+        KeyEvent/VK_RIGHT old-model
+        KeyEvent/VK_HOME old-model
+        KeyEvent/VK_END old-model
+        KeyEvent/VK_UP old-model
+        KeyEvent/VK_DOWN old-model
+        KeyEvent/VK_PAGE_UP old-model
+        KeyEvent/VK_PAGE_DOWN old-model
+        old-model))
 
-(def empty-model (Model.
-                   [(make-line
-                      [(make-word 0 0 0 0 [] 0 0)] ;(make-words [] 0 0 nil)
-                      0 0 0)]
-                   0 0))
+    :else old-model))
 
 (fg/defwidget "textfield"
   {:text-supplier textcommons/textfield-dflt-text-suplier

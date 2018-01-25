@@ -143,7 +143,7 @@
 
 (defn tw [s]
   (let [caret-pos (.indexOf s "|")
-        s-clean (.replace s "|" "")
+        s-clean (.replace s "|" "")                         ;s-clean (-> (.replace s "|" "") (.replace (str \newline) ""))
         w-total (double (.length s-clean))
         trailing-space-count (count (take-while #(= % \space) (reverse s-clean)))
         w-content (- w-total trailing-space-count)
@@ -317,6 +317,29 @@
       0
       [1.0 1.0 1.0])
     (test/is (= 0 (:caret-pos caret-word)))))
+
+(test/deftest insert-symbol-test-7
+  (let [words [(tw "aa|")]
+        model-before (textfield2/wrap-lines words 9)
+        model-after-0 (textfield2/glyph-> model-before textfield2/linebreak-glyph 9 dummy-interop)
+        model-after-1 (textfield2/glyph-> model-after-0 (textfield2/char-glyph \a) 9 dummy-interop)
+        caret-line (nth (:lines model-after-1) (:caret-line model-after-1))
+        caret-word (nth (:words caret-line) (:caret-word caret-line))]
+    (test-model
+      model-after-0
+      [["aa"] [""]]
+      [[2.0] [0]]
+      1
+      0
+      [1.0 0])    ; TODO Probably second line h should also be 1.0
+    (test-model
+      model-after-1
+      [["aa"] ["a"]]
+      [[2.0][1.0]]
+      1
+      0
+      [1.0 1.0])
+    (test/is (= 1 (:caret-pos caret-word)))))
 
 (test/deftest test-primitives-1
   (let [w 5
@@ -639,6 +662,42 @@
                                              (tw "cc |")] w)
         model-after (textfield2/do-delete model-before w dummy-interop)]
     (test/is (= [(tw "aa ") (tw "bb " ) (tw "cc |")] (concat (:words (first (:lines model-after))) (:words (second (:lines model-after))))))))
+
+(test/deftest nosel-delete-test-9
+  (let [w 7
+        model-before (textfield2/wrap-lines [(tw "a|")] w)
+        model-after (textfield2/do-backspace model-before w dummy-interop)]
+    (test/is (= [textfield2/empty-word-with-caret-&-mark] (:words (first (:lines model-after)))))
+    (test/is (= 0 (:caret-line model-after)))
+    (test/is (= 0 (:caret-word (first (:lines model-after)))))))
+
+(test/deftest nosel-delete-test-10
+  (let [w 7
+        a-&-newline (tw (str "a" \newline))
+        model-before (textfield2/wrap-lines [a-&-newline
+                                             (tw "b|")] w)
+        model-after (textfield2/do-backspace model-before w dummy-interop)
+        lines-after (:lines model-after)
+        model-after-1 (textfield2/do-backspace model-after w dummy-interop)
+        lines-after-1 (:lines model-after-1)
+        ]
+    (test/is (= 2 (count lines-after)))
+    (test/is (= [a-&-newline] (:words (first (:lines model-after)))))
+    (test/is (= [textfield2/empty-word-with-caret-&-mark] (:words (second (:lines model-after)))))
+    (test/is (= 1 (count lines-after-1)))
+    (test/is (= [(tw (str "a|"))] (:words (first (:lines model-after-1)))))))
+
+(test/deftest nosel-delete-test-11
+  (let [w 7
+        a-&-newline (tw (str "a" \newline))
+        model-before (textfield2/wrap-lines [a-&-newline
+                                             (tw " b|")] w)
+        model-after (textfield2/do-backspace model-before w dummy-interop)
+        lines-after (:lines model-after)]
+    (test/is (= 2 (count lines-after)))
+    (test/is (= [a-&-newline] (:words (first (:lines model-after)))))
+    (test/is (= [(tw " ")] (:words (second (:lines model-after)))))
+    ))
 
 (test/deftest sel-delete-test-1
   (let [w 7

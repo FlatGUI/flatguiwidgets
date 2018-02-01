@@ -522,9 +522,11 @@
     (or (nil? word) (empty? (:glyphs word)))
     words
 
-    (or
-      (every? whitespace? (:glyphs word))
-      (and (not (empty? words)) (not (whitespace? (last (:glyphs (last words)))))))
+    (and
+      (not (empty? words))
+      (or
+        (every? whitespace? (:glyphs word))
+        (not (whitespace? (last (:glyphs (last words)))))))
     (let [last-word (last words)
           result-caret-pos (cond
                              (:caret-pos last-word) (:caret-pos last-word)
@@ -536,7 +538,7 @@
           (vec (concat (:glyphs last-word) (:glyphs word)))
           result-caret-pos
           result-caret-pos
-          (+ (:w-content last-word) (:w-content word))
+          (+ (:w-content last-word) (if (every? whitespace? (:glyphs word)) 0 (:w-content word)))
           (+ (:w-total last-word) (:w-total word))
           (max (:h last-word) (:h word)))))
 

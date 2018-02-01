@@ -143,10 +143,11 @@
 
 (defn tw [s]
   (let [caret-pos (.indexOf s "|")
-        s-clean (.replace s "|" "")                         ;s-clean (-> (.replace s "|" "") (.replace (str \newline) ""))
+        s-clean (.replace s "|" "")
         w-total (double (.length s-clean))
         trailing-space-count (count (take-while #(= % \space) (reverse s-clean)))
-        w-content (- w-total trailing-space-count)
+        w-content (- w-total (if (< trailing-space-count w-total) trailing-space-count 0)) ; whole word may consist of spaces
+        ;w-content (- w-total trailing-space-count) ; whole word may consist of spaces
         glyphs (mapv test-sized-char-glyph s-clean)
         result-caret-pos (if (>= caret-pos 0) caret-pos)]
     (Word. glyphs result-caret-pos result-caret-pos w-content w-total 1.0)))
@@ -696,8 +697,7 @@
         lines-after (:lines model-after)]
     (test/is (= 2 (count lines-after)))
     (test/is (= [a-&-newline] (:words (first (:lines model-after)))))
-    (test/is (= [(tw " ")] (:words (second (:lines model-after)))))
-    ))
+    (test/is (= [(tw " |")] (:words (second (:lines model-after)))))))
 
 (test/deftest sel-delete-test-1
   (let [w 7

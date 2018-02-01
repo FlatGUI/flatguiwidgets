@@ -84,7 +84,12 @@
 
 (defmethod glyph-size :video [g _interop] (:size (:style g)))
 
-(defn word->str [word] (apply str (map :data (:glyphs word))))
+(defn- glyph-data-mapper [g]
+  (if (= :whitespace (:type g))
+    " "
+    (:data g)))
+
+(defn word->str [word] (apply str (map glyph-data-mapper (:glyphs word))))
 
 
 (defrecord Model [lines caret-line mark-line])
@@ -105,11 +110,6 @@
       (= type :whitespace) :string
       (= type :linebreak) nil
       :else type)))
-
-(defn- glyph-data-mapper [g]
-  (if (= :whitespace (:type g))
-    " "
-    (:data g)))
 
 (defn glyps->primitive-data [glyphs primitive-type]
   (if (= primitive-type :string)
@@ -205,7 +205,7 @@
 
 (defn create-make-words-transducer [caret-pos w interop source-g-count]
   (fn [rf]
-    (let [state (volatile! {:w-content 0 :w-total 0 :h 0 :w-g (ArrayList.) :total-g-count 0 :init-whitespace true})]
+    (let [state (volatile! {:w-content 0.0 :w-total 0.0 :h 0 :w-g (ArrayList.) :total-g-count 0 :init-whitespace true})]  ;TODO probably :init-whitespace is not needed if we prohibit initial whitespaces in words
       (fn
         ([] (rf))
         ([result]
@@ -229,7 +229,7 @@
                g-size (if cached-g-size (:size g) (glyph-size g interop))
                sized-g (if cached-g-size g (assoc g :size g-size))
                g-w (:w g-size)
-               effective-g-w (if (or (not whitespace) (:init-whitespace s)) g-w 0)
+               effective-g-w (if (not whitespace) g-w 0)  ;TODO remove (if (or (not whitespace) (:init-whitespace s)) g-w 0)
                g-h (:h g-size)
                w&g-content (+ w-content effective-g-w)
                w&g-total (+ w-total g-w)
@@ -245,7 +245,7 @@
 (defn make-words ([glyphs caret-pos w interop] (transduce (create-make-words-transducer caret-pos w interop (count glyphs)) conj glyphs)))
 
 
-(def empty-word-with-caret-&-mark (make-word 0 0 0 0 [] 0 0))
+(def empty-word-with-caret-&-mark (make-word 0 0.0 0.0 0 [] 0 0))
 
 (def empty-model (Model.
                    [(make-line

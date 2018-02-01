@@ -99,55 +99,49 @@
   (test-lines
     "The quick brown fox jumps over the lazy dog"
     9
-    [["The" "quick"] ["brown" "fox"] ["jumps"] ["over" "the"] ["lazy" "dog"]]
-    [[4.0 6.0] [6.0 4.0] [6.0] [5.0 4.0] [5.0 3.0]])
+    [["The " "quick "] ["brown " "fox "] ["jumps "] ["over " "the "] ["lazy " "dog"]]
+    [[4.0 6.0]        [6.0 4.0]        [6.0]      [5.0 4.0]       [5.0 3.0]])
 
-  (test-lines "11 22" 2 [["11"] ["22"]] [[3.0] [2.0]])
-  (test-lines "11 22 " 2 [["11"] ["22"]] [[3.0] [3.0]])
-  (test-lines "11 22 3" 2 [["11"] ["22"] ["3"]] [[3.0] [3.0] [1.0]])
-  (test-lines "11 22 33 44" 5 [["11" "22"] ["33" "44"]] [[3.0 3.0] [3.0 2.0]])
-  (test-lines "11 22 33 44 " 5 [["11" "22"] ["33" "44"]] [[3.0 3.0] [3.0 3.0]])
-  (test-lines "11 22 33 44   " 5 [["11" "22"] ["33" "44"]] [[3.0 3.0] [3.0 5.0]])
-  (test-lines "11 22 33 44  " 5 [["11" "22"] ["33" "44"]] [[3.0 3.0] [3.0 4.0]])
-  (test-lines "11 22  33 44  " 5 [["11" "22"] ["33" "44"]] [[3.0 4.0] [3.0 4.0]])
-  (test-lines "11 22   33 44  " 5 [["11" "22"] ["33" "44"]] [[3.0 5.0] [3.0 4.0]])
-  (test-lines "11 22 33 44   " 5 [["11" "22"] ["33" "44"]] [[3.0 3.0] [3.0 5.0]])
-  (test-lines "11 22 33 44     " 5 [["11" "22"] ["33" "44"]] [[3.0 3.0] [3.0 7.0]])
-  (test-lines "11 22 33 44      " 5 [["11" "22"] ["33" "44"]] [[3.0 3.0] [3.0 8.0]])
-  (test-lines " 11 22" 2 [[""] ["11"] ["22"]] [[1.0] [3.0] [2.0]])
-  (test-lines " 11 22" 4 [["" "11"] ["22"]] [[1.0 3.0] [2.0]])
-  (test-lines " 111 22" 2 [[""] ["11"] ["1"] ["22"]] [[1.0] [2.0] [2.0] [2.0]])
-  (test-lines "  11 22" 2 [[""] ["11"] ["22"]] [[2.0] [3.0] [2.0]])
+  (test-lines "11 22" 2 [["11 "] ["22"]] [[3.0] [2.0]])
+  (test-lines "11 22 " 2 [["11 "] ["22 "]] [[3.0] [3.0]])
+  (test-lines "11 22 3" 2 [["11 "] ["22 "] ["3"]] [[3.0] [3.0] [1.0]])
+  (test-lines "11 22 33 44" 5 [["11 " "22 "] ["33 " "44"]] [[3.0 3.0] [3.0 2.0]])
+  (test-lines "11 22 33 44 " 5 [["11 " "22 "] ["33 " "44 "]] [[3.0 3.0] [3.0 3.0]])
+  (test-lines "11 22 33 44   " 5 [["11 " "22 "] ["33 " "44   "]] [[3.0 3.0] [3.0 5.0]])
+  (test-lines "11 22 33 44  " 5 [["11 " "22 "] ["33 " "44  "]] [[3.0 3.0] [3.0 4.0]])
+  (test-lines "11 22  33 44  " 5 [["11 " "22  "] ["33 " "44  "]] [[3.0 4.0] [3.0 4.0]])
+  (test-lines "11 22   33 44  " 5 [["11 " "22   "] ["33 " "44  "]] [[3.0 5.0] [3.0 4.0]])
+  (test-lines "11 22 33 44   " 5 [["11 " "22 "] ["33 " "44   "]] [[3.0 3.0] [3.0 5.0]])
+  (test-lines "11 22 33 44     " 5 [["11 " "22 "] ["33 " "44     "]] [[3.0 3.0] [3.0 7.0]])
+  (test-lines "11 22 33 44      " 5 [["11 " "22 "] ["33 " "44      "]] [[3.0 3.0] [3.0 8.0]])
+  (test-lines " 11 22" 2 [[" "] ["11 "] ["22"]] [[1.0] [3.0] [2.0]])
+  (test-lines " 11 22" 4 [[" " "11 "] ["22"]] [[1.0 3.0] [2.0]])
+  (test-lines " 111 22" 2 [[" "] ["11"] ["1 "] ["22"]] [[1.0] [2.0] [2.0] [2.0]])
+  (test-lines "  11 22" 2 [["  "] ["11 "] ["22"]] [[2.0] [3.0] [2.0]])
 
-  ;;;; TODO this is wrong. Should be like what's commented out
-  ;(test-lines "   11 22" 2 [[""] ["11"] ["22"]] [[3.0] [3.0] [2.0]])
-  (test-lines "   11 22" 2 [[""] [""] ["11"] ["22"]] [[2.0] [1.0] [3.0] [2.0]])
-  ;;;;;;;;;;;;;;;;;;;;;;;;;;;
+  (test-lines "   11 22" 2 [["   "] ["11 "] ["22"]] [[3.0] [3.0] [2.0]])
 
-  (test-lines "11  22" 2 [["11"] ["22"]] [[4.0] [2.0]])
-  (test-lines "11   22" 2 [["11"] ["22"]] [[5.0] [2.0]])
-  (test-lines "11    22" 2 [["11"] ["22"]] [[6.0] [2.0]])
-  (test-lines "  11  22  " 2 [[""] ["11"] ["22"]] [[2.0] [4.0] [4.0]])
+  (test-lines "11  22" 2 [["11  "] ["22"]] [[4.0] [2.0]])
+  (test-lines "11   22" 2 [["11   "] ["22"]] [[5.0] [2.0]])
+  (test-lines "11    22" 2 [["11    "] ["22"]] [[6.0] [2.0]])
+  (test-lines "  11  22  " 2 [["  "] ["11  "] ["22  "]] [[2.0] [4.0] [4.0]])
 
-  ;; TODO Should be like what's commented out
-  ;(test-lines "   11   22   " 2 [[""] ["11"] ["22"]] [[3.0] [5.0] [5.0]])
-  (test-lines "   11   22   " 2 [[""] [""] ["11"] ["22"]] [[2.0] [1.0] [5.0] [5.0]])
+  (test-lines "   11   22   " 2 [["   "] ["11   "] ["22   "]] [[3.0] [5.0] [5.0]])
 
-  ;(test-lines "  11   22   " 2 ["  " "11   " "22   "])
-  ;(test-lines "   11  22   " 2 ["   " "11  " "22   "])
-  ;(test-lines "   11   22  " 2 ["   " "11   " "22  "])
-  ;(test-lines " 11   22   " 2 [" 1" "1   " "22   "])
-  ;(test-lines "   11 22   " 2 ["   " "11 " "22   "])
-  ;(test-lines "   11   22 " 2 ["   " "11   " "22 "])
-  )
+  (test-lines "  11   22   " 2 [["  "] ["11   "] ["22   "]] [[2.0] [5.0] [5.0]])
+  (test-lines "   11  22   " 2 [["   "] ["11  "] ["22   "]] [[3.0] [4.0] [5.0]])
+  (test-lines "   11   22  " 2 [["   "] ["11   "] ["22  "]] [[3.0] [5.0] [4.0]])
+  (test-lines " 11   22   " 2 [[" "] ["11   "] ["22   "]] [[1.0] [5.0] [5.0]])
+  (test-lines "   11 22   " 2 [["   "] ["11 "] ["22   "]] [[3.0] [3.0] [5.0]])
+  (test-lines "   11   22 " 2 [["   "] ["11   "] ["22 "]] [[3.0] [5.0] [3.0]]))
 
 (defn tw [s]
   (let [caret-pos (.indexOf s "|")
         s-clean (.replace s "|" "")
         w-total (double (.length s-clean))
         trailing-space-count (count (take-while #(= % \space) (reverse s-clean)))
-        w-content (- w-total (if (< trailing-space-count w-total) trailing-space-count 0)) ; whole word may consist of spaces
-        ;w-content (- w-total trailing-space-count) ; whole word may consist of spaces
+        ;w-content (- w-total (if (< trailing-space-count w-total) trailing-space-count 0)) ; whole word may consist of spaces
+        w-content (- w-total trailing-space-count) ; whole word may consist of spaces
         glyphs (mapv test-sized-char-glyph s-clean)
         result-caret-pos (if (>= caret-pos 0) caret-pos)]
     (Word. glyphs result-caret-pos result-caret-pos w-content w-total 1.0)))
@@ -161,7 +155,7 @@
      (tw "over ") (tw "the ")
      (tw "lazy ") (tw "dog")]
     9
-    [["The" "quick"] ["brown" "fox"] ["jumps"] ["over" "the"] ["lazy" "dog"]]
+    [["The " "quick "] ["brown " "fox "] ["jumps "] ["over " "the "] ["lazy " "dog"]]
     [[4.0 6.0] [6.0 4.0] [6.0] [5.0 4.0] [5.0 3.0]]
     2
     0)
@@ -173,7 +167,7 @@
      (tw "over ") (tw "the ")
      (tw "lazy ") (tw "dog")]
     9
-    [["The" "quick"] ["brown" "fox"] ["jumps"] ["over" "the"] ["lazy" "dog"]]
+    [["The " "quick "] ["brown " "fox "] ["jumps "] ["over " "the "] ["lazy " "dog"]]
     [[4.0 6.0] [6.0 4.0] [6.0] [5.0 4.0] [5.0 3.0]]
     0
     0)
@@ -185,7 +179,7 @@
      (tw "over ") (tw "the ")
      (tw "lazy ") (tw "dog")]
     9
-    [["The" "quick"] ["brown" "fox"] ["jumps"] ["over" "the"] ["lazy" "dog"]]
+    [["The " "quick "] ["brown " "fox "] ["jumps "] ["over " "the "] ["lazy " "dog"]]
     [[4.0 6.0] [6.0 4.0] [6.0] [5.0 4.0] [5.0 3.0]]
     0
     0)
@@ -197,7 +191,7 @@
      (tw "over ") (tw "the ")
      (tw "lazy ") (tw "do|g")]
     9
-    [["The" "quick"] ["brown" "fox"] ["jumps"] ["over" "the"] ["lazy" "dog"]]
+    [["The " "quick "] ["brown " "fox "] ["jumps "] ["over " "the "] ["lazy " "dog"]]
     [[4.0 6.0] [6.0 4.0] [6.0] [5.0 4.0] [5.0 3.0]]
     4
     1)
@@ -209,7 +203,7 @@
      (tw "over ") (tw "the ")
      (tw "lazy ") (tw "dog|")]
     9
-    [["The" "quick"] ["brown" "fox"] ["jumps"] ["over" "the"] ["lazy" "dog"]]
+    [["The " "quick "] ["brown " "fox "] ["jumps "] ["over " "the "] ["lazy " "dog"]]
     [[4.0 6.0] [6.0 4.0] [6.0] [5.0 4.0] [5.0 3.0]]
     4
     1)
@@ -228,8 +222,8 @@
         caret-word (nth (:words caret-line) (:caret-word caret-line))]
     (test-model
       model-after
-      [["TZhe"] ["quick"] ["brown" "fox"] ["jumps"] ["over" "the"] ["lazy" "dog"]]
-      [[5.0]    [6.0]     [6.0 4.0]       [6.0]     [5.0 4.0]      [5.0 3.0]]
+      [["TZhe "] ["quick "] ["brown " "fox "] ["jumps "] ["over " "the "] ["lazy " "dog"]]
+      [[5.0]     [6.0]      [6.0 4.0]         [6.0]      [5.0 4.0]        [5.0 3.0]]
       0
       0
       [1.0      1.0       1.0             1.0       1.0            1.0])
@@ -247,8 +241,8 @@
         caret-word (nth (:words caret-line) (:caret-word caret-line))]
     (test-model
       model-after
-      [["The" "quick"] ["brown" "fox"] ["jumpsZ"] ["over" "the"] ["lazy" "dog"]]
-      [[4.0 6.0]       [6.0 4.0]       [7.0]      [5.0 4.0]      [5.0 3.0]]
+      [["The " "quick "] ["brown " "fox "] ["jumpsZ "] ["over " "the "] ["lazy " "dog"]]
+      [[4.0 6.0]         [6.0 4.0]         [7.0]       [5.0 4.0]        [5.0 3.0]]
       2
       0
       [1.0             1.0             1.0        1.0            1.0])
@@ -266,8 +260,8 @@
         caret-word (nth (:words caret-line) (:caret-word caret-line))]
     (test-model
       model-after
-      [["The" "quick"] ["brown"] ["foxZ"] ["jumps"] ["over" "the"] ["lazy" "dog"]]
-      [[4.0 6.0]       [6.0]     [5.0]    [6.0]     [5.0 4.0]      [5.0 3.0]]
+      [["The " "quick "] ["brown "] ["foxZ "] ["jumps "] ["over " "the "] ["lazy " "dog"]]
+      [[4.0 6.0]         [6.0]      [5.0]     [6.0]      [5.0 4.0]        [5.0 3.0]]
       2
       0
       [1.0             1.0        1.0      1.0       1.0            1.0])
@@ -281,8 +275,8 @@
         caret-word (nth (:words caret-line) (:caret-word caret-line))]
     (test-model
       model-after
-      [["aaa" "Z"]]
-      [[4.0 1.0]]
+      [["aaa " "Z"]]
+      [[4.0    1.0]]
       0
       1
       [1.0])
@@ -313,7 +307,7 @@
     (test-model
       model-after-1
       [["aa"] [""] ["a"]]
-      [[2.0] [0] [1.0]]
+      [[2.0] [0.0] [1.0]]
       2
       0
       [1.0 1.0 1.0])
@@ -374,8 +368,8 @@
         model (textfield2/wrap-lines words 9)]
     (test-model
       model
-      [["The" "quick"] ["brown" "fox"] ["jumps"] ["over" "the"] ["lazy" "dog"]]
-      [[4.0 6.0]       [6.0 4.0]       [6.0]     [5.0 4.0]      [5.0 3.0]]
+      [["The " "quick "] ["brown " "fox "] ["jumps "] ["over " "the "] ["lazy " "dog"]]
+      [[4.0 6.0]         [6.0 4.0]         [6.0]      [5.0 4.0]        [5.0 3.0]]
       1
       1
       [2.0             1.0              1.2       1.4            1.5])))
@@ -391,8 +385,8 @@
         caret-word (nth (:words caret-line) (:caret-word caret-line))]
     (test-model
       model
-      [["aaa" "bbb" "ccc"] ["dddd" "eeee"] ["ffffffffff"] ["gg" "hh" "iii"] ["jjj" "lll" "mmm"]]
-      [[4.0   4.0   4.0]   [5.0    5.0]    [11.0]         [3.0  3.0  4.0]   [4.0   4.0   3.0]]
+      [["aaa " "bbb " "ccc "] ["dddd " "eeee "] ["ffffffffff "] ["gg " "hh " "iii "] ["jjj " "lll " "mmm"]]
+      [[4.0    4.0    4.0]    [5.0     5.0]     [11.0]          [3.0   3.0   4.0]    [4.0    4.0    3.0]]
       3
       0
       [2.0                 1.0              1.2           1.5               1.5])
@@ -417,6 +411,31 @@
   (let [words [(tw "aa") (tw "b|b")]
         reduction (textfield2/truncate-words words)]
     (test/is (= [(tw "aab|b")] reduction))))
+
+(test/deftest test-glyphs->Word-1
+  (let [w 5
+        word-before (tw " |")
+        words-after (vec (textfield2/glyph-> word-before (test-sized-char-glyph \b) w dummy-interop))
+        ]
+    (test/is (= [(tw " ") (tw "b|")] words-after))))
+
+(test/deftest test-glyphs->Model-1
+  (let [w 5
+        model-before textfield2/empty-model
+        model-after-1 (->
+                        (textfield2/glyph-> model-before (test-sized-char-glyph \a) w dummy-interop)
+                        (textfield2/glyph-> (textfield2/char-glyph \newline) w dummy-interop)
+                        (textfield2/glyph-> textfield2/whitespace-glyph w dummy-interop)
+                        (textfield2/glyph-> (textfield2/char-glyph \b) w dummy-interop))
+        ]
+    (test-model
+      model-after-1
+      [["a"] [" " "b"]]
+      [[1.0] [1.0 1.0]]
+      1
+      1
+      [1.0    1.0])
+    ))
 
 (defn word-content-equal [w1 w2] (= (:glyphs w1) (:glyphs w2)))
 

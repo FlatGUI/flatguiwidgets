@@ -102,6 +102,25 @@
 
 (defrecord Primitive [type data style x caret-x s-start s-end])
 
+(defn- glyph-data-mapper-ext [g]
+  (cond
+    (= :whitespace (:type g)) " "
+    (= :linebreak (:type g)) "\n"
+    :else (:data g)))
+
+(defn word->str-ext [word]
+  (let [raw-str (apply str (map glyph-data-mapper-ext (:glyphs word)))
+        caret-pos (:caret-pos word)]
+    (str
+      "`"
+      (if caret-pos
+        (str (subs raw-str 0 caret-pos) "|" (subs raw-str caret-pos))
+        raw-str)
+      "`")))
+
+(defn line->str [line] (apply str (map word->str-ext (:words line))))
+
+(defn model->str [model] (apply str (map line->str (:lines model))))
 
 (defn glyph-type->primitive-type [g]
   (let [type (:type g)]
@@ -285,7 +304,7 @@
       (concat
         (make-words (vec (conj part-before-caret-pos g)) nil w interop)
         (if (empty? part-after-caret-pos)
-          [(make-word 0 0 0 0 [] 0 0)]
+          [empty-word-with-caret-&-mark]
           (make-words (vec part-after-caret-pos) 0 w interop))))))
 
 (defn make-glyph-line-reducer [w interop]
@@ -613,12 +632,24 @@
               word (nth words wi)
               adj-word (kill-glyphs-in-word word first-w-of-all now-is-last-w-of-all w interop)] ;(make-word 0 0 0 0 [] 0 0)
           (recur
-            (assoc-in m [:lines li :words wi]
-                      ;; This 'if' handles backspace that kills the line. The last word of a line should survive with cursor in it.
-                      ;; On the next step it should be finally killed and cursor should move up one line
-                      (if (and now-is-last-wi (= (count words) 1) (= li caret-line-index) (nil? adj-word) (not (empty? (:glyphs word))))
-                        empty-word-with-caret-&-mark
-                        adj-word))
+            (let [adj-m (if (and (nil? adj-word) (> (count words) 1) (:caret-pos word) (:mark-pos word))
+                          ; Not using generic move-caret-mark because it skips last glyph of prev word
+                          ; which is correct but not in this case where we do not actually move caret,
+                          ; just pass it to the previous word because this word is going to be killed
+                          (let [prev-word-index (dec wi)
+                                prev-word-g-cnt (count (:glyphs (nth words prev-word-index)))]
+                            (->
+                              (assoc-in m [:lines li :words prev-word-index :caret-pos] prev-word-g-cnt)
+                              (assoc-in [:lines li :words prev-word-index :mark-pos] prev-word-g-cnt)
+                              (assoc-in [:lines li :words wi :caret-pos] nil)
+                              (assoc-in [:lines li :words wi :mark-pos] nil)))
+                          m)]
+              (assoc-in adj-m [:lines li :words wi]
+                        ;; This 'if' handles backspace that kills the line. The last word of a line should survive with cursor in it.
+                        ;; On the next step it should be finally killed and cursor should move up one line
+                        (if (and now-is-last-wi (= (count words) 1) (= li caret-line-index) (nil? adj-word) (not (empty? (:glyphs word))))
+                          empty-word-with-caret-&-mark
+                          adj-word)))
             (if now-is-last-wi (inc li) li)
             (if now-is-last-wi 0 (inc wi))
             false))
@@ -668,9 +699,7 @@
                           (< line-index mark-line-index))]
         (->
           (move-caret-mark model (cond (= (:mark-pos word) caret-pos) :caret-&-mark caret-first :caret :else :mark) :forward nil nil)
-          (kill-glyphs w interop))                          ;TODO ???
-
-        )
+          (kill-glyphs w interop)))
 
       :else
       (kill-glyphs model w interop))))
@@ -720,13 +749,16 @@
                              (clipboard/get-plain-text component)
                              ((get-property [:this] :text-supplier) component))]
       (if (pos? (count supplied-text))
-        (let [_ (println "  typed = " (keyboard/key-typed? component))
+        (let [_ (println "---------------------------------------")
+              _ (println "typed = " (keyboard/key-typed? component))
               _ (println "pressed = " (keyboard/key-pressed? component))
               _ (println "Supplied text = " supplied-text)
               glyphs (mapv char-glyph supplied-text)
               w (get-effective-w component)
               r (glyph-> old-model (first glyphs) w (get-property component [:this] :interop))
-              _ (println "Model: " r)]
+              _ (println "Model:")
+              _ (println (model->str r))
+              _ (println r)]
           r)
         old-model)
       old-model)
@@ -734,19 +766,24 @@
     (keyboard/key-pressed? component)
     (let [key (keyboard/get-key component)
           w (get-effective-w component)
-          _ (println "-----pressed " + key)]
-      (condp = key
-        KeyEvent/VK_BACK_SPACE (do-backspace old-model w (get-property component [:this] :interop))
-        KeyEvent/VK_DELETE old-model
-        KeyEvent/VK_LEFT old-model
-        KeyEvent/VK_RIGHT old-model
-        KeyEvent/VK_HOME old-model
-        KeyEvent/VK_END old-model
-        KeyEvent/VK_UP old-model
-        KeyEvent/VK_DOWN old-model
-        KeyEvent/VK_PAGE_UP old-model
-        KeyEvent/VK_PAGE_DOWN old-model
-        old-model))
+          _ (println "---------------------------------------")
+          _ (println "-----pressed " + key)
+          r (condp = key
+              KeyEvent/VK_BACK_SPACE (do-backspace old-model w (get-property component [:this] :interop))
+              KeyEvent/VK_DELETE old-model
+              KeyEvent/VK_LEFT old-model
+              KeyEvent/VK_RIGHT old-model
+              KeyEvent/VK_HOME old-model
+              KeyEvent/VK_END old-model
+              KeyEvent/VK_UP old-model
+              KeyEvent/VK_DOWN old-model
+              KeyEvent/VK_PAGE_UP old-model
+              KeyEvent/VK_PAGE_DOWN old-model
+              old-model)
+          _ (println "Model:")
+          _ (println (model->str r))
+          _ (println r)]
+      r)
 
     :else old-model))
 

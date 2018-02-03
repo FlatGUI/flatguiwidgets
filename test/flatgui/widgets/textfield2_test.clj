@@ -323,7 +323,7 @@
     (test-model
       model-after-0
       [["aa"] [""]]
-      [[2.0] [0]]
+      [[2.0] [0.0]]
       1
       0
       [1.0 0])    ; TODO Probably second line h should also be 1.0
@@ -412,6 +412,11 @@
         reduction (textfield2/truncate-words words)]
     (test/is (= [(tw "aab|b")] reduction))))
 
+(test/deftest truncated-word-reducer-test-4
+  (let [words [(tw "a ") nil nil (tw "|d")]
+        reduction (textfield2/truncate-words words)]
+    (test/is (= [(tw "a ") (tw "|d")] reduction))))
+
 (test/deftest test-glyphs->Word-1
   (let [w 5
         word-before (tw " |")
@@ -427,6 +432,7 @@
                         (textfield2/glyph-> (textfield2/char-glyph \newline) w dummy-interop)
                         (textfield2/glyph-> textfield2/whitespace-glyph w dummy-interop)
                         (textfield2/glyph-> (textfield2/char-glyph \b) w dummy-interop))
+        model-after-2 (textfield2/do-backspace model-after-1 w dummy-interop) ;TODO NPE here
         ]
     (test-model
       model-after-1
@@ -435,7 +441,49 @@
       1
       1
       [1.0    1.0])
-    ))
+    (test-model
+      model-after-2
+      [["a"] [" "]]
+      [[1.0] [1.0]]
+      1
+      0
+      [1.0    1.0])))
+
+(test/deftest test-glyphs->Model-2
+  (let [w 5
+        model-before textfield2/empty-model
+        model-after (->
+                        (textfield2/glyph-> model-before (test-sized-char-glyph \h) w dummy-interop)
+                        (textfield2/glyph-> textfield2/whitespace-glyph w dummy-interop)
+                        (textfield2/glyph-> (textfield2/char-glyph \h) w dummy-interop)
+                        (textfield2/do-backspace w dummy-interop))
+        ]
+    (test-model
+      model-after
+      [["h "]]
+      [[2.0]]
+      0
+      0
+      [1.0])
+    (test/is (= 2 (get-in model-after [:lines 0 :words 0 :caret-pos])))))
+
+(test/deftest test-glyphs->Model-3
+  (let [w 5
+        model-before textfield2/empty-model
+        model-after (->
+                      (textfield2/glyph-> model-before (test-sized-char-glyph \g) w dummy-interop)
+                      (textfield2/glyph-> (textfield2/char-glyph \newline) w dummy-interop)
+                      (textfield2/do-backspace w dummy-interop))
+        ]
+    (test-model
+      model-after
+      [["g"]]
+      [[1.0]]
+      0
+      0
+      [1.0])
+    (test/is (= 1 (get-in model-after [:lines 0 :words 0 :caret-pos])))))
+
 
 (defn word-content-equal [w1 w2] (= (:glyphs w1) (:glyphs w2)))
 
@@ -581,6 +629,12 @@
         model-before (textfield2/wrap-lines [(tw "xyz ") (tw "|bb")] w)
         model-after (textfield2/move-caret-mark model-before :caret-&-mark :backward nil nil)]
     (test/is (= [0 0 3 0 0 3] (model->caret-mark-pos model-after)))))
+
+(test/deftest move-caret-mark-test-3
+  (let [w 7
+        model-before (textfield2/wrap-lines [(tw "xyz| ") (tw "bb")] w)
+        model-after (textfield2/move-caret-mark model-before :caret-&-mark :forward nil nil)]
+    (test/is (= [0 1 0 0 1 0] (model->caret-mark-pos model-after)))))
 
 (test/deftest has-selection?-test
   (let [model-cm-0-1-1 (textfield2/wrap-lines [(tw "aa ") (tw "b|b")
@@ -830,6 +884,27 @@
     (test/is (= expected-words (concat (:words (first (:lines model-after-mc))) (:words (second (:lines model-after-mc))))))
     (test/is (= model-after-cm model-after-mc))))
 
+(test/deftest sel-delete-test-7
+  (let [w 100
+        model (textfield2/wrap-lines [(tw "a ") (tw "|b ") (tw "c ") (tw "dd ")] w)
+        model-before-cm (->
+                          (textfield2/move-caret-mark model :mark :forward nil nil)
+                          (textfield2/move-caret-mark :mark :forward nil nil)
+                          (textfield2/move-caret-mark :mark :forward nil nil)
+                          (textfield2/move-caret-mark :mark :forward nil nil)
+                          (textfield2/move-caret-mark :mark :forward nil nil))
+        model-before-mc (->
+                          (textfield2/move-caret-mark model :caret :forward nil nil)
+                          (textfield2/move-caret-mark :caret :forward nil nil)
+                          (textfield2/move-caret-mark :caret :forward nil nil)
+                          (textfield2/move-caret-mark :caret :forward nil nil)
+                          (textfield2/move-caret-mark :caret :forward nil nil))
+        model-after-cm (textfield2/do-delete model-before-cm w dummy-interop)
+        model-after-mc (textfield2/do-delete model-before-mc w dummy-interop)
+        expected-words [(tw "a ") (tw "|d ")]]
+    (test/is (= expected-words (:words (first (:lines model-after-cm)))))
+    (test/is (= expected-words (:words (first (:lines model-after-mc)))))
+    (test/is (= model-after-cm model-after-mc))))
 
 ;;;
 ;;; Live tests

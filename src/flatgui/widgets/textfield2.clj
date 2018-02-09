@@ -135,7 +135,7 @@
     (apply str (map glyph-data-mapper glyphs))
     glyphs))
 
-(defn create-render-line-primitives-transducer []
+(defn create-render-line-primitives-transducer [selection-continued-line]
   (fn [rf]
     (let [glyphs-state (volatile! [])
           type-state (volatile! nil)
@@ -143,7 +143,10 @@
           w-total-state (volatile! 0)
           x-state (volatile! 0)
           caret-state (volatile! nil)
-          ]              ;TODO selection state
+          ;sel-inside (volatile! false)
+          sel-start-x (volatile! (if selection-continued-line 0 nil))
+          sel-end-x (volatile! nil)
+          ]
       (fn
         ([] (rf))
         ([result]
@@ -153,7 +156,7 @@
                    type @type-state
                    x @x-state
                    data (glyps->primitive-data glyphs type)
-                   p (Primitive. type data style x @caret-state nil nil)]
+                   p (Primitive. type data style x @caret-state nil nil)]    ;TODO selection
                (rf result p))
              result)))
         ([result g]
@@ -166,7 +169,10 @@
                  g-style (:style g)
                  empty-glyphs (empty? glyphs)
                  caret (:caret g)
-                 caret-x (if caret (if (= :before caret) (+ x @w-total-state) (+ x @w-total-state g-w)))]
+                 mark (:mark g)
+                 x-before (+ x @w-total-state)
+                 x-after (+ x @w-total-state g-w)
+                 caret-x (if caret (if (= :before caret) x-before x-after))]
              (if (or empty-glyphs (= style g-style) (= type g-type))
                (do
                  (vswap! glyphs-state conj g)
@@ -176,9 +182,11 @@
                      (vreset! type-state g-type)
                      (vreset! style-state g-style)))
                  (if caret-x (vreset! caret-state caret-x))
+                 (if (or caret mark)
+                   (if @sel-start-x (vreset! sel-end-x x-after) (vreset! sel-start-x x-before)))
                  result)
                (let [data (glyps->primitive-data glyphs type)
-                     p (Primitive. type data style x @caret-state nil nil)]
+                     p (Primitive. type data style x @caret-state @sel-start-x @sel-end-x)]
                  (vreset! glyphs-state [g])
                  (vreset! type-state g-type)
                  (vreset! style-state g-style)
@@ -205,10 +213,12 @@
       (insert-g-marker glyphs caret-pos :caret)
       (insert-g-marker mark-pos :mark))))
 
-(defn make-line [words caret-word mark-word h]
-  (let [glyphs (mapcat glyph-primitive-extractor words)
-        primitives (transduce (create-render-line-primitives-transducer) conj glyphs)]
-    (Line. words caret-word mark-word h primitives)))
+(defn words->primitives [words selection-continued-line]
+  (let [glyphs (mapcat glyph-primitive-extractor words)]
+    (transduce (create-render-line-primitives-transducer selection-continued-line) conj glyphs)))
+
+(defn make-line [words caret-word mark-word selection-continued-line h]
+  (Line. words caret-word mark-word h (words->primitives words selection-continued-line)))
 
 (defn make-word [caret-pos w-content w-total h w-g total-g-count source-g-count]
   (let [w-g-count (.size w-g) ;TODO w-g-count
@@ -269,7 +279,9 @@
 (def empty-model (Model.
                    [(make-line
                       [empty-word-with-caret-&-mark]
-                      0 0 0)]
+                      0 0
+                      false
+                      0)]
                    0 0))
 
 
@@ -334,12 +346,14 @@
             line-caret-index-state (volatile! 0)
             line-caret-met-state (volatile! false)
             model-caret-index-state (volatile! 0)
-            model-caret-met-state (volatile! false)]
+            model-caret-met-state (volatile! false)
+            model-mark-met-state (volatile! false)
+            model-selection-continues-to-next-line-state (volatile! false)]
         (fn
           ([] (rf))
           ([result]
            (let [caret-word (if @line-caret-met-state @line-caret-index-state)
-                 final-result (rf result (make-line @line-state caret-word caret-word @line-h-state))
+                 final-result (rf result (make-line @line-state caret-word caret-word @model-selection-continues-to-next-line-state @line-h-state))
                  caret-line (if @model-caret-met-state @model-caret-index-state)]
              (Model. final-result caret-line caret-line)))
           ([result word]
@@ -350,13 +364,15 @@
                  w-total (:w-total word)
                  word-h (:h word)
                  has-caret (:caret-pos word)
+                 has-mark (:mark-pos word)
                  end-line (or (> (+ line-w w-content) w) (linebreak? (last (:glyphs (last line)))))
                  process-caret (fn []
                                  (if has-caret
                                    (do
                                      (vreset! model-caret-met-state true)
                                      (vreset! line-caret-met-state true))
-                                   (if (not @line-caret-met-state) (vswap! line-caret-index-state inc))))]
+                                   (if (not @line-caret-met-state) (vswap! line-caret-index-state inc))))
+                 process-sel (fn [] (if (or has-caret has-mark) (vreset! model-selection-continues-to-next-line-state true)))]
              (do
                (if end-line
                  (let [line-caret-index (if @line-caret-met-state @line-caret-index-state)]
@@ -366,13 +382,18 @@
                    (vreset! line-caret-index-state 0)
                    (vreset! line-caret-met-state false)
                    (if (not @model-caret-met-state) (vswap! model-caret-index-state inc))
-                   (process-caret)
-                   (rf result (make-line line line-caret-index line-caret-index line-h)))
+                   ;(process-caret)
+                   (let [sel-cont @model-selection-continues-to-next-line-state]
+                     (do
+                       (process-caret)
+                       (process-sel)
+                       (rf result (make-line line line-caret-index line-caret-index sel-cont line-h)))))
                  (do
                    (vreset! line-state (conj line word))
                    (vreset! line-w-state (+ line-w w-total)) ;TODO vswap!
                    (vswap! line-h-state max word-h)
                    (process-caret)
+                   (process-sel)
                    result)))))))))
   ([words w] (transduce (wrap-lines w) conj words)))
 
@@ -418,42 +439,94 @@
         (let [word (nth (:words line) (:caret-word line))]
           (not= (:caret-pos word) (:mark-pos word)))))))
 
+(defn- inside? [a b i]
+  (if (> b a)
+    (and (> i a) (< i b))
+    (and (> i b) (< i a))))
+
+(defn rebuild-primitives
+  ([model old-caret-line-index old-mark-line-index new-caret-line-index new-mark-line-index caret-pos-changed mark-pos-changed]
+   (let [from (min old-caret-line-index old-mark-line-index new-caret-line-index new-mark-line-index)
+         to (max old-caret-line-index old-mark-line-index new-caret-line-index new-mark-line-index)]
+     (loop [i from
+            sel-met false
+            m model]
+       (if (<= i to)
+         (let [caret-met (or (= i old-caret-line-index) (= i new-caret-line-index))
+               mark-met (or (= i old-mark-line-index) (= i new-mark-line-index))
+               inside-old (inside? old-mark-line-index old-caret-line-index i)
+               inside-new (inside? new-mark-line-index new-caret-line-index i)]
+           (recur
+             (inc i)
+             (if (not sel-met) (or caret-met mark-met) sel-met)
+             (cond
+
+               (or
+                 (and caret-pos-changed caret-met)
+                 (and mark-pos-changed mark-met))
+               (assoc-in m [:lines i :primitives] (words->primitives (get-in model [:lines i :words]) sel-met))
+
+               (and inside-old (not inside-new))
+               (update-in m [:lines i :primitives] (fn [primitives] (map (fn [p] (assoc p :s-start nil :s-end nil)) primitives)))
+
+               (and inside-new (not inside-old))
+               (update-in m [:lines i :primitives] (fn [primitives] (map (fn [p] (assoc p :s-start 0 :s-end nil)) primitives)))
+
+               :else m)))
+         m))))
+  ([model old-caret-line-index old-mark-line-index caret-pos-changed mark-pos-changed]
+   (rebuild-primitives model old-caret-line-index old-mark-line-index (:caret-line model) (:mark-line model) caret-pos-changed mark-pos-changed)))
+
 (defmulti move-caret-mark (fn [_model what where _viewport-h _interop]
                             (assert (#{:caret :mark :caret-&-mark} what))
                             where))
 
-(defn- move-for-keys [model key-count model-transrofm-fn]
+(defn- move-mark-to-caret [model]
+  (let [caret-line-index (:caret-line model)
+        mark-line-index (:mark-line model)
+        caret-line (nth (:lines model) caret-line-index)
+        mark-line (nth (:lines model) mark-line-index)
+        caret-word-index (:caret-word caret-line)
+        mark-word-index (:mark-word mark-line)
+        caret-word (nth (:words caret-line) caret-word-index)
+        caret-pos (:caret-pos caret-word)]
+    (->
+      (assoc-in model [:lines mark-line-index :words mark-word-index :mark-pos] nil)
+      (assoc-in [:lines mark-line-index :mark-word] nil)
+      (assoc-in [:lines caret-line-index :mark-word] caret-word-index)
+      (assoc-in [:lines caret-line-index :words caret-word-index :mark-pos] caret-pos)
+      (assoc :mark-line caret-line-index)
+      (rebuild-primitives caret-line-index mark-line-index caret-line-index caret-line-index false true))))
+
+(defn- move-for-keys [model key-count model-transrofm-fn mark-to-caret-afterwards]
   (loop [m model
          k 0]
     (if (< k key-count)
       (recur
         (model-transrofm-fn m k)
         (inc k))
-      m)))
+      (if mark-to-caret-afterwards
+        (move-mark-to-caret m)
+        m))))
 
-(defn- move-mark-to-caret-if-needed [model move-caret move-mark]
-  (if (and move-caret move-mark)
-    (let [caret-line-index (:caret-line model)
-          mark-line-index (:mark-line model)
-          caret-line (nth (:lines model) caret-line-index)
-          mark-line (nth (:lines model) mark-line-index)
-          caret-word-index (:caret-word caret-line)
-          mark-word-index (:mark-word mark-line)
-          caret-word (nth (:words caret-line) caret-word-index)
-          mark-pos (:mark-pos caret-word)
-          caret-pos (:caret-pos caret-word)]
-      (if (or
-            (not= caret-pos mark-pos)
-            (not= caret-word-index mark-word-index)
-            (not= caret-line-index mark-line-index))
-        (->
-          (assoc-in model [:lines mark-line-index :words mark-word-index :mark-pos] nil)
-          (assoc-in [:lines mark-line-index :mark-word] nil)
-          (assoc-in [:lines caret-line-index :mark-word] caret-word-index)
-          (assoc-in [:lines caret-line-index :words caret-word-index :mark-pos] caret-pos)
-          (assoc :mark-line caret-line-index))
-        model))
-    model))
+
+;(defn- need-move-mark-to-caret? [model move-caret move-mark]
+;  (and
+;    (and move-caret move-mark)
+;    (let [caret-line-index (:caret-line model)
+;          mark-line-index (:mark-line model)
+;          caret-line (nth (:lines model) caret-line-index)
+;          mark-line (nth (:lines model) mark-line-index)
+;          caret-word-index (:caret-word caret-line)
+;          mark-word-index (:mark-word mark-line)
+;          caret-word (nth (:words caret-line) caret-word-index)
+;          mark-word (nth (:words mark-line) mark-word-index)
+;          mark-pos (:mark-pos mark-word)
+;          caret-pos (:caret-pos caret-word)]
+;      (or
+;        (not= caret-pos mark-pos)
+;        (not= caret-word-index mark-word-index)
+;        (not= caret-line-index mark-line-index)))))
 
 (defn move-caret-mark-1-char [model move-caret move-mark edge-fn edge-last-in-line-fn move-fn]
   (let [src-line-key (if move-caret :caret-line :mark-line)
@@ -472,25 +545,47 @@
         dest-pos-keys (filter keyword? [(if move-caret :caret-pos) (if move-mark :mark-pos)])
         dest-word-keys (filter keyword? [(if move-caret :caret-word) (if move-mark :mark-word)])
         dest-line-keys (filter keyword? [(if move-caret :caret-line) (if move-mark :mark-line)])
-        key-count (count dest-pos-keys)]
+        key-count (count dest-pos-keys)
+        move-within-line (fn [model-transrofm-fn]
+                           (let [caret-line-index (:caret-line model)
+                                 mark-line-index (:mark-line model)
+                                 caret-line (nth (:lines model) caret-line-index)
+                                 mark-line (nth (:lines model) mark-line-index)
+                                 caret-word-index (:caret-word caret-line)
+                                 mark-word-index (:mark-word mark-line)
+                                 caret-word (nth (:words caret-line) caret-word-index)
+                                 mark-word (nth (:words mark-line) mark-word-index)
+                                 mark-pos (:mark-pos mark-word)
+                                 caret-pos (:caret-pos caret-word)
+                                 mark-to-caret (and
+                                                 (and move-caret move-mark)
+                                                 (or
+                                                   (not= caret-pos mark-pos)
+                                                   (not= caret-word-index mark-word-index)
+                                                   (not= caret-line-index mark-line-index)))]
+                             (->
+                               (move-for-keys model key-count model-transrofm-fn mark-to-caret)
+                               (rebuild-primitives
+                                 caret-line-index mark-line-index
+                                 move-caret (or move-mark mark-to-caret)))))]
     (cond
-      (not edge-glyph) (move-mark-to-caret-if-needed
-                         (move-for-keys model key-count (fn [m k] (assoc-in m [:lines line-index :words word-index (nth dest-pos-keys k)] (move-fn pos))))
-                         move-caret move-mark)
-      (not edge-word) (move-mark-to-caret-if-needed
-                        (move-for-keys
-                          model
-                          key-count
-                          (fn [m k] (let [new-word-index (move-fn word-index)
-                                          backward (< new-word-index word-index)
-                                          new-pos (if backward
-                                                    (dec (count (get-in model [:lines line-index :words new-word-index :glyphs])))
-                                                    0)]
-                                      (->
-                                        (assoc-in m [:lines line-index :words word-index (nth dest-pos-keys k)] nil)
-                                        (assoc-in [:lines line-index (nth dest-word-keys k)] new-word-index)
-                                        (assoc-in [:lines line-index :words new-word-index (nth dest-pos-keys k)] new-pos)))))
-                        move-caret move-mark)
+      ;; TODO
+      ;; Way 1)
+      ;; "-if-needed" condition should be checked here. This way we will avoid rebuilding twice:
+      ;; in move-for-keys and then in move-mark-to-caret-if-needed
+      ;; Way 2)
+      ;; just rebuild here, not in any of those two methods
+      (not edge-glyph) (move-within-line (fn [m k] (assoc-in m [:lines line-index :words word-index (nth dest-pos-keys k)] (move-fn pos))))
+      (not edge-word) (move-within-line
+                        (fn [m k] (let [new-word-index (move-fn word-index)
+                                        backward (< new-word-index word-index)
+                                        new-pos (if backward
+                                                  (dec (count (get-in model [:lines line-index :words new-word-index :glyphs])))
+                                                  0)]
+                                    (->
+                                      (assoc-in m [:lines line-index :words word-index (nth dest-pos-keys k)] nil)
+                                      (assoc-in [:lines line-index (nth dest-word-keys k)] new-word-index)
+                                      (assoc-in [:lines line-index :words new-word-index (nth dest-pos-keys k)] new-pos)))))
       (not edge-line) (let [new-line-index (move-fn line-index)
                             backward (< new-line-index line-index)
                             new-word-index (if backward
@@ -507,7 +602,9 @@
                                       (assoc-in [(nth dest-line-keys k)] new-line-index)
                                       (assoc-in [:lines line-index (nth dest-word-keys k)] nil)
                                       (assoc-in [:lines new-line-index (nth dest-word-keys k)] new-word-index)
-                                      (assoc-in [:lines new-line-index :words new-word-index (nth dest-pos-keys k)] new-pos)))))
+                                      (assoc-in [:lines new-line-index :words new-word-index (nth dest-pos-keys k)] new-pos)))
+                          ;; TODO why move mark-to-line not here?
+                          false))
       :else model)))
 
 (defn move-caret-1-char [model edge-fn edge-last-in-line-fn move-fn]
@@ -768,11 +865,12 @@
           w (get-effective-w component)
           _ (println "---------------------------------------")
           _ (println "-----pressed " + key)
+          shift (inputbase/with-shift? component)
           r (condp = key
               KeyEvent/VK_BACK_SPACE (do-backspace old-model w (get-property component [:this] :interop))
               KeyEvent/VK_DELETE old-model
-              KeyEvent/VK_LEFT old-model
-              KeyEvent/VK_RIGHT old-model
+              KeyEvent/VK_LEFT (move-caret-mark old-model (if shift :caret :caret-&-mark) :backward nil nil)
+              KeyEvent/VK_RIGHT (move-caret-mark old-model (if shift :caret :caret-&-mark) :forward nil nil)
               KeyEvent/VK_HOME old-model
               KeyEvent/VK_END old-model
               KeyEvent/VK_UP old-model

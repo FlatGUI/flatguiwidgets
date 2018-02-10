@@ -156,7 +156,10 @@
                    type @type-state
                    x @x-state
                    data (glyps->primitive-data glyphs type)
-                   p (Primitive. type data style x @caret-state nil nil)]    ;TODO selection
+                   s-start @sel-start-x
+                   s-end @sel-end-x
+                   has-sel (not= s-start s-end)
+                   p (Primitive. type data style x @caret-state (if has-sel s-start) (if has-sel s-end))]
                (rf result p))
              result)))
         ([result g]
@@ -172,7 +175,8 @@
                  mark (:mark g)
                  x-before (+ x @w-total-state)
                  x-after (+ x @w-total-state g-w)
-                 caret-x (if caret (if (= :before caret) x-before x-after))]
+                 caret-x (if caret (if (= :before caret) x-before x-after))
+                 mark-x (if mark (if (= :before mark) x-before x-after))]
              (if (or empty-glyphs (= style g-style) (= type g-type))
                (do
                  (vswap! glyphs-state conj g)
@@ -183,10 +187,17 @@
                      (vreset! style-state g-style)))
                  (if caret-x (vreset! caret-state caret-x))
                  (if (or caret mark)
-                   (if @sel-start-x (vreset! sel-end-x x-after) (vreset! sel-start-x x-before)))
+                   (let [sel-edge-x (if caret caret-x mark-x)]
+                     (cond
+                       (and caret mark) (do (vreset! sel-start-x sel-edge-x) (vreset! sel-end-x sel-edge-x))
+                       @sel-start-x (vreset! sel-end-x sel-edge-x)
+                       :else (vreset! sel-start-x sel-edge-x))))
                  result)
                (let [data (glyps->primitive-data glyphs type)
-                     p (Primitive. type data style x @caret-state @sel-start-x @sel-end-x)]
+                     s-start @sel-start-x
+                     s-end @sel-end-x
+                     has-sel (not= s-start s-end)
+                     p (Primitive. type data style x @caret-state (if has-sel s-start) (if has-sel s-end))]
                  (vreset! glyphs-state [g])
                  (vreset! type-state g-type)
                  (vreset! style-state g-style)
@@ -347,7 +358,7 @@
             line-caret-met-state (volatile! false)
             model-caret-index-state (volatile! 0)
             model-caret-met-state (volatile! false)
-            model-mark-met-state (volatile! false)
+            model-caret-or-mark-met-state (volatile! false)
             model-selection-continues-to-next-line-state (volatile! false)]
         (fn
           ([] (rf))
@@ -372,7 +383,7 @@
                                      (vreset! model-caret-met-state true)
                                      (vreset! line-caret-met-state true))
                                    (if (not @line-caret-met-state) (vswap! line-caret-index-state inc))))
-                 process-sel (fn [] (if (or has-caret has-mark) (vreset! model-selection-continues-to-next-line-state true)))]
+                 process-sel (fn [] (if (or has-caret has-mark) (vreset! model-caret-or-mark-met-state true)))]
              (do
                (if end-line
                  (let [line-caret-index (if @line-caret-met-state @line-caret-index-state)]
@@ -383,11 +394,13 @@
                    (vreset! line-caret-met-state false)
                    (if (not @model-caret-met-state) (vswap! model-caret-index-state inc))
                    ;(process-caret)
-                   (let [sel-cont @model-selection-continues-to-next-line-state]
+                   (let [sel-cont @model-selection-continues-to-next-line-state
+                         process-result (rf result (make-line line line-caret-index line-caret-index sel-cont line-h))]
                      (do
+                       (if @model-caret-or-mark-met-state (vreset! model-selection-continues-to-next-line-state true))
                        (process-caret)
                        (process-sel)
-                       (rf result (make-line line line-caret-index line-caret-index sel-cont line-h)))))
+                       process-result)))
                  (do
                    (vreset! line-state (conj line word))
                    (vreset! line-w-state (+ line-w w-total)) ;TODO vswap!

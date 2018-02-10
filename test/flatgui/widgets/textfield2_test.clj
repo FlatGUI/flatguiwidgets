@@ -510,6 +510,11 @@
         mark-pos (:mark-pos mark-word)]
     [caret-line-index caret-word-index caret-pos mark-line-index mark-word-index mark-pos]))
 
+(defn model-line->caret-sel-coords [model line-index]
+  (let [primitives (get-in model [:lines line-index :primitives])
+        p (first primitives)]
+    [(:caret-x p) (:s-start p) (:s-end p)]))
+
 (test/deftest move-caret-mark-test-1
   (let [words [(tw "a|aa ") (tw "b ") (tw "cc ")
                (tw "f ") (tw "gggg ") (tw "h ")
@@ -545,6 +550,7 @@
         model-cm-2-0-0 (textfield2/move-caret-mark model-cm-1-2-2 :caret-&-mark :forward nil nil)
         model-cm-1-2-2a (textfield2/move-caret-mark model-cm-2-0-0 :caret-&-mark :backward nil nil)]
     (test/is (= [0 0 1 0 0 1] (model->caret-mark-pos model-cm-0-0-1)))
+    (test/is (= [1.0 nil nil] (model-line->caret-sel-coords model-cm-0-0-1 0)))
 
     (test/is (model-content-equal model-cm-0-0-1 model-cm-0-0-2))
     (test/is (= [0 0 2 0 0 2] (model->caret-mark-pos model-cm-0-0-2)))

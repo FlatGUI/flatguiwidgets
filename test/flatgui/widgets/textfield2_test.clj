@@ -532,6 +532,7 @@
         model-m-0-1-1-c-0-2-1 (textfield2/move-caret-mark model-m-0-1-1-c-0-2-0 :caret :forward nil nil)
         model-m-0-1-1-c-0-2-2 (textfield2/move-caret-mark model-m-0-1-1-c-0-2-1 :caret :forward nil nil)
         model-m-0-1-1-c-0-2-3 (textfield2/move-caret-mark model-m-0-1-1-c-0-2-2 :caret :forward nil nil)
+        _ (println "------------------------ starting bug -----------------------------------------")
         model-m-0-1-1-c-1-0-0 (textfield2/move-caret-mark model-m-0-1-1-c-0-2-3 :caret :forward nil nil)
         model-m-0-1-1-c-1-0-1 (textfield2/move-caret-mark model-m-0-1-1-c-1-0-0 :caret :forward nil nil)
         model-m-0-1-1-c-1-1-0 (textfield2/move-caret-mark model-m-0-1-1-c-1-0-1 :caret :forward nil nil)
@@ -554,39 +555,55 @@
 
     (test/is (model-content-equal model-cm-0-0-1 model-cm-0-0-2))
     (test/is (= [0 0 2 0 0 2] (model->caret-mark-pos model-cm-0-0-2)))
+    (test/is (= [2.0 nil nil] (model-line->caret-sel-coords model-cm-0-0-2 0)))
 
     (test/is (= model-cm-0-0-1 model-cm-0-0-1a))
     (test/is (= model-cm-0-0-2 model-cm-0-0-2a))
+    (test/is (= [1.0 nil nil] (model-line->caret-sel-coords model-cm-0-0-1a 0)))
+    (test/is (= [2.0 nil nil] (model-line->caret-sel-coords model-cm-0-0-2a 0)))
 
     (test/is (model-content-equal model-cm-0-0-1 model-cm-0-0-3))
     (test/is (= [0 0 3 0 0 3] (model->caret-mark-pos model-cm-0-0-3)))
+    (test/is (= [3.0 nil nil] (model-line->caret-sel-coords model-cm-0-0-3 0)))
 
     (test/is (model-content-equal model-cm-0-0-1 model-cm-0-1-0))
     (test/is (= [0 1 0 0 1 0] (model->caret-mark-pos model-cm-0-1-0)))
+    (test/is (= [4.0 nil nil] (model-line->caret-sel-coords model-cm-0-1-0 0)))
 
     (test/is (= model-cm-0-0-3 model-cm-0-0-3a))
     (test/is (= model-cm-0-1-0 model-cm-0-1-0a))
+    (test/is (= [3.0 nil nil] (model-line->caret-sel-coords model-cm-0-0-3a 0)))
+    (test/is (= [4.0 nil nil] (model-line->caret-sel-coords model-cm-0-1-0a 0)))
 
     (test/is (model-content-equal model-cm-0-0-1 model-cm-0-1-1))
     (test/is (= [0 1 1 0 1 1] (model->caret-mark-pos model-cm-0-1-1)))
+    (test/is (= [5.0 nil nil] (model-line->caret-sel-coords model-cm-0-1-1 0)))
 
     (test/is (model-content-equal model-cm-0-0-1 model-m-0-1-1-c-0-2-0))
     (test/is (= [0 2 0 0 1 1] (model->caret-mark-pos model-m-0-1-1-c-0-2-0)))
+    (test/is (= [6.0 5.0 6.0] (model-line->caret-sel-coords model-m-0-1-1-c-0-2-0 0)))
 
     (test/is (model-content-equal model-cm-0-0-1 model-m-0-1-1-c-0-2-1))
     (test/is (= [0 2 1 0 1 1] (model->caret-mark-pos model-m-0-1-1-c-0-2-1)))
+    (test/is (= [7.0 5.0 7.0] (model-line->caret-sel-coords model-m-0-1-1-c-0-2-1 0)))
 
     (test/is (model-content-equal model-cm-0-0-1 model-m-0-1-1-c-0-2-2))
     (test/is (= [0 2 2 0 1 1] (model->caret-mark-pos model-m-0-1-1-c-0-2-2)))
+    (test/is (= [8.0 5.0 8.0] (model-line->caret-sel-coords model-m-0-1-1-c-0-2-2 0)))
 
     (test/is (model-content-equal model-cm-0-0-1 model-m-0-1-1-c-0-2-3))
     (test/is (= [0 2 3 0 1 1] (model->caret-mark-pos model-m-0-1-1-c-0-2-3)))
+    (test/is (= [9.0 5.0 9.0] (model-line->caret-sel-coords model-m-0-1-1-c-0-2-3 0)))
 
     (test/is (model-content-equal model-cm-0-0-1 model-m-0-1-1-c-1-0-0))
     (test/is (= [1 0 0 0 1 1] (model->caret-mark-pos model-m-0-1-1-c-1-0-0)))
+    (test/is (= [nil 5.0 nil] (model-line->caret-sel-coords model-m-0-1-1-c-1-0-0 0)))
+    (test/is (= [0.0 nil nil] (model-line->caret-sel-coords model-m-0-1-1-c-1-0-0 1)))
 
     (test/is (model-content-equal model-cm-0-0-1 model-m-0-1-1-c-1-0-1))
     (test/is (= [1 0 1 0 1 1] (model->caret-mark-pos model-m-0-1-1-c-1-0-1)))
+    (test/is (= [nil 5.0 nil] (model-line->caret-sel-coords model-m-0-1-1-c-1-0-1 0)))
+    (test/is (= [1.0 0.0 1.0] (model-line->caret-sel-coords model-m-0-1-1-c-1-0-1 1)))
 
     (test/is (model-content-equal model-cm-0-0-1 model-m-0-1-1-c-1-1-0))
     (test/is (= [1 1 0 0 1 1] (model->caret-mark-pos model-m-0-1-1-c-1-1-0)))

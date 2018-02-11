@@ -141,10 +141,10 @@
           type-state (volatile! nil)
           style-state (volatile! nil)
           w-total-state (volatile! 0)
-          x-state (volatile! 0)
+          x-state (volatile! 0.0)
           caret-state (volatile! nil)
           ;sel-inside (volatile! false)
-          sel-start-x (volatile! (if selection-continued-line 0 nil))
+          sel-start-x (volatile! (if selection-continued-line 0.0 nil))
           sel-end-x (volatile! nil)
           ]
       (fn
@@ -159,6 +159,7 @@
                    s-start @sel-start-x
                    s-end @sel-end-x
                    has-sel (not= s-start s-end)
+                   _ (println "-p2" data "has=" has-sel s-start s-end)
                    p (Primitive. type data style x @caret-state (if has-sel s-start) (if has-sel s-end))]
                (rf result p))
              result)))
@@ -197,6 +198,7 @@
                      s-start @sel-start-x
                      s-end @sel-end-x
                      has-sel (not= s-start s-end)
+                     _ (println "-p1" data "has=" has-sel s-start s-end)
                      p (Primitive. type data style x @caret-state (if has-sel s-start) (if has-sel s-end))]
                  (vreset! glyphs-state [g])
                  (vreset! type-state g-type)
@@ -395,6 +397,7 @@
                    (if (not @model-caret-met-state) (vswap! model-caret-index-state inc))
                    ;(process-caret)
                    (let [sel-cont @model-selection-continues-to-next-line-state
+                         _ (println "------" (word->str word) " sel-cont=" sel-cont)
                          process-result (rf result (make-line line line-caret-index line-caret-index sel-cont line-h))]
                      (do
                        (if @model-caret-or-mark-met-state (vreset! model-selection-continues-to-next-line-state true))
@@ -559,10 +562,10 @@
         dest-word-keys (filter keyword? [(if move-caret :caret-word) (if move-mark :mark-word)])
         dest-line-keys (filter keyword? [(if move-caret :caret-line) (if move-mark :mark-line)])
         key-count (count dest-pos-keys)
+        caret-line-index (:caret-line model)
+        mark-line-index (:mark-line model)
         move-within-line (fn [model-transrofm-fn]
-                           (let [caret-line-index (:caret-line model)
-                                 mark-line-index (:mark-line model)
-                                 caret-line (nth (:lines model) caret-line-index)
+                           (let [caret-line (nth (:lines model) caret-line-index)
                                  mark-line (nth (:lines model) mark-line-index)
                                  caret-word-index (:caret-word caret-line)
                                  mark-word-index (:mark-word mark-line)
@@ -607,17 +610,21 @@
                             new-pos (if backward
                                             (count (get-in model [:lines new-line-index :words new-word-index :glyphs]))
                                             0)]
-                        (move-for-keys
-                          model
-                          key-count
-                          (fn [m k] (->
-                                      (assoc-in m [:lines line-index :words word-index (nth dest-pos-keys k)] nil)
-                                      (assoc-in [(nth dest-line-keys k)] new-line-index)
-                                      (assoc-in [:lines line-index (nth dest-word-keys k)] nil)
-                                      (assoc-in [:lines new-line-index (nth dest-word-keys k)] new-word-index)
-                                      (assoc-in [:lines new-line-index :words new-word-index (nth dest-pos-keys k)] new-pos)))
-                          ;; TODO why move mark-to-line not here?
-                          false))
+                        (->
+                          (move-for-keys
+                            model
+                            key-count
+                            (fn [m k] (->
+                                        (assoc-in m [:lines line-index :words word-index (nth dest-pos-keys k)] nil)
+                                        (assoc-in [(nth dest-line-keys k)] new-line-index)
+                                        (assoc-in [:lines line-index (nth dest-word-keys k)] nil)
+                                        (assoc-in [:lines new-line-index (nth dest-word-keys k)] new-word-index)
+                                        (assoc-in [:lines new-line-index :words new-word-index (nth dest-pos-keys k)] new-pos)))
+                            false)
+                          (rebuild-primitives
+                            caret-line-index mark-line-index
+                            move-caret move-mark)
+                          ))
       :else model)))
 
 (defn move-caret-1-char [model edge-fn edge-last-in-line-fn move-fn]

@@ -105,7 +105,7 @@
 (defn- glyph-data-mapper-ext [g]
   (cond
     (= :whitespace (:type g)) " "
-    (= :linebreak (:type g)) "\n"
+    (= :linebreak (:type g)) ""
     :else (:data g)))
 
 (defn word->str-ext [word]
@@ -323,7 +323,7 @@
       (whitespace? g)
       (make-words (vec (concat part-before-caret-pos (list g) part-after-caret-pos)) (inc caret-pos) w interop)
 
-      (and (linebreak? g))
+      (linebreak? g)
       (concat
         (make-words (vec (conj part-before-caret-pos g)) nil w interop)
         (if (empty? part-after-caret-pos)
@@ -605,7 +605,9 @@
                                              (let [word-count (count (get-in model [:lines new-line-index :words]))] (dec word-count))
                                              0)
                             new-pos (if backward
-                                            (count (get-in model [:lines new-line-index :words new-word-index :glyphs]))
+                                            (let [glyphs (get-in model [:lines new-line-index :words new-word-index :glyphs])
+                                                  glyph-count (count glyphs)]
+                                              (if (linebreak? (last glyphs)) (dec glyph-count) glyph-count))
                                             0)]
                         (->
                           (move-for-keys
@@ -640,7 +642,12 @@
     :caret-&-mark (move-caret-&-mark-1-char model edge-fn edge-last-in-line-fn move-fn)))
 
 (defmethod move-caret-mark :forward [model what _where _viewport-h _interop]
-  (move-caret-mark-generic model what (fn [coll] (dec (count coll))) (fn [coll] (count coll)) inc))
+  (move-caret-mark-generic
+    model
+    what
+    (fn [coll] (dec (count coll)))
+    (fn [coll] (if (linebreak? (last coll)) (dec (count coll)) (count coll)))
+    inc))
 
 (defmethod move-caret-mark :backward [model what _where _viewport-h _interop]
   (move-caret-mark-generic model what (fn [_] 0) (fn [_] 0) dec))
@@ -836,7 +843,6 @@
       (and (= 1 (count words)) (= empty-word-with-caret-&-mark word))
       (->
         (move-caret-mark model :caret-&-mark :backward nil nil)
-        (move-caret-mark :caret-&-mark :backward nil nil)   ; One more to kill trailing linebreak symbol in previous line
         (do-delete w interop)
         (do-delete w interop))
 

@@ -708,6 +708,20 @@
         model-after (textfield2/move-caret-mark model-before :caret-&-mark :forward nil nil)]
     (test/is (= [0 1 0 0 1 0] (model->caret-mark-pos model-after)))))
 
+(test/deftest move-caret-mark-test-4
+  (let [w 50
+        model-before (textfield2/wrap-lines [(tw (str "a|" \newline)) (tw "bb")] w)
+        model-after (textfield2/move-caret-mark model-before :caret-&-mark :forward nil nil)
+        model-after-1 (->
+                        (textfield2/move-caret-mark model-after :caret-&-mark :forward nil nil)
+                        (textfield2/move-caret-mark :caret-&-mark :backward nil nil)
+                        (textfield2/move-caret-mark :caret-&-mark :forward nil nil)
+                        (textfield2/move-caret-mark :caret-&-mark :backward nil nil)
+                        (textfield2/move-caret-mark :caret-&-mark :backward nil nil)
+                        )]
+    (test/is (= [1 0 0 1 0 0] (model->caret-mark-pos model-after)))
+    (test/is (= [0 0 1 0 0 1] (model->caret-mark-pos model-after-1)))))
+
 (test/deftest has-selection?-test
   (let [model-cm-0-1-1 (textfield2/wrap-lines [(tw "aa ") (tw "b|b")
                                                (tw "cc ") (tw "dd")] 5)

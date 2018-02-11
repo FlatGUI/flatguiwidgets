@@ -159,7 +159,6 @@
                    s-start @sel-start-x
                    s-end @sel-end-x
                    has-sel (not= s-start s-end)
-                   _ (println "-p2" data "has=" has-sel s-start s-end)
                    p (Primitive. type data style x @caret-state (if has-sel s-start) (if has-sel s-end))]
                (rf result p))
              result)))
@@ -198,7 +197,6 @@
                      s-start @sel-start-x
                      s-end @sel-end-x
                      has-sel (not= s-start s-end)
-                     _ (println "-p1" data "has=" has-sel s-start s-end)
                      p (Primitive. type data style x @caret-state (if has-sel s-start) (if has-sel s-end))]
                  (vreset! glyphs-state [g])
                  (vreset! type-state g-type)
@@ -397,7 +395,6 @@
                    (if (not @model-caret-met-state) (vswap! model-caret-index-state inc))
                    ;(process-caret)
                    (let [sel-cont @model-selection-continues-to-next-line-state
-                         _ (println "------" (word->str word) " sel-cont=" sel-cont)
                          process-result (rf result (make-line line line-caret-index line-caret-index sel-cont line-h))]
                      (do
                        (if @model-caret-or-mark-met-state (vreset! model-selection-continues-to-next-line-state true))

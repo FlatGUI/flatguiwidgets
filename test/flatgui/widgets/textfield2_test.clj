@@ -568,10 +568,14 @@
                                 (textfield2/move-caret-mark :caret :backward nil nil))]
     (test/is (= [0 0 1 0 0 1] (model->caret-mark-pos model-cm-0-0-1)))
     (test/is (= [1.0 nil nil] (model-line->caret-sel-coords model-cm-0-0-1 0)))
+    (test/is (= [nil nil nil] (model-line->caret-sel-coords model-cm-0-0-1 1)))
+    (test/is (= [nil nil nil] (model-line->caret-sel-coords model-cm-0-0-1 2)))
 
     (test/is (model-content-equal model-cm-0-0-1 model-cm-0-0-2))
     (test/is (= [0 0 2 0 0 2] (model->caret-mark-pos model-cm-0-0-2)))
     (test/is (= [2.0 nil nil] (model-line->caret-sel-coords model-cm-0-0-2 0)))
+    (test/is (= [nil nil nil] (model-line->caret-sel-coords model-cm-0-0-2 1)))
+    (test/is (= [nil nil nil] (model-line->caret-sel-coords model-cm-0-0-2 2)))
 
     (test/is (= model-cm-0-0-1 model-cm-0-0-1a))
     (test/is (= model-cm-0-0-2 model-cm-0-0-2a))
@@ -614,17 +618,19 @@
     (test/is (model-content-equal model-cm-0-0-1 model-m-0-1-1-c-1-0-0))
     (test/is (= [1 0 0 0 1 1] (model->caret-mark-pos model-m-0-1-1-c-1-0-0)))
     (test/is (= [nil 5.0 9.0] (model-line->caret-sel-coords model-m-0-1-1-c-1-0-0 0)))
-    ;(test/is (= [0.0 nil nil] (model-line->caret-sel-coords model-m-0-1-1-c-1-0-0 1)))
+    (test/is (= [0.0 nil nil] (model-line->caret-sel-coords model-m-0-1-1-c-1-0-0 1)))
 
     (test/is (model-content-equal model-cm-0-0-1 model-m-0-1-1-c-1-0-1))
     (test/is (= [1 0 1 0 1 1] (model->caret-mark-pos model-m-0-1-1-c-1-0-1)))
     (test/is (= [nil 5.0 9.0] (model-line->caret-sel-coords model-m-0-1-1-c-1-0-1 0)))
     (test/is (= [1.0 0.0 1.0] (model-line->caret-sel-coords model-m-0-1-1-c-1-0-1 1)))
+    (test/is (= [nil nil nil] (model-line->caret-sel-coords model-m-0-1-1-c-1-0-1 2)))
 
     (test/is (model-content-equal model-cm-0-0-1 model-m-0-1-1-c-1-1-0))
     (test/is (= [1 1 0 0 1 1] (model->caret-mark-pos model-m-0-1-1-c-1-1-0)))
     (test/is (= [nil 5.0 9.0] (model-line->caret-sel-coords model-m-0-1-1-c-1-1-0 0)))
     (test/is (= [2.0 0.0 2.0] (model-line->caret-sel-coords model-m-0-1-1-c-1-1-0 1)))
+    (test/is (= [nil nil nil] (model-line->caret-sel-coords model-m-0-1-1-c-1-1-0 2)))
 
     (test/is (model-content-equal model-cm-0-0-1 model-cm-1-1-1))
     (test/is (= [1 1 1 1 1 1] (model->caret-mark-pos model-cm-1-1-1)))
@@ -660,6 +666,7 @@
     (test/is (= [1 1 4 1 1 4] (model->caret-mark-pos model-cm-1-1-4)))
     (test/is (= [nil nil nil] (model-line->caret-sel-coords model-cm-1-1-4 0)))
     (test/is (= [6.0 nil nil] (model-line->caret-sel-coords model-cm-1-1-4 1)))
+    (test/is (= [nil nil nil] (model-line->caret-sel-coords model-cm-1-1-4 2)))
 
     (test/is (model-content-equal model-cm-0-0-1 model-cm-1-2-0))
     (test/is (= [1 2 0 1 2 0] (model->caret-mark-pos model-cm-1-2-0)))
@@ -675,6 +682,7 @@
     (test/is (= [1 2 2 1 2 2] (model->caret-mark-pos model-cm-1-2-2)))
     (test/is (= [nil nil nil] (model-line->caret-sel-coords model-cm-1-2-2 0)))
     (test/is (= [9.0 nil nil] (model-line->caret-sel-coords model-cm-1-2-2 1)))
+    (test/is (= [nil nil nil] (model-line->caret-sel-coords model-cm-1-2-2 2)))
 
     (test/is (= model-cm-1-1-1 model-cm-1-1-1a))
 
@@ -689,6 +697,7 @@
     (test/is (= model-cm-1-2-2 model-cm-1-2-2a))
     (test/is (= [nil nil nil] (model-line->caret-sel-coords model-cm-1-2-2a 0)))
     (test/is (= [9.0 nil nil] (model-line->caret-sel-coords model-cm-1-2-2a 1)))
+    (test/is (= [nil nil nil] (model-line->caret-sel-coords model-cm-1-2-2a 2)))
 
     (test/is (model-content-equal model-cm-0-0-1 model-m-2-0-1-c-0-2-1))
     (test/is (= [0 2 1 2 0 1] (model->caret-mark-pos model-m-2-0-1-c-0-2-1)))
@@ -736,7 +745,6 @@
                (tw "f ") (tw "gggg ") (tw "|h ")
                (tw "i ")]
         model-before (textfield2/wrap-lines words 8)
-        _ (println "------------------------ starting bug ------------------")
         model-after (->
                       (textfield2/move-caret-mark model-before :caret-&-mark :forward nil nil)
                       (textfield2/move-caret-mark :caret-&-mark :forward nil nil)

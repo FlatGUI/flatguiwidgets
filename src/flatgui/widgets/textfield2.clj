@@ -100,7 +100,7 @@
   Object
   (toString [word] (word->str word)))
 
-(defrecord Primitive [type data style x caret-x s-start s-end])
+(defrecord Primitive [type data style x w caret-x s-start s-end])
 
 (defn- glyph-data-mapper-ext [g]
   (cond
@@ -143,10 +143,7 @@
           w-total-state (volatile! 0)
           x-state (volatile! 0.0)
           caret-state (volatile! nil)
-          ;sel-inside (volatile! false)
-          sel-start-x (volatile! (if selection-continued-line 0.0 nil))
-          sel-end-x (volatile! nil)
-          ]
+          sel-marks (volatile! [])]
       (fn
         ([] (rf))
         ([result]
@@ -156,10 +153,18 @@
                    type @type-state
                    x @x-state
                    data (glyps->primitive-data glyphs type)
-                   s-start @sel-start-x
-                   s-end (if-let [se @sel-end-x] se (if s-start @w-total-state))
+                   s-marks @sel-marks
+                   has-both-s-marks (= 2 (count s-marks))
+                   s-start (cond
+                             has-both-s-marks (first s-marks)
+                             selection-continued-line 0.0
+                             :else (first s-marks))
+                   s-end (cond
+                           has-both-s-marks (second s-marks)
+                           selection-continued-line (first s-marks)
+                           :else (if s-start @w-total-state))
                    has-sel (not= s-start s-end)
-                   p (Primitive. type data style x @caret-state (if has-sel s-start) (if has-sel s-end))]
+                   p (Primitive. type data style x @w-total-state @caret-state (if has-sel s-start) (if has-sel s-end))]
                (rf result p))
              result)))
         ([result g]
@@ -187,26 +192,31 @@
                      (vreset! style-state g-style)))
                  (if caret-x (vreset! caret-state caret-x))
                  (if (or caret mark)
-                   (let [sel-edge-x (if caret caret-x mark-x)]
-                     (cond
-                       ;; TODO this does not take into account the last line of selection!
-                       (and caret mark) (do (vreset! sel-start-x sel-edge-x) (vreset! sel-end-x sel-edge-x))
-                       @sel-start-x (vreset! sel-end-x sel-edge-x)
-                       :else (vreset! sel-start-x sel-edge-x))))
+                   (if (and caret mark)
+                     (vreset! sel-marks [(min caret-x mark-x) (max caret-x mark-x)])
+                     (vswap! sel-marks conj (if caret caret-x mark-x))
+                     ))
                  result)
                (let [data (glyps->primitive-data glyphs type)
-                     s-start @sel-start-x
-                     s-end (if-let [se @sel-end-x] se (if s-start @w-total-state))
+                     s-marks @sel-marks
+                     has-both-s-marks (= 2 (count s-marks))
+                     s-start (cond
+                               has-both-s-marks (first s-marks)
+                               selection-continued-line 0.0
+                               :else (first s-marks))
+                     s-end (cond
+                             has-both-s-marks (second s-marks)
+                             selection-continued-line (first s-marks)
+                             :else (if s-start @w-total-state))
                      has-sel (not= s-start s-end)
-                     p (Primitive. type data style x @caret-state (if has-sel s-start) (if has-sel s-end))]
+                     p (Primitive. type data style x @w-total-state @caret-state (if has-sel s-start) (if has-sel s-end))]
                  (vreset! glyphs-state [g])
                  (vreset! type-state g-type)
                  (vreset! style-state g-style)
                  (vswap! x-state + @w-total-state)
                  (vreset! w-total-state g-w)
                  (vreset! caret-state nil)
-                 (rf result p))
-               ))
+                 (rf result p))))
            result))))))
 
 (defn- insert-g-marker [glyphs pos mark-type]
@@ -378,7 +388,6 @@
                  caret-pos (:caret-pos word)
                  mark-pos (:mark-pos word)
                  end-line (or (> (+ line-w w-content) w) (linebreak? (last (:glyphs (last line)))))
-                 _ (println "--" (word->str word) "end?" end-line "c" caret-pos "m" mark-pos)
                  process-caret (fn []
                                  (if caret-pos
                                    (do
@@ -468,25 +477,25 @@
             sel-met false
             m model]
        (if (<= i to)
-         (let [caret-met (or (= i old-caret-line-index) (= i new-caret-line-index))
-               mark-met (or (= i old-mark-line-index) (= i new-mark-line-index))
+         (let [caret-met (= i new-caret-line-index)
+               mark-met (= i new-mark-line-index)
+               far-edge-old (or (= i old-mark-line-index) (= i old-caret-line-index))
+               any-edge-new (or (= i new-mark-line-index) (= i new-caret-line-index))
                inside-old (inside? old-mark-line-index old-caret-line-index i)
                inside-new (inside? new-mark-line-index new-caret-line-index i)]
            (recur
              (inc i)
-             (if (not sel-met) (or (and caret-met (not mark-met)) (and mark-met (not caret-met))) sel-met)
+             (if (not sel-met) (or caret-met mark-met) sel-met)
              (cond
 
-               (or
-                 (and caret-pos-changed caret-met)
-                 (and mark-pos-changed mark-met))
+               any-edge-new
                (assoc-in m [:lines i :primitives] (words->primitives (get-in model [:lines i :words]) sel-met))
 
-               (and inside-old (not inside-new))
-               (update-in m [:lines i :primitives] (fn [primitives] (map (fn [p] (assoc p :s-start nil :s-end nil)) primitives)))
+               (and (or far-edge-old inside-old) (not inside-new))
+               (update-in m [:lines i :primitives] (fn [primitives] (mapv (fn [p] (assoc p :caret-x nil :s-start nil :s-end nil)) primitives)))
 
                (and inside-new (not inside-old))
-               (update-in m [:lines i :primitives] (fn [primitives] (map (fn [p] (assoc p :s-start 0 :s-end nil)) primitives)))
+               (update-in m [:lines i :primitives] (fn [primitives] (mapv (fn [p] (assoc p :caret-x nil :s-start 0.0 :s-end (:w p))) primitives)))
 
                :else m)))
          m))))

@@ -105,7 +105,7 @@
 (defn- glyph-data-mapper-ext [g]
   (cond
     (= :whitespace (:type g)) " "
-    (= :linebreak (:type g)) ""
+    (= :linebreak (:type g)) \u23CE
     :else (:data g)))
 
 (defn word->str-ext [word]
@@ -118,7 +118,7 @@
         raw-str)
       "`")))
 
-(defn line->str [line] (apply str (map word->str-ext (:words line))))
+(defn line->str [line] (str (apply str (map word->str-ext (:words line))) "\n"))
 
 (defn model->str [model] (apply str (map line->str (:lines model))))
 
@@ -157,7 +157,7 @@
                    x @x-state
                    data (glyps->primitive-data glyphs type)
                    s-start @sel-start-x
-                   s-end @sel-end-x
+                   s-end (if-let [se @sel-end-x] se (if s-start @w-total-state))
                    has-sel (not= s-start s-end)
                    p (Primitive. type data style x @caret-state (if has-sel s-start) (if has-sel s-end))]
                (rf result p))
@@ -189,13 +189,14 @@
                  (if (or caret mark)
                    (let [sel-edge-x (if caret caret-x mark-x)]
                      (cond
+                       ;; TODO this does not take into account the last line of selection!
                        (and caret mark) (do (vreset! sel-start-x sel-edge-x) (vreset! sel-end-x sel-edge-x))
                        @sel-start-x (vreset! sel-end-x sel-edge-x)
                        :else (vreset! sel-start-x sel-edge-x))))
                  result)
                (let [data (glyps->primitive-data glyphs type)
                      s-start @sel-start-x
-                     s-end @sel-end-x
+                     s-end (if-let [se @sel-end-x] se (if s-start @w-total-state))
                      has-sel (not= s-start s-end)
                      p (Primitive. type data style x @caret-state (if has-sel s-start) (if has-sel s-end))]
                  (vreset! glyphs-state [g])
@@ -358,7 +359,7 @@
             line-caret-met-state (volatile! false)
             model-caret-index-state (volatile! 0)
             model-caret-met-state (volatile! false)
-            model-caret-or-mark-met-state (volatile! false)
+            model-sel-met-state (volatile! false)
             model-selection-continues-to-next-line-state (volatile! false)]
         (fn
           ([] (rf))
@@ -374,16 +375,18 @@
                  w-content (:w-content word)
                  w-total (:w-total word)
                  word-h (:h word)
-                 has-caret (:caret-pos word)
-                 has-mark (:mark-pos word)
+                 caret-pos (:caret-pos word)
+                 mark-pos (:mark-pos word)
                  end-line (or (> (+ line-w w-content) w) (linebreak? (last (:glyphs (last line)))))
+                 _ (println "--" (word->str word) "end?" end-line "c" caret-pos "m" mark-pos)
                  process-caret (fn []
-                                 (if has-caret
+                                 (if caret-pos
                                    (do
                                      (vreset! model-caret-met-state true)
                                      (vreset! line-caret-met-state true))
                                    (if (not @line-caret-met-state) (vswap! line-caret-index-state inc))))
-                 process-sel (fn [] (if (or has-caret has-mark) (vreset! model-caret-or-mark-met-state true)))]
+                 process-sel (fn [] (if (and (or caret-pos mark-pos) (not= caret-pos mark-pos))
+                                      (vreset! model-sel-met-state true)))]
              (do
                (if end-line
                  (let [line-caret-index (if @line-caret-met-state @line-caret-index-state)]
@@ -397,7 +400,7 @@
                    (let [sel-cont @model-selection-continues-to-next-line-state
                          process-result (rf result (make-line line line-caret-index line-caret-index sel-cont line-h))]
                      (do
-                       (if @model-caret-or-mark-met-state (vreset! model-selection-continues-to-next-line-state true))
+                       (if @model-sel-met-state (vreset! model-selection-continues-to-next-line-state true))
                        (process-caret)
                        (process-sel)
                        process-result)))
@@ -471,7 +474,7 @@
                inside-new (inside? new-mark-line-index new-caret-line-index i)]
            (recur
              (inc i)
-             (if (not sel-met) (or caret-met mark-met) sel-met)
+             (if (not sel-met) (or (and caret-met (not mark-met)) (and mark-met (not caret-met))) sel-met)
              (cond
 
                (or

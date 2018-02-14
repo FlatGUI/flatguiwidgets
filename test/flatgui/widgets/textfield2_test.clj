@@ -613,17 +613,17 @@
 
     (test/is (model-content-equal model-cm-0-0-1 model-m-0-1-1-c-1-0-0))
     (test/is (= [1 0 0 0 1 1] (model->caret-mark-pos model-m-0-1-1-c-1-0-0)))
-    (test/is (= [nil 5.0 nil] (model-line->caret-sel-coords model-m-0-1-1-c-1-0-0 0)))
-    (test/is (= [0.0 nil nil] (model-line->caret-sel-coords model-m-0-1-1-c-1-0-0 1)))
+    (test/is (= [nil 5.0 9.0] (model-line->caret-sel-coords model-m-0-1-1-c-1-0-0 0)))
+    ;(test/is (= [0.0 nil nil] (model-line->caret-sel-coords model-m-0-1-1-c-1-0-0 1)))
 
     (test/is (model-content-equal model-cm-0-0-1 model-m-0-1-1-c-1-0-1))
     (test/is (= [1 0 1 0 1 1] (model->caret-mark-pos model-m-0-1-1-c-1-0-1)))
-    (test/is (= [nil 5.0 nil] (model-line->caret-sel-coords model-m-0-1-1-c-1-0-1 0)))
+    (test/is (= [nil 5.0 9.0] (model-line->caret-sel-coords model-m-0-1-1-c-1-0-1 0)))
     (test/is (= [1.0 0.0 1.0] (model-line->caret-sel-coords model-m-0-1-1-c-1-0-1 1)))
 
     (test/is (model-content-equal model-cm-0-0-1 model-m-0-1-1-c-1-1-0))
     (test/is (= [1 1 0 0 1 1] (model->caret-mark-pos model-m-0-1-1-c-1-1-0)))
-    (test/is (= [nil 5.0 nil] (model-line->caret-sel-coords model-m-0-1-1-c-1-1-0 0)))
+    (test/is (= [nil 5.0 9.0] (model-line->caret-sel-coords model-m-0-1-1-c-1-1-0 0)))
     (test/is (= [2.0 0.0 2.0] (model-line->caret-sel-coords model-m-0-1-1-c-1-1-0 1)))
 
     (test/is (model-content-equal model-cm-0-0-1 model-cm-1-1-1))
@@ -692,8 +692,8 @@
 
     (test/is (model-content-equal model-cm-0-0-1 model-m-2-0-1-c-0-2-1))
     (test/is (= [0 2 1 2 0 1] (model->caret-mark-pos model-m-2-0-1-c-0-2-1)))
-    (test/is (= [7.0 7.0 nil] (model-line->caret-sel-coords model-m-2-0-1-c-0-2-1 0)))
-    (test/is (= [nil 0.0 nil] (model-line->caret-sel-coords model-m-2-0-1-c-0-2-1 1)))
+    (test/is (= [7.0 7.0 9.0] (model-line->caret-sel-coords model-m-2-0-1-c-0-2-1 0)))
+    (test/is (= [nil 0.0 9.0] (model-line->caret-sel-coords model-m-2-0-1-c-0-2-1 1)))
     (test/is (= [nil 0.0 1.0] (model-line->caret-sel-coords model-m-2-0-1-c-0-2-1 2)))))
 
 (test/deftest move-caret-mark-test-2
@@ -721,6 +721,33 @@
                         )]
     (test/is (= [1 0 0 1 0 0] (model->caret-mark-pos model-after)))
     (test/is (= [0 0 1 0 0 1] (model->caret-mark-pos model-after-1)))))
+
+(test/deftest primitive-test-1
+  (let [w 50
+        model (textfield2/wrap-lines [(tw (str "aa" \newline)) (tw (str "b|b" \newline)) (tw "cc")] w)
+        ]
+    (test/is (= [1 0 1 1 0 1] (model->caret-mark-pos model)))
+    (test/is (= [nil nil nil] (model-line->caret-sel-coords model 0)))
+    (test/is (= [1.0 nil nil] (model-line->caret-sel-coords model 1)))
+    (test/is (= [nil nil nil] (model-line->caret-sel-coords model 2)))))
+
+(test/deftest primitive-test-2
+  (let [words [(tw "aaa ") (tw "b ") (tw "cc ")
+               (tw "f ") (tw "gggg ") (tw "|h ")
+               (tw "i ")]
+        model-before (textfield2/wrap-lines words 8)
+        _ (println "------------------------ starting bug ------------------")
+        model-after (->
+                      (textfield2/move-caret-mark model-before :caret-&-mark :forward nil nil)
+                      (textfield2/move-caret-mark :caret-&-mark :forward nil nil)
+                      (textfield2/move-caret-mark :caret-&-mark :forward nil nil)
+                      (textfield2/move-caret-mark :caret-&-mark :backward nil nil)
+                      (textfield2/move-caret-mark :caret-&-mark :backward nil nil)
+                      (textfield2/move-caret-mark :caret-&-mark :backward nil nil))]
+    (test/is (= [1 2 0 1 2 0] (model->caret-mark-pos model-after)))
+    (test/is (= [nil nil nil] (model-line->caret-sel-coords model-after 0)))
+    (test/is (= [7.0 nil nil] (model-line->caret-sel-coords model-after 1)))
+    (test/is (= [nil nil nil] (model-line->caret-sel-coords model-after 2)))))
 
 (test/deftest has-selection?-test
   (let [model-cm-0-1-1 (textfield2/wrap-lines [(tw "aa ") (tw "b|b")

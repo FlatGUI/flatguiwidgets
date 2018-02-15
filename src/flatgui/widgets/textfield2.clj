@@ -194,8 +194,7 @@
                  (if (or caret mark)
                    (if (and caret mark)
                      (vreset! sel-marks [(min caret-x mark-x) (max caret-x mark-x)])
-                     (vswap! sel-marks conj (if caret caret-x mark-x))
-                     ))
+                     (vswap! sel-marks conj (if caret caret-x mark-x))))
                  result)
                (let [data (glyps->primitive-data glyphs type)
                      s-marks @sel-marks
@@ -217,7 +216,14 @@
                  (vreset! w-total-state g-w)
                  (vreset! caret-state nil)
                  (rf result p))))
-           result))))))
+           ;; This handles case when caret or mark is in a nil-data glyph, like linebreak
+           (let [caret (:caret g)
+                 ;; assuming g-w is 0 for a nil-data glyph
+                 caret-or-mark-x (+ @x-state @w-total-state)]
+             (do
+               (if caret (vreset! caret-state caret-or-mark-x))
+               (if (or caret (:mark g)) (vswap! sel-marks conj caret-or-mark-x))
+               result))))))))
 
 (defn- insert-g-marker [glyphs pos mark-type]
   (if pos

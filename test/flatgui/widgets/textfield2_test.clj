@@ -94,6 +94,24 @@
         words (textfield2/glyphs->words glyphs w dummy-interop)]
     (test-words words w expected-lines expected-total-word-widths nil nil)))
 
+(defn model->caret-mark-pos [model]
+  (let [caret-line-index (:caret-line model)
+        mark-line-index (:mark-line model)
+        caret-line (nth (:lines model) caret-line-index)
+        mark-line (nth (:lines model) mark-line-index)
+        caret-word-index (:caret-word caret-line)
+        mark-word-index (:mark-word mark-line)
+        caret-word (nth (:words caret-line) caret-word-index)
+        mark-word (nth (:words mark-line) mark-word-index)
+        caret-pos (:caret-pos caret-word)
+        mark-pos (:mark-pos mark-word)]
+    [caret-line-index caret-word-index caret-pos mark-line-index mark-word-index mark-pos]))
+
+(defn model-line->caret-sel-coords [model line-index]
+  (let [primitives (get-in model [:lines line-index :primitives])
+        p (first primitives)]
+    [(:caret-x p) (:s-start p) (:s-end p)]))
+
 (test/deftest wrap-test
 
   (test-lines
@@ -336,7 +354,7 @@
       [1.0 1.0])
     (test/is (= 1 (:caret-pos caret-word)))))
 
-(test/deftest test-primitives-1
+(test/deftest primitive-test-1
   (let [w 5
         glyphs (map textfield2/char-glyph "a")
         words (textfield2/glyphs->words glyphs w dummy-interop)
@@ -348,7 +366,7 @@
     (test/is (= :string (:type primitive)))
     (test/is (= "a" (:data primitive)))))
 
-(test/deftest test-primitives-2
+(test/deftest primitive-test-2
   (let [w 5
         glyphs (concat (map textfield2/char-glyph "abc") [textfield2/linebreak-glyph] (map textfield2/char-glyph "d"))
         words (textfield2/glyphs->words glyphs w dummy-interop)
@@ -358,6 +376,54 @@
     (test/is (= "abc" (:data (first (:primitives (first lines))))))
     (test/is (= :string (:type (first (:primitives (second lines))))))
     (test/is (= "d" (:data (first (:primitives (second lines))))))))
+
+(test/deftest primitive-test-3
+  (let [w 50
+        model (textfield2/wrap-lines [(tw (str "aa" \newline)) (tw (str "b|b" \newline)) (tw "cc")] w)]
+    (test/is (= [1 0 1 1 0 1] (model->caret-mark-pos model)))
+    (test/is (= [nil nil nil] (model-line->caret-sel-coords model 0)))
+    (test/is (= [1.0 nil nil] (model-line->caret-sel-coords model 1)))
+    (test/is (= [nil nil nil] (model-line->caret-sel-coords model 2)))))
+
+(test/deftest primitive-test-4
+  (let [words [(tw "aaa ") (tw "b ") (tw "cc ")
+               (tw "f ") (tw "gggg ") (tw "|h ")
+               (tw "i ")]
+        model-before (textfield2/wrap-lines words 8)
+        model-after (->
+                      (textfield2/move-caret-mark model-before :caret-&-mark :forward nil nil)
+                      (textfield2/move-caret-mark :caret-&-mark :forward nil nil)
+                      (textfield2/move-caret-mark :caret-&-mark :forward nil nil)
+                      (textfield2/move-caret-mark :caret-&-mark :backward nil nil)
+                      (textfield2/move-caret-mark :caret-&-mark :backward nil nil)
+                      (textfield2/move-caret-mark :caret-&-mark :backward nil nil))]
+    (test/is (= [1 2 0 1 2 0] (model->caret-mark-pos model-after)))
+    (test/is (= [nil nil nil] (model-line->caret-sel-coords model-after 0)))
+    (test/is (= [7.0 nil nil] (model-line->caret-sel-coords model-after 1)))
+    (test/is (= [nil nil nil] (model-line->caret-sel-coords model-after 2)))))
+
+(test/deftest primitive-test-5
+  (let [words [(tw (str "a|a" \newline)) (tw "cc")]
+        model-before (textfield2/wrap-lines words 8)
+        model-after (textfield2/move-caret-mark model-before :caret-&-mark :forward nil nil)]
+    (test/is (= [0 0 2 0 0 2] (model->caret-mark-pos model-after)))
+    (test/is (= [2.0 nil nil] (model-line->caret-sel-coords model-after 0)))
+    (test/is (= [nil nil nil] (model-line->caret-sel-coords model-after 1)))
+    ))
+
+(test/deftest primitive-test-6
+  (let [words [(tw (str "|aa" \newline)) (tw (str "bb" \newline)) (tw (str \newline))]
+        model-before (textfield2/wrap-lines words 8)
+        model-after (->
+                      (textfield2/move-caret-mark model-before :caret :forward nil nil)
+                      (textfield2/move-caret-mark :caret :forward nil nil)
+                      (textfield2/move-caret-mark :caret :forward nil nil)
+                      (textfield2/move-caret-mark :caret :forward nil nil)
+                      (textfield2/move-caret-mark :caret :forward nil nil))]
+    (test/is (= [1 0 2 0 0 0] (model->caret-mark-pos model-after)))
+    (test/is (= [nil 0.0 2.0] (model-line->caret-sel-coords model-after 0)))
+    (test/is (= [2.0 0.0 2.0] (model-line->caret-sel-coords model-after 1)))
+    ))
 
 (test/deftest line-h-test-1
   (let [words [(tw "The ")                  (assoc (tw "quick ") :h 2.0)
@@ -496,24 +562,6 @@
   (and
     (= (count (:lines m1)) (count (:lines m2)))
     (every? true? (map #(line-content-equal (nth (:lines m1) %) (nth (:lines m2) %)) (range (count (:lines m1)))))))
-
-(defn model->caret-mark-pos [model]
-  (let [caret-line-index (:caret-line model)
-        mark-line-index (:mark-line model)
-        caret-line (nth (:lines model) caret-line-index)
-        mark-line (nth (:lines model) mark-line-index)
-        caret-word-index (:caret-word caret-line)
-        mark-word-index (:mark-word mark-line)
-        caret-word (nth (:words caret-line) caret-word-index)
-        mark-word (nth (:words mark-line) mark-word-index)
-        caret-pos (:caret-pos caret-word)
-        mark-pos (:mark-pos mark-word)]
-    [caret-line-index caret-word-index caret-pos mark-line-index mark-word-index mark-pos]))
-
-(defn model-line->caret-sel-coords [model line-index]
-  (let [primitives (get-in model [:lines line-index :primitives])
-        p (first primitives)]
-    [(:caret-x p) (:s-start p) (:s-end p)]))
 
 (test/deftest move-caret-mark-test-1
   (let [words [(tw "a|aa ") (tw "b ") (tw "cc ")
@@ -730,32 +778,6 @@
                         )]
     (test/is (= [1 0 0 1 0 0] (model->caret-mark-pos model-after)))
     (test/is (= [0 0 1 0 0 1] (model->caret-mark-pos model-after-1)))))
-
-(test/deftest primitive-test-1
-  (let [w 50
-        model (textfield2/wrap-lines [(tw (str "aa" \newline)) (tw (str "b|b" \newline)) (tw "cc")] w)
-        ]
-    (test/is (= [1 0 1 1 0 1] (model->caret-mark-pos model)))
-    (test/is (= [nil nil nil] (model-line->caret-sel-coords model 0)))
-    (test/is (= [1.0 nil nil] (model-line->caret-sel-coords model 1)))
-    (test/is (= [nil nil nil] (model-line->caret-sel-coords model 2)))))
-
-(test/deftest primitive-test-2
-  (let [words [(tw "aaa ") (tw "b ") (tw "cc ")
-               (tw "f ") (tw "gggg ") (tw "|h ")
-               (tw "i ")]
-        model-before (textfield2/wrap-lines words 8)
-        model-after (->
-                      (textfield2/move-caret-mark model-before :caret-&-mark :forward nil nil)
-                      (textfield2/move-caret-mark :caret-&-mark :forward nil nil)
-                      (textfield2/move-caret-mark :caret-&-mark :forward nil nil)
-                      (textfield2/move-caret-mark :caret-&-mark :backward nil nil)
-                      (textfield2/move-caret-mark :caret-&-mark :backward nil nil)
-                      (textfield2/move-caret-mark :caret-&-mark :backward nil nil))]
-    (test/is (= [1 2 0 1 2 0] (model->caret-mark-pos model-after)))
-    (test/is (= [nil nil nil] (model-line->caret-sel-coords model-after 0)))
-    (test/is (= [7.0 nil nil] (model-line->caret-sel-coords model-after 1)))
-    (test/is (= [nil nil nil] (model-line->caret-sel-coords model-after 2)))))
 
 (test/deftest has-selection?-test
   (let [model-cm-0-1-1 (textfield2/wrap-lines [(tw "aa ") (tw "b|b")

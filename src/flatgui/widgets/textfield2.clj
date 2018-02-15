@@ -684,7 +684,8 @@
       (not (empty? words))
       (or
         (every? whitespace? (:glyphs word))
-        (not (whitespace? (last (:glyphs (last words)))))))
+        (let [last-glyph (last (:glyphs (last words)))]
+          (and (not (whitespace? last-glyph)) (not (linebreak? last-glyph))))))
     (let [last-word (last words)
           result-caret-pos (cond
                              (:caret-pos last-word) (:caret-pos last-word)

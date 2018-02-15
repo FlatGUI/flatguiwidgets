@@ -422,8 +422,7 @@
                       (textfield2/move-caret-mark :caret :forward nil nil))]
     (test/is (= [1 0 2 0 0 0] (model->caret-mark-pos model-after)))
     (test/is (= [nil 0.0 2.0] (model-line->caret-sel-coords model-after 0)))
-    (test/is (= [2.0 0.0 2.0] (model-line->caret-sel-coords model-after 1)))
-    ))
+    (test/is (= [2.0 0.0 2.0] (model-line->caret-sel-coords model-after 1)))))
 
 (test/deftest line-h-test-1
   (let [words [(tw "The ")                  (assoc (tw "quick ") :h 2.0)
@@ -478,10 +477,15 @@
         reduction (textfield2/truncate-words words)]
     (test/is (= [(tw "aab|b")] reduction))))
 
-(test/deftest truncated-word-reducer-test-4
+(test/deftest truncated-word-reducer-test-5
   (let [words [(tw "a ") nil nil (tw "|d")]
         reduction (textfield2/truncate-words words)]
     (test/is (= [(tw "a ") (tw "|d")] reduction))))
+
+(test/deftest truncated-word-reducer-test-6
+  (let [words [(tw (str "aa" \newline)) (tw "b|b")]
+        reduction (textfield2/truncate-words words)]
+    (test/is (= words reduction))))
 
 (test/deftest test-glyphs->Word-1
   (let [w 5
@@ -498,8 +502,7 @@
                         (textfield2/glyph-> (textfield2/char-glyph \newline) w dummy-interop)
                         (textfield2/glyph-> textfield2/whitespace-glyph w dummy-interop)
                         (textfield2/glyph-> (textfield2/char-glyph \b) w dummy-interop))
-        model-after-2 (textfield2/do-backspace model-after-1 w dummy-interop) ;TODO NPE here
-        ]
+        model-after-2 (textfield2/do-backspace model-after-1 w dummy-interop)]
     (test-model
       model-after-1
       [["a"] [" " "b"]]
@@ -550,6 +553,20 @@
       [1.0])
     (test/is (= 1 (get-in model-after [:lines 0 :words 0 :caret-pos])))))
 
+(test/deftest test-glyphs->Model-4
+  (let [w 8
+        words [(tw (str "aa" \newline)) (tw (str "|bb" \newline)) (tw (str "cc" \newline))]
+        model-before (textfield2/wrap-lines words w)
+        model-after (textfield2/do-backspace model-before w dummy-interop)
+        ]
+    (test-model
+      model-after
+      [[(str "aabb")] [(str "cc")]]
+      [[5.0]          [3.0]]  ;TODO should be 4 and 2
+      0
+      0
+      [1.0            1.0])
+    (test/is (= 2 (get-in model-after [:lines 0 :words 0 :caret-pos])))))
 
 (defn word-content-equal [w1 w2] (= (:glyphs w1) (:glyphs w2)))
 

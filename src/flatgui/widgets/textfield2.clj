@@ -670,6 +670,35 @@
 (defmethod move-caret-mark :backward [model what _where _viewport-h _interop]
   (move-caret-mark-generic model what (fn [_] 0) (fn [_] 0) dec))
 
+(defn move-line-home-end [model what where]
+  (let [caret-line-index (:caret-line model)
+        caret-line (nth (:lines model) caret-line-index)
+        caret-word-index (:caret-word caret-line)
+        new-word-index (if (= where :home) 0 (dec (count (:words caret-line))))
+        new-pos (let [new-w-glyphs (:glyphs (nth (:words caret-line) new-word-index))
+                      new-w-glyph-count (count new-w-glyphs)]
+                  (if (= where :home) 0 (if (linebreak? (last new-w-glyphs)) (dec new-w-glyph-count) new-w-glyph-count)))
+        word-keys (if (= what :caret-&-mark) [:caret-word :mark-word] [:caret-word])
+        pos-keys (if (= what :caret-&-mark) [:caret-pos :mark-pos] [:caret-pos])]
+    (->
+      (move-for-keys
+        model
+        (count pos-keys)
+        (fn [m k] (->
+                    (assoc-in m [:lines caret-line-index :words caret-word-index (nth pos-keys k)] nil)
+                    (assoc-in [:lines caret-line-index (nth word-keys k)] new-word-index)
+                    (assoc-in [:lines caret-line-index :words new-word-index (nth pos-keys k)] new-pos)))
+        false)
+      (rebuild-primitives
+        caret-line-index (:mark-line model)
+        true false))))
+
+(defmethod move-caret-mark :home [model what where _viewport-h _interop]
+  (move-line-home-end model what where))
+
+(defmethod move-caret-mark :end [model what where _viewport-h _interop]
+  (move-line-home-end model what where))
+
 (defn truncated-word-reducer [words word]
   (cond
 
@@ -910,11 +939,11 @@
           shift (inputbase/with-shift? component)
           r (condp = key
               KeyEvent/VK_BACK_SPACE (do-backspace old-model w (get-property component [:this] :interop))
-              KeyEvent/VK_DELETE old-model
+              KeyEvent/VK_DELETE (do-delete old-model w (get-property component [:this] :interop))
               KeyEvent/VK_LEFT (move-caret-mark old-model (if shift :caret :caret-&-mark) :backward nil nil)
               KeyEvent/VK_RIGHT (move-caret-mark old-model (if shift :caret :caret-&-mark) :forward nil nil)
-              KeyEvent/VK_HOME old-model
-              KeyEvent/VK_END old-model
+              KeyEvent/VK_HOME (move-caret-mark old-model (if shift :caret :caret-&-mark) :home nil nil)
+              KeyEvent/VK_END (move-caret-mark old-model (if shift :caret :caret-&-mark) :end nil nil)
               KeyEvent/VK_UP old-model
               KeyEvent/VK_DOWN old-model
               KeyEvent/VK_PAGE_UP old-model

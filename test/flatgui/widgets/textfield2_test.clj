@@ -796,6 +796,49 @@
     (test/is (= [1 0 0 1 0 0] (model->caret-mark-pos model-after)))
     (test/is (= [0 0 1 0 0 1] (model->caret-mark-pos model-after-1)))))
 
+(def move-home-end-model-before-0 (textfield2/wrap-lines [(tw "a|a ") (tw (str "aa" \newline)) (tw (str \newline)) (tw "bb")] 50))
+
+(test/deftest move-home-end-1
+  (let [model-after (textfield2/move-caret-mark move-home-end-model-before-0 :caret-&-mark :home nil nil)]
+    (test/is (= [0 0 0 0 0 0] (model->caret-mark-pos model-after)))))
+
+(test/deftest move-home-end-2
+  (let [model-after (textfield2/move-caret-mark move-home-end-model-before-0 :caret :home nil nil)]
+    (test/is (= [0 0 0 0 0 1] (model->caret-mark-pos model-after)))))
+
+(test/deftest move-home-end-3
+  (let [model-after (textfield2/move-caret-mark move-home-end-model-before-0 :caret-&-mark :end nil nil)]
+    (test/is (= [0 1 2 0 1 2] (model->caret-mark-pos model-after)))))
+
+(test/deftest move-home-end-4
+  (let [model-after (textfield2/move-caret-mark move-home-end-model-before-0 :caret :end nil nil)]
+    (test/is (= [0 1 2 0 0 1] (model->caret-mark-pos model-after)))))
+
+(def move-home-end-model-before-1
+  (->
+    (textfield2/move-caret-mark move-home-end-model-before-0 :caret-&-mark :end nil nil)
+    (textfield2/move-caret-mark :caret-&-mark :forward nil nil)))
+
+(test/deftest move-home-end-5
+  (let [model-after-1 (textfield2/move-caret-mark move-home-end-model-before-1 :caret :home nil nil)
+        model-after-2 (textfield2/move-caret-mark move-home-end-model-before-1 :caret :end nil nil)]
+    (test/is (= move-home-end-model-before-1 model-after-1))
+    (test/is (= move-home-end-model-before-1 model-after-2))))
+
+(def move-home-end-model-before-2
+  (->
+    (textfield2/move-caret-mark move-home-end-model-before-1 :caret-&-mark :end nil nil)
+    (textfield2/move-caret-mark :caret-&-mark :forward nil nil)
+    (textfield2/move-caret-mark :caret-&-mark :forward nil nil)))
+
+(test/deftest move-home-end-6
+  (let [model-after (textfield2/move-caret-mark move-home-end-model-before-2 :caret-&-mark :end nil nil)]
+    (test/is (= [2 0 2 2 0 2] (model->caret-mark-pos model-after)))))
+
+(test/deftest move-home-end-7
+  (let [model-after (textfield2/move-caret-mark move-home-end-model-before-2 :caret :end nil nil)]
+    (test/is (= [2 0 2 2 0 1] (model->caret-mark-pos model-after)))))
+
 (test/deftest has-selection?-test
   (let [model-cm-0-1-1 (textfield2/wrap-lines [(tw "aa ") (tw "b|b")
                                                (tw "cc ") (tw "dd")] 5)

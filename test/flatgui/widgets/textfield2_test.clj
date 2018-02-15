@@ -156,9 +156,9 @@
 (defn tw [s]
   (let [caret-pos (.indexOf s "|")
         s-clean (.replace s "|" "")
-        w-total (double (.length s-clean))
+        s-clean-no-linebreaks (.replace s-clean (str \newline) "")
+        w-total (double (.length s-clean-no-linebreaks))
         trailing-space-count (count (take-while #(= % \space) (reverse s-clean)))
-        ;w-content (- w-total (if (< trailing-space-count w-total) trailing-space-count 0)) ; whole word may consist of spaces
         w-content (- w-total trailing-space-count) ; whole word may consist of spaces
         glyphs (mapv test-sized-char-glyph s-clean)
         result-caret-pos (if (>= caret-pos 0) caret-pos)]
@@ -562,7 +562,7 @@
     (test-model
       model-after
       [[(str "aabb")] [(str "cc")]]
-      [[5.0]          [3.0]]  ;TODO should be 4 and 2
+      [[4.0]          [2.0]]
       0
       0
       [1.0            1.0])

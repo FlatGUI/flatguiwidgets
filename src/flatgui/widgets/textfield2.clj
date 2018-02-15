@@ -249,7 +249,7 @@
   (Line. words caret-word mark-word h (words->primitives words selection-continued-line)))
 
 (defn make-word [caret-pos w-content w-total h w-g total-g-count source-g-count]
-  (let [w-g-count (.size w-g) ;TODO w-g-count
+  (let [w-g-count (.size w-g)
         cp-up-bound-fn (if (< total-g-count source-g-count) < <=)
         word-caret-pos (if (and caret-pos (>= caret-pos (- total-g-count w-g-count)) (cp-up-bound-fn caret-pos total-g-count)) (- caret-pos (- total-g-count (.size w-g))))]
     (Word.

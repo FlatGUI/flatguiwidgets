@@ -21,24 +21,35 @@
 
 (def dummy-interop
   (proxy [IFGInteropUtil] []
-    (getStringWidth [str _font] (.length str))
+    (getStringWidth [str _font] (double (.length str)))
     (getFontHeight [_font] 1)
-    (getFontAscent [_font] 0)
-    ))
+    (getFontAscent [_font] 0)))
+
+(def dummy-var-interop
+  (proxy [IFGInteropUtil] []
+    (getStringWidth [s _font] (apply + (map (fn [c] (Integer/valueOf (str c))) s)))
+    (getFontHeight [_font] 1)
+    (getFontAscent [_font] 0)))
 
 (defn test-glyph
   ([data w h] (textfield2/glyph :test data {:w (double w) :h (double h)}))
   ([w h] (test-glyph nil w h)))
 
-(defn test-sized-glyph
-  ([data w h]
+(defn test-sized-glyph-impl
+  ([data w h interop]
    (let [g (textfield2/glyph :test data {:w (double w) :h (double h)})]
-     (assoc g :size (textfield2/glyph-size g dummy-interop))))
-  ([w h] (test-sized-glyph nil w h)))
+     (assoc g :size (textfield2/glyph-size g interop))))
+  ([w h interop] (test-sized-glyph-impl nil w h interop)))
 
-(defn test-sized-char-glyph [c]
+(defn test-sized-char-glyph-impl [c interop]
   (let [g (textfield2/char-glyph c)]
-    (assoc g :size (textfield2/glyph-size g dummy-interop))))
+    (assoc g :size (textfield2/glyph-size g interop))))
+
+(defn test-sized-glyph
+  ([data w h] (test-sized-glyph-impl data w h dummy-interop))
+  ([w h] (test-sized-glyph-impl w h dummy-interop)))
+
+(defn test-sized-char-glyph [c] (test-sized-char-glyph-impl c dummy-interop))
 
 (test/deftest make-words-test-1
   (let [glyphs (mapv test-sized-char-glyph "111")
@@ -153,16 +164,20 @@
   (test-lines "   11 22   " 2 [["   "] ["11 "] ["22   "]] [[3.0] [3.0] [5.0]])
   (test-lines "   11   22 " 2 [["   "] ["11   "] ["22 "]] [[3.0] [5.0] [3.0]]))
 
-(defn tw [s]
+(defn tw-impl [s interop]
   (let [caret-pos (.indexOf s "|")
         s-clean (.replace s "|" "")
         s-clean-no-linebreaks (.replace s-clean (str \newline) "")
-        w-total (double (.length s-clean-no-linebreaks))
+        w-total (.getStringWidth interop s-clean-no-linebreaks nil)
         trailing-space-count (count (take-while #(= % \space) (reverse s-clean)))
         w-content (- w-total trailing-space-count) ; whole word may consist of spaces
-        glyphs (mapv test-sized-char-glyph s-clean)
+        glyphs (mapv (fn [c] (test-sized-char-glyph-impl c interop)) s-clean)
         result-caret-pos (if (>= caret-pos 0) caret-pos)]
     (Word. glyphs result-caret-pos result-caret-pos w-content w-total 1.0)))
+
+(defn tw [s] (tw-impl s dummy-interop))
+
+(defn twv [s] (tw-impl s dummy-var-interop))
 
 (test/deftest wrap-test2
 
@@ -1108,6 +1123,31 @@
     (test/is (= expected-words (:words (first (:lines model-after-cm)))))
     (test/is (= expected-words (:words (first (:lines model-after-mc)))))
     (test/is (= model-after-cm model-after-mc))))
+
+(test/deftest x->pos-in-line-test
+  (let [w 7
+        source-word (twv "|1321")
+        model (textfield2/wrap-lines [source-word] w)
+        lines (:lines model)
+        line (nth lines 0)
+        words (:words line)
+        word (nth words 0)]
+    (test/is (= 1 (count lines)))
+    (test/is (= 1 (count words)))
+    (test/is (= 0 (textfield2/x->pos-in-word word 0.0)))
+    (test/is (= 0 (textfield2/x->pos-in-word word 0.49)))
+    (test/is (= 1 (textfield2/x->pos-in-word word 0.51)))
+    (test/is (= 1 (textfield2/x->pos-in-word word 1.0)))
+    (test/is (= 1 (textfield2/x->pos-in-word word 2.49)))
+    (test/is (= 2 (textfield2/x->pos-in-word word 2.51)))
+    (test/is (= 2 (textfield2/x->pos-in-word word 4.0)))
+    (test/is (= 2 (textfield2/x->pos-in-word word 4.99)))
+    (test/is (= 3 (textfield2/x->pos-in-word word 5.01)))
+    (test/is (= 3 (textfield2/x->pos-in-word word 6.0)))
+    (test/is (= 3 (textfield2/x->pos-in-word word 6.49)))
+    (test/is (= 4 (textfield2/x->pos-in-word word 6.51)))
+    (test/is (= 4 (textfield2/x->pos-in-word word 7.0)))
+    (test/is (= 4 (textfield2/x->pos-in-word word 8.0)))))
 
 ;;;
 ;;; Live tests

@@ -24,7 +24,7 @@
             [flatgui.comlogic :as fgc])
   (:import [java.awt.event KeyEvent]
            (flatgui.core.engine.ui FGTransferable)
-           (java.util ArrayList)))
+           (java.util ArrayList Collections)))
 
 
 (def default-style
@@ -283,7 +283,7 @@
                whitespace (whitespace? g)
                init-whitespace (:init-whitespace s)
                cached-g-size (:size g) ; Size might be already cached in glyph, e.g. if this called from kill-glyphs. Also will need size further.
-               g-size (if cached-g-size (:size g) (glyph-size g interop))
+               g-size (if cached-g-size cached-g-size (glyph-size g interop))
                sized-g (if cached-g-size g (assoc g :size g-size))
                g-w (:w g-size)
                effective-g-w (if (not whitespace) g-w 0)  ;TODO remove (if (or (not whitespace) (:init-whitespace s)) g-w 0)
@@ -508,6 +508,36 @@
   ([model old-caret-line-index old-mark-line-index caret-pos-changed mark-pos-changed]
    (rebuild-primitives model old-caret-line-index old-mark-line-index (:caret-line model) (:mark-line model) caret-pos-changed mark-pos-changed)))
 
+(defn- pos-bsearch [x-marks x]
+  (let [i (Collections/binarySearch x-marks x)]
+    (if (>= i 0)
+      i
+      (- (+ i 1)))))
+
+(defn x->pos-in-word [word x]
+  (let [glyphs (:glyphs word)
+        g-count (count glyphs)]
+    (if (pos? g-count)
+      (let [x-marks (loop [xm []
+                           w 0.0
+                           i 0]
+                      (if (< i g-count)
+                        (let [g (nth glyphs i)
+                              g-size (:size g)   ; Rely on that size is cached already
+                              g-w (:w g-size)
+                              w+half (+ w (/ g-w 2))
+                              w+full (+ w g-w)]
+                          (recur
+                            (-> (conj xm w+half) (conj w+full))
+                            w+full
+                            (inc i)))
+                        xm))]
+        (cond
+          (<= x (first x-marks)) 0
+          (>= x (last x-marks)) g-count
+          :else (Math/round (double (/ (pos-bsearch x-marks x) 2)))))
+      0)))
+
 (defmulti move-caret-mark (fn [_model what where _viewport-h _interop]
                             (assert (#{:caret :mark :caret-&-mark} what))
                             where))
@@ -539,25 +569,6 @@
       (if mark-to-caret-afterwards
         (move-mark-to-caret m)
         m))))
-
-
-;(defn- need-move-mark-to-caret? [model move-caret move-mark]
-;  (and
-;    (and move-caret move-mark)
-;    (let [caret-line-index (:caret-line model)
-;          mark-line-index (:mark-line model)
-;          caret-line (nth (:lines model) caret-line-index)
-;          mark-line (nth (:lines model) mark-line-index)
-;          caret-word-index (:caret-word caret-line)
-;          mark-word-index (:mark-word mark-line)
-;          caret-word (nth (:words caret-line) caret-word-index)
-;          mark-word (nth (:words mark-line) mark-word-index)
-;          mark-pos (:mark-pos mark-word)
-;          caret-pos (:caret-pos caret-word)]
-;      (or
-;        (not= caret-pos mark-pos)
-;        (not= caret-word-index mark-word-index)
-;        (not= caret-line-index mark-line-index)))))
 
 (defn move-caret-mark-1-char [model move-caret move-mark edge-fn edge-last-in-line-fn move-fn]
   (let [src-line-key (if move-caret :caret-line :mark-line)
@@ -600,12 +611,6 @@
                                  caret-line-index mark-line-index
                                  move-caret (or move-mark mark-to-caret)))))]
     (cond
-      ;; TODO
-      ;; Way 1)
-      ;; "-if-needed" condition should be checked here. This way we will avoid rebuilding twice:
-      ;; in move-for-keys and then in move-mark-to-caret-if-needed
-      ;; Way 2)
-      ;; just rebuild here, not in any of those two methods
       (not edge-glyph) (move-within-line (fn [m k] (assoc-in m [:lines line-index :words word-index (nth dest-pos-keys k)] (move-fn pos))))
       (not edge-word) (move-within-line
                         (fn [m k] (let [new-word-index (move-fn word-index)

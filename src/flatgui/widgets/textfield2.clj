@@ -534,8 +534,34 @@
                         xm))]
         (cond
           (<= x (first x-marks)) 0
-          (>= x (last x-marks)) g-count
+          (>= x (last x-marks)) g-count ;; cursor pos may be = g-count -- after last glyph
           :else (Math/round (double (/ (pos-bsearch x-marks x) 2)))))
+      0)))
+
+(defn x->pos-in-line [line x]
+  (let [words (:words line)
+        w-count (count words)]
+    (if (pos? w-count)
+      (let [x-marks (loop [xm []
+                           w 0.0
+                           i 0]
+                      (if (< i w-count)
+                        (let [word (nth words i)
+                              glyphs (:glyphs word)
+                              word-w (apply + (map (fn [g] (:w (:size g))) glyphs))
+                              w+full (+ w word-w)
+                              last-glyph (last glyphs)
+                              ;; Let's assume next word zone starts in the middle of the last inter-word space char
+                              space-allow (if (whitespace? last-glyph) (/ (:w (:size last-glyph)) 2) 0)]
+                          (recur
+                            (conj xm (- w+full space-allow))
+                            w+full
+                            (inc i)))
+                        xm))]
+        (cond
+          (<= x (first x-marks)) 0
+          (>= x (last x-marks)) (dec w-count) ;; word index may not be >= w-count
+          :else (pos-bsearch x-marks x)))
       0)))
 
 (defmulti move-caret-mark (fn [_model what where _viewport-h _interop]

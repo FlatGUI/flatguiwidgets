@@ -1149,6 +1149,28 @@
     (test/is (= 4 (textfield2/x->pos-in-word word 7.0)))
     (test/is (= 4 (textfield2/x->pos-in-word word 8.0)))))
 
+(test/deftest x->pos-in-line-test
+  (let [w 50
+        model (textfield2/wrap-lines [(tw "|aa ") (tw "bbbbb ") (tw "ccc")] w)
+        lines (:lines model)
+        line (nth lines 0)]
+    (test/is (= 1 (count lines)))
+    (test/is (= 0 (textfield2/x->pos-in-line line 0.0)))
+    (test/is (= 0 (textfield2/x->pos-in-line line 1.0)))
+    (test/is (= 0 (textfield2/x->pos-in-line line 2.4)))
+    (test/is (= 0 (textfield2/x->pos-in-line line 2.5)))
+    (test/is (= 1 (textfield2/x->pos-in-line line 2.51)))
+    (test/is (= 1 (textfield2/x->pos-in-line line 2.9)))
+    (test/is (= 1 (textfield2/x->pos-in-line line 3.0)))
+    (test/is (= 1 (textfield2/x->pos-in-line line 3.1)))
+    (test/is (= 1 (textfield2/x->pos-in-line line 8.49)))
+    (test/is (= 2 (textfield2/x->pos-in-line line 8.51)))
+    (test/is (= 2 (textfield2/x->pos-in-line line 8.9)))
+    (test/is (= 2 (textfield2/x->pos-in-line line 9.0)))
+    (test/is (= 2 (textfield2/x->pos-in-line line 10.5)))
+    (test/is (= 2 (textfield2/x->pos-in-line line 12.0)))
+    (test/is (= 2 (textfield2/x->pos-in-line line 13.0)))))
+
 ;;;
 ;;; Live tests
 ;;;

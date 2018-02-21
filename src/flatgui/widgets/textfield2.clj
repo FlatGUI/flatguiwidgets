@@ -548,7 +548,7 @@
                       (if (< i w-count)
                         (let [word (nth words i)
                               glyphs (:glyphs word)
-                              word-w (apply + (map (fn [g] (:w (:size g))) glyphs))
+                              word-w  (:w-total word)  ;(apply + (map (fn [g] (:w (:size g))) glyphs))
                               w+full (+ w word-w)
                               last-glyph (last glyphs)
                               ;; Let's assume next word zone starts in the middle of the last inter-word space char
@@ -729,6 +729,58 @@
 
 (defmethod move-caret-mark :end [model what where _viewport-h _interop]
   (move-line-home-end model what where))
+
+(defn get-caret-x [model]
+  (let [line (nth (:lines model) (:caret-line model))
+        caret-word-index (:caret-word line)
+        words (:words line)
+        caret-word (nth words caret-word-index)
+        caret-pos (:caret-pos caret-word)]
+    (+
+      (apply + (map :w-total (take caret-word-index words)))
+      (apply + (map #(:w (:size %)) (take caret-pos (:glyphs caret-word)))))))
+
+
+(defn move-1-line-up-down [model what where]
+  (let [caret-line-index (:caret-line model)
+        lines (:lines model)]
+    (if (or
+          (and (= where :up) (> caret-line-index 0))
+          (and (= where :down) (< caret-line-index (dec (count lines)))))
+      (let [mark-line-index (:mark-line model)
+            caret-word-index (get-in lines [caret-line-index :caret-word])
+            mark-word-index (get-in lines [mark-line-index :mark-word])
+            new-line-index (if (= where :up) (dec caret-line-index) (inc caret-line-index))
+            new-line (nth lines new-line-index)
+            line-x (get-caret-x model)
+            new-caret-word-index (x->pos-in-line new-line line-x)
+            new-words (:words new-line)
+            new-caret-word (nth new-words new-caret-word-index)
+            new-caret-in-word-x (- line-x (apply + (map :w-total (take new-caret-word-index new-words))))
+            new-caret-pos (x->pos-in-word new-caret-word new-caret-in-word-x)
+            updated-caret-model (->
+                                  (assoc-in model [:lines caret-line-index :words caret-word-index :caret-pos] nil)
+                                  (assoc-in [:lines caret-line-index :caret-word] nil)
+                                  (assoc-in [:lines new-line-index :caret-word] new-caret-word-index)
+                                  (assoc-in [:lines new-line-index :words new-caret-word-index :caret-pos] new-caret-pos)
+                                  (assoc :caret-line new-line-index))
+            mark-change (= what :caret-&-mark)
+            updated-cm-model (if mark-change
+                               (->
+                                 (assoc-in updated-caret-model [:lines mark-line-index :words mark-word-index :mark-pos] nil)
+                                 (assoc-in [:lines mark-line-index :mark-word] nil)
+                                 (assoc-in [:lines new-line-index :mark-word] new-caret-word-index)
+                                 (assoc-in [:lines new-line-index :words new-caret-word-index :mark-pos] new-caret-pos)
+                                 (assoc :mark-line new-line-index))
+                               updated-caret-model)]
+        (rebuild-primitives updated-cm-model caret-line-index mark-line-index new-line-index (if mark-change new-line-index mark-line-index) nil nil))
+      model)))
+
+(defmethod move-caret-mark :up [model what where _viewport-h _interop]
+  (move-1-line-up-down model what where))
+
+(defmethod move-caret-mark :down [model what where _viewport-h _interop]
+  (move-1-line-up-down model what where))
 
 (defn truncated-word-reducer [words word]
   (cond
@@ -975,8 +1027,8 @@
               KeyEvent/VK_RIGHT (move-caret-mark old-model (if shift :caret :caret-&-mark) :forward nil nil)
               KeyEvent/VK_HOME (move-caret-mark old-model (if shift :caret :caret-&-mark) :home nil nil)
               KeyEvent/VK_END (move-caret-mark old-model (if shift :caret :caret-&-mark) :end nil nil)
-              KeyEvent/VK_UP old-model
-              KeyEvent/VK_DOWN old-model
+              KeyEvent/VK_UP old-model (move-caret-mark old-model (if shift :caret :caret-&-mark) :up nil nil)
+              KeyEvent/VK_DOWN old-model (move-caret-mark old-model (if shift :caret :caret-&-mark) :down nil nil)
               KeyEvent/VK_PAGE_UP old-model
               KeyEvent/VK_PAGE_DOWN old-model
               old-model)

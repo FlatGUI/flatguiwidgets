@@ -439,6 +439,23 @@
     (test/is (= [nil 0.0 2.0] (model-line->caret-sel-coords model-after 0)))
     (test/is (= [2.0 0.0 2.0] (model-line->caret-sel-coords model-after 1)))))
 
+(test/deftest rebuild-primitives-test-1
+  (let [w 7
+        model (textfield2/wrap-lines [(tw "aa ") (tw "bb ")
+                                      (tw "cccc| ")
+                                      (tw "dddd ")
+                                      (tw "eee ") (tw "ff ")] w)
+        model-after (->
+                      (assoc-in model [:lines 1 :words 0 :caret-pos] nil)
+                      (assoc-in [:lines 1 :caret-word] nil)
+                      (assoc-in [:lines 2 :caret-word] 0)
+                      (assoc-in [:lines 2 :words 0 :caret-pos] 4)
+                      (textfield2/rebuild-primitives 1 1 2 1 true false))]
+    (test/is (= [nil nil nil] (model-line->caret-sel-coords model-after 0)))
+    (test/is (= [nil 4.0 5.0] (model-line->caret-sel-coords model-after 1)))
+    (test/is (= [4.0 0.0 4.0] (model-line->caret-sel-coords model-after 2)))
+    (test/is (= [nil nil nil] (model-line->caret-sel-coords model-after 3)))))
+
 (test/deftest line-h-test-1
   (let [words [(tw "The ")                  (assoc (tw "quick ") :h 2.0)
                (assoc (tw "brown ") :h 0.5) (tw "fox| ")
@@ -1170,6 +1187,44 @@
     (test/is (= 2 (textfield2/x->pos-in-line line 10.5)))
     (test/is (= 2 (textfield2/x->pos-in-line line 12.0)))
     (test/is (= 2 (textfield2/x->pos-in-line line 13.0)))))
+
+(test/deftest move-up-down-test
+  (let [w 7
+        model-cm-1-0-4 (textfield2/wrap-lines [(tw "aa ") (tw "bb ")
+                                               (tw "cccc| ")
+                                               (tw "dddd ")
+                                               (tw "eee ") (tw "ff ")] w)
+        model-cm-0-1-1 (textfield2/move-1-line-up-down model-cm-1-0-4 :caret-&-mark :up)
+        model-cm-1-0-4a (textfield2/move-1-line-up-down model-cm-0-1-1 :caret-&-mark :down)
+        model-c-2-0-4-m-1-0-4 (textfield2/move-1-line-up-down model-cm-1-0-4a :caret :down)
+        model-c-3-1-1-m-1-0-4 (textfield2/move-1-line-up-down model-c-2-0-4-m-1-0-4 :caret :down)
+        model-c-0-1-1-m-1-0-4 (->
+                                (textfield2/move-1-line-up-down model-cm-1-0-4a :caret :up)
+                                (textfield2/move-1-line-up-down :caret :up))]
+
+    (test/is (= [0 1 1 0 1 1] (model->caret-mark-pos model-cm-0-1-1)))
+    (test/is (= [4.0 nil nil] (model-line->caret-sel-coords model-cm-0-1-1 0)))
+
+    (test/is (= [1 0 4 1 0 4] (model->caret-mark-pos model-cm-1-0-4a)))
+    (test/is (model-content-equal model-cm-1-0-4 model-cm-1-0-4a))
+
+    (test/is (= [2 0 4 1 0 4] (model->caret-mark-pos model-c-2-0-4-m-1-0-4)))
+    (test/is (= [nil nil nil] (model-line->caret-sel-coords model-c-2-0-4-m-1-0-4 0)))
+    (test/is (= [nil 4.0 5.0] (model-line->caret-sel-coords model-c-2-0-4-m-1-0-4 1)))
+    (test/is (= [4.0 0.0 4.0] (model-line->caret-sel-coords model-c-2-0-4-m-1-0-4 2)))
+    (test/is (= [nil nil nil] (model-line->caret-sel-coords model-c-2-0-4-m-1-0-4 3)))
+
+    (test/is (= [3 1 0 1 0 4] (model->caret-mark-pos model-c-3-1-1-m-1-0-4)))
+    (test/is (= [nil nil nil] (model-line->caret-sel-coords model-c-3-1-1-m-1-0-4 0)))
+    (test/is (= [nil 4.0 5.0] (model-line->caret-sel-coords model-c-3-1-1-m-1-0-4 1)))
+    (test/is (= [nil 0.0 5.0] (model-line->caret-sel-coords model-c-3-1-1-m-1-0-4 2)))
+    (test/is (= [4.0 0.0 4.0] (model-line->caret-sel-coords model-c-3-1-1-m-1-0-4 3)))
+
+    (test/is (= [0 1 1 1 0 4] (model->caret-mark-pos model-c-0-1-1-m-1-0-4)))
+    (test/is (= [4.0 4.0 6.0] (model-line->caret-sel-coords model-c-0-1-1-m-1-0-4 0)))
+    (test/is (= [nil 0.0 4.0] (model-line->caret-sel-coords model-c-0-1-1-m-1-0-4 1)))
+    (test/is (= [nil nil nil] (model-line->caret-sel-coords model-c-0-1-1-m-1-0-4 2)))
+    (test/is (= [nil nil nil] (model-line->caret-sel-coords model-c-0-1-1-m-1-0-4 3)))))
 
 ;;;
 ;;; Live tests

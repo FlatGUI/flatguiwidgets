@@ -92,7 +92,7 @@
 (defn word->str [word] (apply str (map glyph-data-mapper (:glyphs word))))
 
 
-(defrecord Model [lines caret-line mark-line])
+(defrecord Model [lines caret-line mark-line total-h])
 
 (defrecord Line [words caret-word mark-word h primitives])
 
@@ -310,7 +310,7 @@
                       0 0
                       false
                       0)]
-                   0 0))
+                   0 0 0))
 
 
 (defmulti glyph-> (fn [entity _g _w _interop] (class entity)))
@@ -371,6 +371,7 @@
       (let [line-state (volatile! [])
             line-w-state (volatile! 0)
             line-h-state (volatile! 0)
+            model-h-state (volatile! 0)
             line-caret-index-state (volatile! 0)
             line-caret-met-state (volatile! false)
             model-caret-index-state (volatile! 0)
@@ -381,9 +382,10 @@
           ([] (rf))
           ([result]
            (let [caret-word (if @line-caret-met-state @line-caret-index-state)
-                 final-result (rf result (make-line @line-state caret-word caret-word @model-selection-continues-to-next-line-state @line-h-state))
+                 line-h @line-h-state
+                 final-result (rf result (make-line @line-state caret-word caret-word @model-selection-continues-to-next-line-state line-h))
                  caret-line (if @model-caret-met-state @model-caret-index-state)]
-             (Model. final-result caret-line caret-line)))
+             (Model. final-result caret-line caret-line (+ @model-h-state line-h))))
           ([result word]
            (let [line @line-state
                  line-w @line-w-state
@@ -407,11 +409,11 @@
                  (let [line-caret-index (if @line-caret-met-state @line-caret-index-state)]
                    (vreset! line-state [word])
                    (vreset! line-w-state w-total)
+                   (vswap! model-h-state + line-h)
                    (vreset! line-h-state word-h)
                    (vreset! line-caret-index-state 0)
                    (vreset! line-caret-met-state false)
                    (if (not @model-caret-met-state) (vswap! model-caret-index-state inc))
-                   ;(process-caret)
                    (let [sel-cont @model-selection-continues-to-next-line-state
                          process-result (rf result (make-line line line-caret-index line-caret-index sel-cont line-h))]
                      (do
@@ -441,12 +443,15 @@
    (let [line-num-to-start-rewrap (dec (min (:caret-line model) (:mark-line model)))]
     (if (>= line-num-to-start-rewrap 0)
       (let [prior-lines (take line-num-to-start-rewrap (:lines model))
+            prior-h (apply + (map :h prior-lines))
             words-to-wrap (concat
                             (:words (nth (:lines model) line-num-to-start-rewrap))
                             caret-line-and-following-words)
             remainder-model (wrap-lines words-to-wrap w)
             result-caret-line (+ (count prior-lines) (:caret-line remainder-model))]
-        (Model. (vec (concat prior-lines (:lines remainder-model))) result-caret-line result-caret-line)) ;TODO resut-mark-line
+        (Model.
+          (vec (concat prior-lines (:lines remainder-model)))
+          result-caret-line result-caret-line (+ prior-h (:total-h remainder-model)))) ;TODO resut-mark-line
       (wrap-lines caret-line-and-following-words w))))
 
 

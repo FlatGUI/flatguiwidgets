@@ -239,9 +239,25 @@
     [["The " "quick "] ["brown " "fox "] ["jumps "] ["over " "the "] ["lazy " "dog"]]
     [[4.0 6.0] [6.0 4.0] [6.0] [5.0 4.0] [5.0 3.0]]
     4
-    1)
+    1))
 
-  )
+(test/deftest wrap-test3
+  (let [words [(tw "T|he ") (tw "quick ")
+               (tw "brown ") (tw "fox ")
+               (tw "jumps ")
+               (tw "over ") (tw "the ")
+               (tw "lazy ") (tw "dog")]
+        model (textfield2/wrap-lines words 9)]
+    (test/is (= 5.0 (:total-h model)))))
+
+(test/deftest wrap-test4
+  (let [words [(tw "T|he ") (tw "quick ")
+               (tw "brown ") (tw "fox ")
+               (tw "jumps ")
+               (tw "over ") (tw "the ")
+               (tw "lazy ") (tw (str "dog" \newline))]
+        model (textfield2/wrap-lines words 9)]
+    (test/is (= 5.0 (:total-h model)))))
 
 (test/deftest insert-symbol-test-1
   (let [words [(tw "T|he ") (tw "quick ")

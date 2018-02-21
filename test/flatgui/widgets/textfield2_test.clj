@@ -248,16 +248,24 @@
                (tw "over ") (tw "the ")
                (tw "lazy ") (tw "dog")]
         model (textfield2/wrap-lines words 9)]
-    (test/is (= 5.0 (:total-h model)))))
+    (test/is (= 5.0 (:total-h model)))
+    (test/is (= [0.0 1.0 2.0 3.0 4.0] (mapv :y (:lines model))))))
 
 (test/deftest wrap-test4
-  (let [words [(tw "T|he ") (tw "quick ")
+  (let [w 9
+        words [(tw "The ") (tw "quick ")
                (tw "brown ") (tw "fox ")
                (tw "jumps ")
-               (tw "over ") (tw "the ")
+               (tw "overZ ") (tw "the| ")
                (tw "lazy ") (tw (str "dog" \newline))]
-        model (textfield2/wrap-lines words 9)]
-    (test/is (= 5.0 (:total-h model)))))
+        model-before (textfield2/wrap-lines words w)
+        model-after (textfield2/glyph-> model-before (textfield2/char-glyph \Z) w dummy-interop)]
+
+    (test/is (= 5.0 (:total-h model-before)))
+    (test/is (= [0.0 1.0 2.0 3.0 4.0] (mapv :y (:lines model-before))))
+
+    (test/is (= 6.0 (:total-h model-after)))
+    (test/is (= [0.0 1.0 2.0 3.0 4.0 5.0] (mapv :y (:lines model-after))))))
 
 (test/deftest insert-symbol-test-1
   (let [words [(tw "T|he ") (tw "quick ")

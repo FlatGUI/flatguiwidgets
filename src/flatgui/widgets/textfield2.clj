@@ -94,7 +94,7 @@
 
 (defrecord Model [lines caret-line mark-line total-h])
 
-(defrecord Line [words caret-word mark-word h primitives])
+(defrecord Line [words caret-word mark-word y h primitives])
 
 (defrecord Word [glyphs caret-pos mark-pos w-content w-total h]
   Object
@@ -245,8 +245,8 @@
   (let [glyphs (mapcat glyph-primitive-extractor words)]
     (transduce (create-render-line-primitives-transducer selection-continued-line) conj glyphs)))
 
-(defn make-line [words caret-word mark-word selection-continued-line h]
-  (Line. words caret-word mark-word h (words->primitives words selection-continued-line)))
+(defn make-line [words caret-word mark-word selection-continued-line y h]
+  (Line. words caret-word mark-word y h (words->primitives words selection-continued-line)))
 
 (defn make-word [caret-pos w-content w-total h w-g total-g-count source-g-count]
   (let [w-g-count (.size w-g)
@@ -309,6 +309,7 @@
                       [empty-word-with-caret-&-mark]
                       0 0
                       false
+                      0.0
                       0)]
                    0 0 0))
 
@@ -371,7 +372,7 @@
       (let [line-state (volatile! [])
             line-w-state (volatile! 0)
             line-h-state (volatile! 0)
-            model-h-state (volatile! 0)
+            model-h-state (volatile! 0.0)
             line-caret-index-state (volatile! 0)
             line-caret-met-state (volatile! false)
             model-caret-index-state (volatile! 0)
@@ -383,9 +384,10 @@
           ([result]
            (let [caret-word (if @line-caret-met-state @line-caret-index-state)
                  line-h @line-h-state
-                 final-result (rf result (make-line @line-state caret-word caret-word @model-selection-continues-to-next-line-state line-h))
+                 line-y @model-h-state
+                 final-result (rf result (make-line @line-state caret-word caret-word @model-selection-continues-to-next-line-state line-y line-h))
                  caret-line (if @model-caret-met-state @model-caret-index-state)]
-             (Model. final-result caret-line caret-line (+ @model-h-state line-h))))
+             (Model. final-result caret-line caret-line (+ line-y line-h))))
           ([result word]
            (let [line @line-state
                  line-w @line-w-state
@@ -406,7 +408,8 @@
                                       (vreset! model-sel-met-state true)))]
              (do
                (if end-line
-                 (let [line-caret-index (if @line-caret-met-state @line-caret-index-state)]
+                 (let [line-caret-index (if @line-caret-met-state @line-caret-index-state)
+                       line-y @model-h-state]
                    (vreset! line-state [word])
                    (vreset! line-w-state w-total)
                    (vswap! model-h-state + line-h)
@@ -415,7 +418,7 @@
                    (vreset! line-caret-met-state false)
                    (if (not @model-caret-met-state) (vswap! model-caret-index-state inc))
                    (let [sel-cont @model-selection-continues-to-next-line-state
-                         process-result (rf result (make-line line line-caret-index line-caret-index sel-cont line-h))]
+                         process-result (rf result (make-line line line-caret-index line-caret-index sel-cont line-y line-h))]
                      (do
                        (if @model-sel-met-state (vreset! model-selection-continues-to-next-line-state true))
                        (process-caret)
@@ -450,7 +453,7 @@
             remainder-model (wrap-lines words-to-wrap w)
             result-caret-line (+ (count prior-lines) (:caret-line remainder-model))]
         (Model.
-          (vec (concat prior-lines (:lines remainder-model)))
+          (vec (concat prior-lines (mapv (fn [l] (update l :y + prior-h)) (:lines remainder-model))))
           result-caret-line result-caret-line (+ prior-h (:total-h remainder-model)))) ;TODO resut-mark-line
       (wrap-lines caret-line-and-following-words w))))
 
@@ -989,6 +992,11 @@
 
 (fg/defaccessorfn get-effective-w [component]
   (- (m/x (get-property component [:this] :clip-size)) (awt/strh component)))
+
+(fg/defevolverfn :content-size
+  (let [cs (get-property [:this] :clip-size)
+        model (get-property [:this] :model)]
+    (m/defpoint (m/x cs) (max (:total-h model) (m/y cs)))))
 
 (fg/defevolverfn :model
   (cond

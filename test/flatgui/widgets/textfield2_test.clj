@@ -1188,7 +1188,7 @@
     (test/is (= 2 (textfield2/x->pos-in-line line 12.0)))
     (test/is (= 2 (textfield2/x->pos-in-line line 13.0)))))
 
-(test/deftest move-up-down-test
+(test/deftest move-up-down-test-1
   (let [w 7
         model-cm-1-0-4 (textfield2/wrap-lines [(tw "aa ") (tw "bb ")
                                                (tw "cccc| ")
@@ -1225,6 +1225,26 @@
     (test/is (= [nil 0.0 4.0] (model-line->caret-sel-coords model-c-0-1-1-m-1-0-4 1)))
     (test/is (= [nil nil nil] (model-line->caret-sel-coords model-c-0-1-1-m-1-0-4 2)))
     (test/is (= [nil nil nil] (model-line->caret-sel-coords model-c-0-1-1-m-1-0-4 3)))))
+
+(test/deftest move-up-down-test-2
+  (let [w 7
+        model-cm-1-0-4 (textfield2/wrap-lines [(tw (str "aaa" \newline)) (tw "bbbb|")] w)
+        model-cm-0-0-3 (textfield2/move-1-line-up-down model-cm-1-0-4 :caret-&-mark :up)]
+
+    (test/is (= [0 0 3 0 0 3] (model->caret-mark-pos model-cm-0-0-3)))
+    (test/is (= [3.0 nil nil] (model-line->caret-sel-coords model-cm-0-0-3 0)))
+    (test/is (= [nil nil nil] (model-line->caret-sel-coords model-cm-0-0-3 1)))
+    ))
+
+(test/deftest move-up-down-test-3
+  (let [w 4
+        model-cm-0-0-4 (textfield2/wrap-lines [(tw "bbbb|") (tw (str "aaa" \newline))] w)
+        model-cm-1-0-3 (textfield2/move-1-line-up-down model-cm-0-0-4 :caret-&-mark :down)]
+
+    (test/is (= [1 0 3 1 0 3] (model->caret-mark-pos model-cm-1-0-3)))
+    (test/is (= [nil nil nil] (model-line->caret-sel-coords model-cm-1-0-3 0)))
+    (test/is (= [3.0 nil nil] (model-line->caret-sel-coords model-cm-1-0-3 1)))))
+
 
 ;;;
 ;;; Live tests

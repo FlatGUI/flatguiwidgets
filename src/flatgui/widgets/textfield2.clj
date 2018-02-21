@@ -516,7 +516,7 @@
 
 (defn x->pos-in-word [word x]
   (let [glyphs (:glyphs word)
-        g-count (count glyphs)]
+        g-count (if (linebreak? (last glyphs)) (dec (count glyphs)) (count glyphs))]
     (if (pos? g-count)
       (let [x-marks (loop [xm []
                            w 0.0
@@ -1027,8 +1027,8 @@
               KeyEvent/VK_RIGHT (move-caret-mark old-model (if shift :caret :caret-&-mark) :forward nil nil)
               KeyEvent/VK_HOME (move-caret-mark old-model (if shift :caret :caret-&-mark) :home nil nil)
               KeyEvent/VK_END (move-caret-mark old-model (if shift :caret :caret-&-mark) :end nil nil)
-              KeyEvent/VK_UP old-model (move-caret-mark old-model (if shift :caret :caret-&-mark) :up nil nil)
-              KeyEvent/VK_DOWN old-model (move-caret-mark old-model (if shift :caret :caret-&-mark) :down nil nil)
+              KeyEvent/VK_UP (move-caret-mark old-model (if shift :caret :caret-&-mark) :up nil nil)
+              KeyEvent/VK_DOWN (move-caret-mark old-model (if shift :caret :caret-&-mark) :down nil nil)
               KeyEvent/VK_PAGE_UP old-model
               KeyEvent/VK_PAGE_DOWN old-model
               old-model)

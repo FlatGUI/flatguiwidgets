@@ -32,6 +32,8 @@
    :foreground :prime-6
    :background :prime-4})
 
+(defn default-line-h [interop] (.getFontHeight interop (:font default-style)))
+
 (defn glyph [type data style]
   {:type type
    :data data
@@ -367,7 +369,7 @@
 (defn lines->line-heights [lines] (mapv :h lines))
 
 (defn wrap-lines
-  ([w]
+  ([w interop]
     (fn [rf]
       (let [line-state (volatile! [])
             line-w-state (volatile! 0)
@@ -394,7 +396,7 @@
                  line-h @line-h-state
                  w-content (:w-content word)
                  w-total (:w-total word)
-                 word-h (:h word)
+                 word-h (if (= empty-word-with-caret-&-mark word) (default-line-h interop) (:h word))
                  caret-pos (:caret-pos word)
                  mark-pos (:mark-pos word)
                  end-line (or (> (+ line-w w-content) w) (linebreak? (last (:glyphs (last line)))))
@@ -431,7 +433,7 @@
                    (process-caret)
                    (process-sel)
                    result)))))))))
-  ([words w] (transduce (wrap-lines w) conj words)))
+  ([words w interop] (transduce (wrap-lines w interop) conj words)))
 
 ;; Example 1:
 ;; line 0 - will be contained in prior-lines
@@ -442,7 +444,7 @@
 ;; Example 2:
 ;; line 0 - caret/mark line; line-num-to-start-rewrap will be = -1;
 ;; line 1 ...
-(defn rewrap-partially [model w caret-line-and-following-words]
+(defn rewrap-partially [model w caret-line-and-following-words interop]
    (let [line-num-to-start-rewrap (dec (min (:caret-line model) (:mark-line model)))]
     (if (>= line-num-to-start-rewrap 0)
       (let [prior-lines (take line-num-to-start-rewrap (:lines model))
@@ -450,12 +452,12 @@
             words-to-wrap (concat
                             (:words (nth (:lines model) line-num-to-start-rewrap))
                             caret-line-and-following-words)
-            remainder-model (wrap-lines words-to-wrap w)
+            remainder-model (wrap-lines words-to-wrap w interop)
             result-caret-line (+ (count prior-lines) (:caret-line remainder-model))]
         (Model.
           (vec (concat prior-lines (mapv (fn [l] (update l :y + prior-h)) (:lines remainder-model))))
           result-caret-line result-caret-line (+ prior-h (:total-h remainder-model)))) ;TODO resut-mark-line
-      (wrap-lines caret-line-and-following-words w))))
+      (wrap-lines caret-line-and-following-words w interop))))
 
 
 ;;; TODO more than one glyph at once (e.g. from clipboard) and only then rewrap
@@ -467,7 +469,7 @@
         remainder-words (concat
                           (flatten (assoc (:words line-with-caret) caret-word-index (glyph-> word-with-caret g w interop)))
                           (mapcat :words (take-last (- (count (:lines model)) (:caret-line model) 1) (:lines model))))]
-    (rewrap-partially model w remainder-words)))
+    (rewrap-partially model w remainder-words interop)))
 
 (defn has-selection? [model]
   (if (not= (:caret-line model) (:mark-line model))
@@ -916,7 +918,7 @@
         (let [remainder-words (mapcat :words (take-last (- (count lines) from-line-index) (:lines m)))]
           (if (and (= (count (:lines model)) 1) (= (count remainder-words) 1) (nil? (first remainder-words)))
             empty-model
-            (rewrap-partially model w (truncate-words remainder-words))))))))
+            (rewrap-partially model w (truncate-words remainder-words) interop)))))))
 
 (defn do-delete [model w interop]
   (let [line-index (:caret-line model)

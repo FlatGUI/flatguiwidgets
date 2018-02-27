@@ -1230,13 +1230,13 @@
                                                (tw "cccc| ")
                                                (tw "dddd ")
                                                (tw "eee ") (tw "ff ")] w)
-        model-cm-0-1-1 (textfield2/move-1-line-up-down model-cm-1-0-4 :caret-&-mark :up)
-        model-cm-1-0-4a (textfield2/move-1-line-up-down model-cm-0-1-1 :caret-&-mark :down)
-        model-c-2-0-4-m-1-0-4 (textfield2/move-1-line-up-down model-cm-1-0-4a :caret :down)
-        model-c-3-1-1-m-1-0-4 (textfield2/move-1-line-up-down model-c-2-0-4-m-1-0-4 :caret :down)
+        model-cm-0-1-1 (textfield2/move-caret-mark model-cm-1-0-4 :caret-&-mark :up nil nil)
+        model-cm-1-0-4a (textfield2/move-caret-mark model-cm-0-1-1 :caret-&-mark :down nil nil)
+        model-c-2-0-4-m-1-0-4 (textfield2/move-caret-mark model-cm-1-0-4a :caret :down nil nil)
+        model-c-3-1-1-m-1-0-4 (textfield2/move-caret-mark model-c-2-0-4-m-1-0-4 :caret :down nil nil)
         model-c-0-1-1-m-1-0-4 (->
-                                (textfield2/move-1-line-up-down model-cm-1-0-4a :caret :up)
-                                (textfield2/move-1-line-up-down :caret :up))]
+                                (textfield2/move-caret-mark model-cm-1-0-4a :caret :up nil nil)
+                                (textfield2/move-caret-mark :caret :up nil nil))]
 
     (test/is (= [0 1 1 0 1 1] (model->caret-mark-pos model-cm-0-1-1)))
     (test/is (= [4.0 nil nil] (model-line->caret-sel-coords model-cm-0-1-1 0)))
@@ -1265,7 +1265,7 @@
 (test/deftest move-up-down-test-2
   (let [w 7
         model-cm-1-0-4 (test-wrap-lines [(tw (str "aaa" \newline)) (tw "bbbb|")] w)
-        model-cm-0-0-3 (textfield2/move-1-line-up-down model-cm-1-0-4 :caret-&-mark :up)]
+        model-cm-0-0-3 (textfield2/move-caret-mark model-cm-1-0-4 :caret-&-mark :up nil nil)]
 
     (test/is (= [0 0 3 0 0 3] (model->caret-mark-pos model-cm-0-0-3)))
     (test/is (= [3.0 nil nil] (model-line->caret-sel-coords model-cm-0-0-3 0)))
@@ -1275,12 +1275,51 @@
 (test/deftest move-up-down-test-3
   (let [w 4
         model-cm-0-0-4 (test-wrap-lines [(tw "bbbb|") (tw (str "aaa" \newline))] w)
-        model-cm-1-0-3 (textfield2/move-1-line-up-down model-cm-0-0-4 :caret-&-mark :down)]
+        model-cm-1-0-3 (textfield2/move-caret-mark model-cm-0-0-4 :caret-&-mark :down nil nil)]
 
     (test/is (= [1 0 3 1 0 3] (model->caret-mark-pos model-cm-1-0-3)))
     (test/is (= [nil nil nil] (model-line->caret-sel-coords model-cm-1-0-3 0)))
     (test/is (= [3.0 nil nil] (model-line->caret-sel-coords model-cm-1-0-3 1)))))
 
+(test/deftest page-up-down-test-1
+  (let [w 4
+        model-before (test-wrap-lines [(tw "0000")
+                                       (tw "1111|")
+                                       (tw "2222")
+                                       (tw "3333")
+                                       (tw "4444")
+                                       (tw "5555")
+                                       (tw "6666")
+                                       (tw "7777")
+                                       (tw "8888")] w)
+        model-c3 (textfield2/move-caret-mark model-before :caret-&-mark :page-down 3 nil)
+        model-c5 (textfield2/move-caret-mark model-c3 :caret-&-mark :page-down 3 nil)
+        model-c7 (textfield2/move-caret-mark model-c5 :caret-&-mark :page-down 3 nil)
+        model-c8 (textfield2/move-caret-mark model-c7 :caret-&-mark :page-down 3 nil)
+        model-c6 (textfield2/move-caret-mark model-c8 :caret-&-mark :page-up 3 nil)
+        model-c4 (textfield2/move-caret-mark model-c6 :caret-&-mark :page-up 3 nil)
+        model-c2 (textfield2/move-caret-mark model-c4 :caret-&-mark :page-up 3 nil)
+        model-c0 (textfield2/move-caret-mark model-c2 :caret-&-mark :page-up 3 nil)]
+
+    (test/is (= [3 0 4 3 0 4] (model->caret-mark-pos model-c3)))
+    (test/is (= [5 0 4 5 0 4] (model->caret-mark-pos model-c5)))
+    (test/is (= [7 0 4 7 0 4] (model->caret-mark-pos model-c7)))
+    (test/is (= [8 0 4 8 0 4] (model->caret-mark-pos model-c8)))
+    (test/is (= [6 0 4 6 0 4] (model->caret-mark-pos model-c6)))
+    (test/is (= [4 0 4 4 0 4] (model->caret-mark-pos model-c4)))
+    (test/is (= [2 0 4 2 0 4] (model->caret-mark-pos model-c2)))
+    (test/is (= [0 0 4 0 0 4] (model->caret-mark-pos model-c0)))))
+
+(test/deftest page-up-down-test-2
+  (let [w 4
+        model-before (test-wrap-lines [(tw "0000")
+                                       (tw "1111|")
+                                       (tw "2222")] w)
+        model-c2 (textfield2/move-caret-mark model-before :caret :page-down 3 nil)
+        model-c0 (textfield2/move-caret-mark model-c2 :caret :page-up 3 nil)]
+
+    (test/is (= [2 0 4 1 0 4] (model->caret-mark-pos model-c2)))
+    (test/is (= [0 0 4 1 0 4] (model->caret-mark-pos model-c0)))))
 
 ;;;
 ;;; Live tests

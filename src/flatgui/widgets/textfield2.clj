@@ -751,46 +751,73 @@
       (apply + (map #(:w (:size %)) (take caret-pos (:glyphs caret-word)))))))
 
 
-(defn move-1-line-up-down [model what where]
+(defn move-up-down [model what _where new-line-index]
   (let [caret-line-index (:caret-line model)
         lines (:lines model)]
-    (if (or
-          (and (= where :up) (> caret-line-index 0))
-          (and (= where :down) (< caret-line-index (dec (count lines)))))
-      (let [mark-line-index (:mark-line model)
-            caret-word-index (get-in lines [caret-line-index :caret-word])
-            mark-word-index (get-in lines [mark-line-index :mark-word])
-            new-line-index (if (= where :up) (dec caret-line-index) (inc caret-line-index))
-            new-line (nth lines new-line-index)
-            line-x (get-caret-x model)
-            new-caret-word-index (x->pos-in-line new-line line-x)
-            new-words (:words new-line)
-            new-caret-word (nth new-words new-caret-word-index)
-            new-caret-in-word-x (- line-x (apply + (map :w-total (take new-caret-word-index new-words))))
-            new-caret-pos (x->pos-in-word new-caret-word new-caret-in-word-x)
-            updated-caret-model (->
-                                  (assoc-in model [:lines caret-line-index :words caret-word-index :caret-pos] nil)
-                                  (assoc-in [:lines caret-line-index :caret-word] nil)
-                                  (assoc-in [:lines new-line-index :caret-word] new-caret-word-index)
-                                  (assoc-in [:lines new-line-index :words new-caret-word-index :caret-pos] new-caret-pos)
-                                  (assoc :caret-line new-line-index))
-            mark-change (= what :caret-&-mark)
-            updated-cm-model (if mark-change
-                               (->
-                                 (assoc-in updated-caret-model [:lines mark-line-index :words mark-word-index :mark-pos] nil)
-                                 (assoc-in [:lines mark-line-index :mark-word] nil)
-                                 (assoc-in [:lines new-line-index :mark-word] new-caret-word-index)
-                                 (assoc-in [:lines new-line-index :words new-caret-word-index :mark-pos] new-caret-pos)
-                                 (assoc :mark-line new-line-index))
-                               updated-caret-model)]
-        (rebuild-primitives updated-cm-model caret-line-index mark-line-index new-line-index (if mark-change new-line-index mark-line-index) nil nil))
-      model)))
+    (let [mark-line-index (:mark-line model)
+          caret-word-index (get-in lines [caret-line-index :caret-word])
+          mark-word-index (get-in lines [mark-line-index :mark-word])
+          new-line (nth lines new-line-index)
+          line-x (get-caret-x model)
+          new-caret-word-index (x->pos-in-line new-line line-x)
+          new-words (:words new-line)
+          new-caret-word (nth new-words new-caret-word-index)
+          new-caret-in-word-x (- line-x (apply + (map :w-total (take new-caret-word-index new-words))))
+          new-caret-pos (x->pos-in-word new-caret-word new-caret-in-word-x)
+          updated-caret-model (->
+                                (assoc-in model [:lines caret-line-index :words caret-word-index :caret-pos] nil)
+                                (assoc-in [:lines caret-line-index :caret-word] nil)
+                                (assoc-in [:lines new-line-index :caret-word] new-caret-word-index)
+                                (assoc-in [:lines new-line-index :words new-caret-word-index :caret-pos] new-caret-pos)
+                                (assoc :caret-line new-line-index))
+          mark-change (= what :caret-&-mark)
+          updated-cm-model (if mark-change
+                             (->
+                               (assoc-in updated-caret-model [:lines mark-line-index :words mark-word-index :mark-pos] nil)
+                               (assoc-in [:lines mark-line-index :mark-word] nil)
+                               (assoc-in [:lines new-line-index :mark-word] new-caret-word-index)
+                               (assoc-in [:lines new-line-index :words new-caret-word-index :mark-pos] new-caret-pos)
+                               (assoc :mark-line new-line-index))
+                             updated-caret-model)]
+      (rebuild-primitives updated-cm-model caret-line-index mark-line-index new-line-index (if mark-change new-line-index mark-line-index) nil nil))))
 
 (defmethod move-caret-mark :up [model what where _viewport-h _interop]
-  (move-1-line-up-down model what where))
+  (let [caret-line-index (:caret-line model)]
+    (if (> caret-line-index 0)
+      (move-up-down model what where (dec caret-line-index))
+      model)))
 
 (defmethod move-caret-mark :down [model what where _viewport-h _interop]
-  (move-1-line-up-down model what where))
+  (let [caret-line-index (:caret-line model)]
+    (if (< caret-line-index (dec (count (:lines model))))
+      (move-up-down model what where (inc caret-line-index))
+      model)))
+
+(defn scan-line-heights [model caret-line-index viewport-h where]
+  (let [lines (:lines model)
+        line-count (count lines)
+        dir-fn (if (= :page-up where) dec inc)
+        stop-fn (if (= :page-up where) inc dec)]
+    (loop [i caret-line-index
+           h 0]
+      (if (and (>= i 0) (< i line-count) (< h viewport-h))
+        (recur
+          (dir-fn i)
+          (+ h (:h (nth lines i))))
+        (max 0 (min (stop-fn i) (dec line-count)))))))
+
+(defn move-page-up-down [model what where viewport-h _interop]
+  (let [caret-line-index (:caret-line model)
+        new-line-index (scan-line-heights model caret-line-index viewport-h where)]
+    (if (not= new-line-index caret-line-index)
+      (move-up-down model what where new-line-index)
+      model)))
+
+(defmethod move-caret-mark :page-up [model what where viewport-h _interop]
+  (move-page-up-down model what where viewport-h _interop))
+
+(defmethod move-caret-mark :page-down [model what where viewport-h _interop]
+  (move-page-up-down model what where viewport-h _interop))
 
 (defn truncated-word-reducer [words word]
   (cond
@@ -1000,6 +1027,36 @@
         model (get-property [:this] :model)]
     (m/defpoint (m/x cs) (max (:total-h model) (m/y cs)))))
 
+(fg/defevolverfn :viewport-matrix
+  (let [model (get-property [:this] :model)
+        lines (:lines model)
+        caret-line (nth lines (:caret-line model))
+        caret-x (get-caret-x model)
+        caret-y (:y caret-line)
+        caret-h (:h caret-line)
+        clip-size (get-property [:this] :clip-size)
+        content-size (get-property [:this] :content-size)
+        vmx (- (m/mx-x old-viewport-matrix))
+        vmy (- (m/mx-y old-viewport-matrix))]
+    (if (not (and
+               (>= caret-x vmx)
+               (< caret-x (+ vmx (m/x clip-size)))
+               (>= caret-y vmy)
+               (< (+ caret-y caret-h) (+ vmy (m/y clip-size)))))
+      (textcommons/keep-in-range
+        (m/translation
+          (cond
+            (< caret-x vmx) (- caret-x)
+            (>= caret-x (+ vmx (m/x clip-size))) (- (- caret-x (m/x clip-size)))
+            :else (- vmx))
+          (cond
+            (< caret-y vmy) (- caret-y)
+            (>= (+ caret-y caret-h) (m/y clip-size)) (- (- (+ caret-y caret-h) (m/y clip-size)))
+            :else (- vmy)))
+        clip-size
+        content-size)
+      old-viewport-matrix)))
+
 (fg/defevolverfn :model
   (cond
 
@@ -1044,8 +1101,8 @@
               KeyEvent/VK_END (move-caret-mark old-model (if shift :caret :caret-&-mark) :end nil nil)
               KeyEvent/VK_UP (move-caret-mark old-model (if shift :caret :caret-&-mark) :up nil nil)
               KeyEvent/VK_DOWN (move-caret-mark old-model (if shift :caret :caret-&-mark) :down nil nil)
-              KeyEvent/VK_PAGE_UP old-model
-              KeyEvent/VK_PAGE_DOWN old-model
+              KeyEvent/VK_PAGE_UP (move-caret-mark old-model (if shift :caret :caret-&-mark) :page-up (m/y (get-property [:this] :clip-size)) nil)
+              KeyEvent/VK_PAGE_DOWN (move-caret-mark old-model (if shift :caret :caret-&-mark) :page-down (m/y (get-property [:this] :clip-size)) nil)
               old-model)
           _ (println "Model:")
           _ (println (model->str r))
@@ -1071,6 +1128,8 @@
    :paint-border true
    :margin 0.0625
    :evolvers {:model model-evolver
+              :content-size content-size-evolver
+              :viewport-matrix viewport-matrix-evolver
               ;:text text-evolver
 
               ;:caret-visible caret-visible-evolver

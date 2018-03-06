@@ -405,6 +405,14 @@
       [1.0 1.0])
     (test/is (= 1 (:caret-pos caret-word)))))
 
+; TODO replace-selection
+;(test/deftest insert-symbol-test-8
+;  (let [words [(tw "a|aa")]
+;        model-before (textfield2/move-caret-mark (test-wrap-lines words 9) :caret :forward nil nil)
+;        model-after  (textfield2/glyph-> model-before (textfield2/char-glyph \b) 9 dummy-interop)
+;        expected-words [(tw "ab|c")]]
+;    (test/is (= expected-words (:words (first (:lines model-after)))))))
+
 (test/deftest primitive-test-1
   (let [w 5
         glyphs (map textfield2/char-glyph "a")
@@ -986,6 +994,7 @@
         model-after (textfield2/do-backspace model-before w dummy-interop)]
     (test/is (= [(tw "xyz|bb")] (:words (first (:lines model-after)))))))
 
+
 (test/deftest nosel-delete-test-6
   (let [w 7
         model-before (test-wrap-lines [(tw "xyz ") (tw "bb ")
@@ -996,8 +1005,8 @@
 
 (test/deftest nosel-delete-test-7
   (let [w 7
-        model-before (test-wrap-lines [(tw "aa ") (tw "bb |")
-                                             (tw "cc ")] w)
+        model-before (test-wrap-lines [(tw "aa ") (tw "bb ")
+                                             (tw "|cc ")] w)
         model-after (textfield2/do-delete model-before w dummy-interop)]
     (test/is (= [(tw "aa ") (tw "bb " ) (tw "|c ")] (:words (first (:lines model-after)))))))
 
@@ -1137,9 +1146,9 @@
     (test/is (= model-after-cm model-after-mc))))
 
 (test/deftest sel-delete-test-6
-  (let [w 7
-        model (test-wrap-lines [(tw "aa ") (tw "bb |")
-                                      (tw "cccc ")] w)
+  (let [w 70
+        model (test-wrap-lines [(tw "aa ") (tw (str "bb |" \newline))
+                                (tw "cccc ")] w)
         model-before-cm (->
                           (textfield2/move-caret-mark model :mark :forward nil nil)
                           (textfield2/move-caret-mark :mark :forward nil nil)
@@ -1151,11 +1160,33 @@
         model-after-cm (textfield2/do-delete model-before-cm w dummy-interop)
         model-after-mc (textfield2/do-delete model-before-mc w dummy-interop)
         expected-words [(tw "aa ") (tw "bb ") (tw "|cc ")]]
-    (test/is (= expected-words (concat (:words (first (:lines model-after-cm))) (:words (second (:lines model-after-cm))))))
-    (test/is (= expected-words (concat (:words (first (:lines model-after-mc))) (:words (second (:lines model-after-mc))))))
+    (test/is (= expected-words (:words (first (:lines model-after-cm)))))
+    (test/is (= expected-words (:words (first (:lines model-after-mc)))))
     (test/is (= model-after-cm model-after-mc))))
 
 (test/deftest sel-delete-test-7
+  (let [w 7
+        model (test-wrap-lines [(tw "aa ") (tw (str "bb |" \newline))
+                                      (tw "cccc ")] w)
+        model-before-cm (->
+                          (textfield2/move-caret-mark model :mark :forward nil nil)
+                          (textfield2/move-caret-mark :mark :forward nil nil)
+                          (textfield2/move-caret-mark :mark :forward nil nil))
+        model-before-mc (->
+                          (textfield2/move-caret-mark model :caret :forward nil nil)
+                          (textfield2/move-caret-mark :caret :forward nil nil)
+                          (textfield2/move-caret-mark :caret :forward nil nil))
+        model-after-cm (textfield2/do-delete model-before-cm w dummy-interop)
+        model-after-mc (textfield2/do-delete model-before-mc w dummy-interop)
+        expected-words-0 [(tw "aa ") (tw "bb |")]
+        expected-words-1 [(tw "cc ")]]
+    (test/is (= expected-words-0 (:words (first (:lines model-after-cm)))))
+    (test/is (= expected-words-1 (:words (second (:lines model-after-cm)))))
+    (test/is (= expected-words-0 (:words (first (:lines model-after-mc)))))
+    (test/is (= expected-words-1 (:words (second (:lines model-after-mc)))))
+    (test/is (= model-after-cm model-after-mc))))
+
+(test/deftest sel-delete-test-8
   (let [w 100
         model (test-wrap-lines [(tw "a ") (tw "|b ") (tw "c ") (tw "dd ")] w)
         model-before-cm (->
@@ -1176,6 +1207,36 @@
     (test/is (= expected-words (:words (first (:lines model-after-cm)))))
     (test/is (= expected-words (:words (first (:lines model-after-mc)))))
     (test/is (= model-after-cm model-after-mc))))
+
+(test/deftest sel-delete-test-9
+  (let [w 50
+        model (test-wrap-lines [(tw (str "|aa" \newline))
+                                (tw (str "bb" \newline))
+                                (tw "cc")] w)
+        model-before-cm (->
+                          (textfield2/move-caret-mark model :caret :down nil nil)
+                          (textfield2/move-caret-mark :caret :down nil nil)
+                          (textfield2/move-caret-mark :caret :forward nil nil)
+                          (textfield2/move-caret-mark :caret :forward nil nil))
+        model-after (textfield2/do-delete model-before-cm w dummy-interop)
+        expected-words [textfield2/empty-word-with-caret-&-mark]]
+
+    (test/is (= [2 0 2 0 0 0] (model->caret-mark-pos model-before-cm)))
+
+    (test/is (= expected-words (:words (first (:lines model-after)))))))
+
+(test/deftest sel-delete-test-10
+  (let [w 50
+        model (test-wrap-lines [(tw "|a ") (tw "b")] w)
+        model-before-cm (->
+                          (textfield2/move-caret-mark model :caret :forward nil nil)
+                          (textfield2/move-caret-mark :caret :forward nil nil))
+        model-after (textfield2/do-delete model-before-cm w dummy-interop)
+        expected-words [(tw "|b")]]
+
+    (test/is (= [0 1 0 0 0 0] (model->caret-mark-pos model-before-cm)))
+
+    (test/is (= expected-words (:words (first (:lines model-after)))))))
 
 (test/deftest x->pos-in-line-test
   (let [w 7

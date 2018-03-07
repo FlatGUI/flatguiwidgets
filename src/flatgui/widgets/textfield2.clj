@@ -464,7 +464,9 @@
          mark-pos (:mark-pos mark-word)
          line-num-to-start-rewrap (dec caret-line-index)]
     (if (and (= caret-line-index mark-line-index) (= caret-word-index mark-word-index) (= caret-pos mark-pos))
-      (if (>= line-num-to-start-rewrap 0)
+      (cond
+
+        (>= line-num-to-start-rewrap 0)
         (let [prior-lines (take line-num-to-start-rewrap (:lines model))
               prior-h (apply + (map :h prior-lines))
               prior-words-in-line (:words (nth (:lines model) line-num-to-start-rewrap))
@@ -488,16 +490,20 @@
                 (assoc-in [:lines caret-line-index :words new-caret-word-index :caret-pos] new-caret-pos)
                 (assoc-in [:lines caret-line-index :words new-caret-word-index :mark-pos] new-caret-pos)))
             new-model))
+
+        (pos? (count caret-line-and-following-words))
         (let [words (if because-glyphs-killed
                       (let [count-following (count caret-line-and-following-words)
-                            word-killed (>= caret-word-index count-following)
+                            word-killed (and (pos? count-following) (>= caret-word-index count-following))
                             new-caret-word-index (if word-killed (dec count-following) caret-word-index)
                             new-caret-pos (if word-killed (count (:glyphs (nth caret-line-and-following-words new-caret-word-index))) caret-pos)]
                         (->
                           (assoc-in caret-line-and-following-words [new-caret-word-index :caret-pos] new-caret-pos)
                           (assoc-in [new-caret-word-index :mark-pos] new-caret-pos)))
                       caret-line-and-following-words)]
-          (wrap-lines words w interop)))
+          (wrap-lines words w interop))
+
+        :else empty-model)
       (throw (IllegalStateException. "model selection is not reduced")))))
 
 (defn has-selection? [model]
@@ -508,22 +514,6 @@
         true
         (let [word (nth (:words line) (:caret-word line))]
           (not= (:caret-pos word) (:mark-pos word)))))))
-
-;;; TODO more than one glyph at once (e.g. from clipboard) and only then rewrap
-
-(defn- glyph->model [model g w interop]
-  (let [line-with-caret (nth (:lines model) (:caret-line model))
-        caret-word-index (:caret-word line-with-caret)
-        word-with-caret (nth (:words line-with-caret) caret-word-index)
-        remainder-words (vec
-                          (concat
-                            (flatten (assoc (:words line-with-caret) caret-word-index (glyph-> word-with-caret g w interop)))
-                            (mapcat :words (take-last (- (count (:lines model)) (:caret-line model) 1) (:lines model)))))]
-    (rewrap-partially model w remainder-words interop false)))
-
-(defmethod glyph-> Model [model g w interop]
-  (let [m (if (has-selection? model) (kill-glyphs model w interop) model)]
-    (glyph->model m g w interop)))
 
 (defn- inside? [a b i]
   (if (> b a)
@@ -915,13 +905,18 @@
         caret (:caret-pos word)
         mark (:mark-pos word)]
     (cond
+      (and (nil? caret) (nil? mark))
+      (if (or first-in-word-range last-in-word-range)
+        (throw (IllegalStateException. "First or last word in selection range must have caret or mark"))
+        ;;Erasing whole word
+        nil)
+
       (= word empty-word-with-caret-&-mark) nil
 
       (or
-        (and (nil? caret) (nil? mark))
         (and (= caret 0) (= mark old-glyph-count))
         (and (= caret old-glyph-count) (= mark 0)))
-      (if (or first-in-word-range last-in-word-range) (throw (IllegalStateException.)))
+      nil ;Erasing whole word
 
       (and caret mark)
       (do
@@ -1075,6 +1070,22 @@
             (->
               (rewrap-partially (reduce-selection model) w (truncate-words remainder-words) interop true)
               (adjust-cm-after-kill))))))))
+
+;;; TODO more than one glyph at once (e.g. from clipboard) and only then rewrap
+
+(defn- glyph->model [model g w interop]
+  (let [line-with-caret (nth (:lines model) (:caret-line model))
+        caret-word-index (:caret-word line-with-caret)
+        word-with-caret (nth (:words line-with-caret) caret-word-index)
+        remainder-words (vec
+                          (concat
+                            (flatten (assoc (:words line-with-caret) caret-word-index (glyph-> word-with-caret g w interop)))
+                            (mapcat :words (take-last (- (count (:lines model)) (:caret-line model) 1) (:lines model)))))]
+    (rewrap-partially model w remainder-words interop false)))
+
+(defmethod glyph-> Model [model g w interop]
+  (let [m (if (has-selection? model) (kill-glyphs model w interop) model)]
+    (glyph->model m g w interop)))
 
 (defn do-delete [model w interop]
   (let [line-index (:caret-line model)

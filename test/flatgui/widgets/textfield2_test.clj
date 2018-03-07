@@ -1252,6 +1252,29 @@
 
     (test/is (= expected-words (:words (first (:lines model-after)))))))
 
+(test/deftest sel-delete-test-11
+  (let [w 50
+        model (test-wrap-lines [(tw "|a")] w)
+        model-before-cm (textfield2/move-caret-mark model :caret :forward nil nil)
+        model-after (textfield2/do-delete model-before-cm w dummy-interop)
+        expected-words [textfield2/empty-word-with-caret-&-mark]]
+    (test/is (= expected-words (:words (first (:lines model-after)))))))
+
+(test/deftest sel-delete-test-12
+  (let [w 50
+        model (test-wrap-lines [(tw (str "|a" \newline))
+                                (tw "a ") (tw "a")] w)
+        model-before-cm (->
+                          (textfield2/move-caret-mark model :caret :forward nil nil)
+                          (textfield2/move-caret-mark :caret :forward nil nil)
+                          (textfield2/move-caret-mark :caret :forward nil nil)
+                          (textfield2/move-caret-mark :caret :forward nil nil)
+                          (textfield2/move-caret-mark :caret :forward nil nil))
+        model-after (textfield2/do-delete model-before-cm w dummy-interop)
+        expected-words [textfield2/empty-word-with-caret-&-mark]]
+    (test/is (= [1 1 1 0 0 0] (model->caret-mark-pos model-before-cm)))
+    (test/is (= expected-words (:words (first (:lines model-after)))))))
+
 (test/deftest x->pos-in-line-test
   (let [w 7
         source-word (twv "|1321")

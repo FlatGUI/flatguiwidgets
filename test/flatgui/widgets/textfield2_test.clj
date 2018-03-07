@@ -412,6 +412,21 @@
         expected-words [(tw "ab|a")]]
     (test/is (= expected-words (:words (first (:lines model-after)))))))
 
+(test/deftest insert-symbol-test-9
+  (let [w 50
+        model (test-wrap-lines [(tw (str "|aa" \newline))
+                                (tw (str "bb" \newline))
+                                (tw "cc")] w)
+        model-before-cm (->
+                          (textfield2/move-caret-mark model :caret :down nil nil)
+                          (textfield2/move-caret-mark :caret :down nil nil)
+                          (textfield2/move-caret-mark :caret :forward nil nil)
+                          (textfield2/move-caret-mark :caret :forward nil nil))
+        model-after (textfield2/glyph-> model-before-cm (textfield2/char-glyph \X) w dummy-interop)
+        expected-words [(tw "X|")]]
+    (test/is (= 1 (count (:lines model-after))))
+    (test/is (= expected-words (:words (first (:lines model-after)))))))
+
 (test/deftest primitive-test-1
   (let [w 5
         glyphs (map textfield2/char-glyph "a")

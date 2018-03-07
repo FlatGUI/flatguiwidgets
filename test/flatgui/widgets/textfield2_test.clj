@@ -405,13 +405,12 @@
       [1.0 1.0])
     (test/is (= 1 (:caret-pos caret-word)))))
 
-; TODO replace-selection
-;(test/deftest insert-symbol-test-8
-;  (let [words [(tw "a|aa")]
-;        model-before (textfield2/move-caret-mark (test-wrap-lines words 9) :caret :forward nil nil)
-;        model-after  (textfield2/glyph-> model-before (textfield2/char-glyph \b) 9 dummy-interop)
-;        expected-words [(tw "ab|c")]]
-;    (test/is (= expected-words (:words (first (:lines model-after)))))))
+(test/deftest insert-symbol-test-8
+  (let [words [(tw "a|aa")]
+        model-before (textfield2/move-caret-mark (test-wrap-lines words 9) :caret :forward nil nil)
+        model-after  (textfield2/glyph-> model-before (textfield2/char-glyph \b) 9 dummy-interop)
+        expected-words [(tw "ab|a")]]
+    (test/is (= expected-words (:words (first (:lines model-after)))))))
 
 (test/deftest primitive-test-1
   (let [w 5

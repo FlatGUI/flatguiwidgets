@@ -323,6 +323,9 @@
 
 (defmethod glyph-> Word [word g w interop]
   (let [caret-pos (:caret-pos word)
+        _ (if (nil? caret-pos) (throw (IllegalStateException. "Can insert glyph into a word only when word has caret")))
+        mark-pos (:mark-pos word)
+        _ (if (not= caret-pos mark-pos) (throw (IllegalStateException. "Can insert glyph into a word only when selection is reduced")))
         glyphs (:glyphs word)
         g-is-delimiter (delimiter? g)
         g-goes-after-whitespace (and (> caret-pos 0) (whitespace? (nth glyphs (dec caret-pos))))
@@ -497,10 +500,18 @@
           (wrap-lines words w interop)))
       (throw (IllegalStateException. "model selection is not reduced")))))
 
+(defn has-selection? [model]
+  (if (not= (:caret-line model) (:mark-line model))
+    true
+    (let [line (nth (:lines model) (:caret-line model))]
+      (if (not= (:caret-word line) (:mark-word line))
+        true
+        (let [word (nth (:words line) (:caret-word line))]
+          (not= (:caret-pos word) (:mark-pos word)))))))
 
 ;;; TODO more than one glyph at once (e.g. from clipboard) and only then rewrap
 
-(defmethod glyph-> Model [model g w interop]
+(defn- glyph->model [model g w interop]
   (let [line-with-caret (nth (:lines model) (:caret-line model))
         caret-word-index (:caret-word line-with-caret)
         word-with-caret (nth (:words line-with-caret) caret-word-index)
@@ -510,14 +521,9 @@
                             (mapcat :words (take-last (- (count (:lines model)) (:caret-line model) 1) (:lines model)))))]
     (rewrap-partially model w remainder-words interop false)))
 
-(defn has-selection? [model]
-  (if (not= (:caret-line model) (:mark-line model))
-    true
-    (let [line (nth (:lines model) (:caret-line model))]
-      (if (not= (:caret-word line) (:mark-word line))
-        true
-        (let [word (nth (:words line) (:caret-word line))]
-          (not= (:caret-pos word) (:mark-pos word)))))))
+(defmethod glyph-> Model [model g w interop]
+  (let [m (if (has-selection? model) (kill-glyphs model w interop) model)]
+    (glyph->model m g w interop)))
 
 (defn- inside? [a b i]
   (if (> b a)

@@ -78,7 +78,7 @@
   (let [font (:font (:style g))]
     (text-size interop " " font)))
 
-(defmethod glyph-size :linebreak [g interop] {:w 0 :h (.getFontHeight interop (:font (:style g)))})
+(defmethod glyph-size :linebreak [g interop] {:w 0.0 :h (.getFontHeight interop (:font (:style g)))})
 
 (defmethod glyph-size :test [g _interop] {:w (:w (:style g)) :h (:h (:style g))})
 
@@ -295,7 +295,13 @@
                w&g-content (+ w-content effective-g-w)
                w&g-total (+ w-total g-w)
                w&h-h (max h g-h)]
-           (if (or (> w&g-content w) (and (pos? count-w-g) (whitespace? (nth w-g (dec count-w-g))) (not whitespace)))
+           (if (or
+                 (> w&g-content w)
+                 (and
+                   (pos? count-w-g)
+                   (or
+                     (and (not whitespace) (not (linebreak? g)) (delimiter? (nth w-g (dec count-w-g))))
+                     (and (linebreak? g) (linebreak? (nth w-g (dec count-w-g))))) ))
              (do
                (vreset! state {:w-content effective-g-w :w-total g-w :h g-h :w-g (let [a (ArrayList.)] (do (.add a sized-g) a)) :total-g-count (inc total-g-count)})
                (if (pos? count-w-g) (rf result (make-word caret-pos mark-pos w-content w-total h w-g total-g-count source-g-count))))     ;MWds
@@ -356,12 +362,12 @@
           [empty-word-with-caret-&-mark]
           (make-words (vec part-after-caret-pos) 0 w interop))))))
 
-;; TODO we don't need this since there is make-words which does the same and supports cm-pos
+;; TODO not needed since there is make-words which does the same and supports cm-pos
 (defn make-glyph-line-reducer [w interop]
   (fn [words g]
     (concat (butlast words) (glyph-> (last words) g w interop))))
 
-;; TODO we don't need this since there is make-words which does the same and supports cm-pos
+;; TODO not needed since there is make-words which does the same and supports cm-pos
 (defn glyphs->words [glyphs w interop]
   (reduce
     (make-glyph-line-reducer w interop)
@@ -435,8 +441,8 @@
                        (process-sel)
                        process-result)))
                  (do
-                   (vreset! line-state (conj line word))
-                   (vreset! line-w-state (+ line-w w-total)) ;TODO vswap!
+                   (vswap! line-state conj word)
+                   (vswap! line-w-state + w-total)
                    (vswap! line-h-state max word-h)
                    (process-caret)
                    (process-sel)
@@ -934,7 +940,7 @@
           last-in-word-range (kill-glyph-range-in-word word 0 sel-edge w interop)
           :else (throw (IllegalStateException.)))))))
 
-(defn- adjust-cm-after-kill [model]                         ;; TODO caret and mark are in the same pos when using this method right?
+(defn- adjust-cm-after-kill [model]
   (let [caret-line-index (:caret-line model)
         line-count (count (:lines model))]
     (if (< caret-line-index line-count)

@@ -62,7 +62,7 @@
         s-clean (.replace s "|" "")
         s-clean-no-linebreaks (.replace s-clean (str \newline) "")
         w-total (.getStringWidth interop s-clean-no-linebreaks nil)
-        trailing-space-count (count (take-while #(= % \space) (reverse s-clean)))
+        trailing-space-count (count (take-while #(= % \space) (reverse s-clean-no-linebreaks)))
         w-content (- w-total trailing-space-count) ; whole word may consist of spaces
         glyphs (tg s-clean interop)
         result-caret-pos (if (>= caret-pos 0) caret-pos)]
@@ -127,6 +127,11 @@
   (let [glyphs (tg "abcda b ")
         words (textfield2/make-words glyphs 6 3 dummy-interop)]
     (test/is (= [(tw "abc") (tw "da ") (tw "|b ")] words))))
+
+(test/deftest make-words-test-9
+  (let [glyphs (tg "abc\n\n")
+        words (textfield2/make-words glyphs 4 3 dummy-interop)]
+    (test/is (= [(tw "abc\n") (tw "|\n")] words))))
 
 (defn test-model [model expected-lines expected-total-word-widths expected-caret-line expected-caret-word expected-line-heights]
   (let [model-lines (:lines model)
@@ -1341,6 +1346,114 @@
         model-after (textfield2/glyphs->model model glyphs w dummy-interop)]
     (test/is (= [(tw "x ") (tw "yz|")] (:words (first (:lines model-after)))))))
 
+(test/deftest glyphs->model-test-7
+  (let [w 3
+        model (test-wrap-lines [(tw "|a")] w)
+        glyphs (tg "xx yz")
+        model-after (textfield2/glyphs->model model glyphs w dummy-interop)
+        lines-after (:lines model-after)]
+    (test/is (= [(tw "xx ")] (:words (first lines-after))))
+    (test/is (= [(tw "yz|a")] (:words (second lines-after))))))
+
+(test/deftest glyphs->model-test-8
+  (let [w 3
+        model (test-wrap-lines [(tw "a|")] w)
+        glyphs (tg "cc yz")
+        model-after (textfield2/glyphs->model model glyphs w dummy-interop)
+        lines-after (:lines model-after)]
+    (test/is (= [(tw "acc ")] (:words (first lines-after))))
+    (test/is (= [(tw "yz|")] (:words (second lines-after))))))
+
+(test/deftest glyphs->model-test-9
+  (let [w 3
+        model (test-wrap-lines [(tw "a|")] w)
+        glyphs (tg "ccc yz")
+        model-after (textfield2/glyphs->model model glyphs w dummy-interop)
+        lines-after (:lines model-after)]
+    (test/is (= [(tw "acc")] (:words (first lines-after))))
+    (test/is (= [(tw "c ")] (:words (second lines-after))))
+    (test/is (= [(tw "yz|")] (:words (nth lines-after 2))))))
+
+(test/deftest glyphs->model-test-10
+  (let [w 3
+        model textfield2/empty-model
+        glyphs (tg "cccc yz")
+        model-after (textfield2/glyphs->model model glyphs w dummy-interop)
+        lines-after (:lines model-after)]
+    (test/is (= [(tw "ccc")] (:words (first lines-after))))
+    (test/is (= [(tw "c ")] (:words (second lines-after))))
+    (test/is (= [(tw "yz|")] (:words (nth lines-after 2))))))
+
+(test/deftest glyphs->model-test-11
+  (let [w 50
+        model (test-wrap-lines [(tw "|a")] w)
+        glyphs (tg "xx\nyz")
+        model-after (textfield2/glyphs->model model glyphs w dummy-interop)
+        lines-after (:lines model-after)]
+    (test/is (= [(tw "xx\n")] (:words (first lines-after))))
+    (test/is (= [(tw "yz|a")] (:words (second lines-after))))))
+
+(test/deftest glyphs->model-test-12
+  (let [w 50
+        model (test-wrap-lines [(tw "a|")] w)
+        glyphs (tg "cc \nyz")
+        model-after (textfield2/glyphs->model model glyphs w dummy-interop)
+        lines-after (:lines model-after)]
+    (test/is (= [(tw (str "acc \n"))] (:words (first lines-after))))
+    (test/is (= [(tw "yz|")] (:words (second lines-after))))))
+
+(test/deftest glyphs->model-test-13
+  (let [w 3
+        model (test-wrap-lines [(tw "a|")] w)
+        glyphs (tg "ccc \nyz")
+        model-after (textfield2/glyphs->model model glyphs w dummy-interop)
+        lines-after (:lines model-after)]
+    (test/is (= [(tw "acc")] (:words (first lines-after))))
+    (test/is (= [(tw "c \n")] (:words (second lines-after))))
+    (test/is (= [(tw "yz|")] (:words (nth lines-after 2))))))
+
+(test/deftest glyphs->model-test-14
+  (let [w 3
+        model textfield2/empty-model
+        glyphs (tg "cccc\nyz")
+        model-after (textfield2/glyphs->model model glyphs w dummy-interop)
+        lines-after (:lines model-after)]
+    (test/is (= [(tw "ccc")] (:words (first lines-after))))
+    (test/is (= [(tw "c\n")] (:words (second lines-after))))
+    (test/is (= [(tw "yz|")] (:words (nth lines-after 2))))))
+
+(test/deftest glyphs->model-test-15
+  (let [w 5
+        model (test-wrap-lines [(tw "aa ") (tw "bb ")
+                                (tw "cc |\n")
+                                (tw "dddd ") (tw "efg")] w)
+        glyphs (tg "uuuu\nvvv ww")
+        model-after (textfield2/glyphs->model model glyphs w dummy-interop)
+        lines-after (:lines model-after)]
+    (test/is (= [(tw "aa ") (tw "bb ")] (:words (nth lines-after 0))))
+    (test/is (= [(tw "cc ")] (:words (nth lines-after 1))))
+    (test/is (= [(tw "uuuu\n")] (:words (nth lines-after 2))))
+    (test/is (= [(tw "vvv ")] (:words (nth lines-after 3))))
+    (test/is (= [(tw "ww|\n")] (:words (nth lines-after 4))))
+    (test/is (= [(tw "dddd ")] (:words (nth lines-after 5))))
+    (test/is (= [(tw "efg")] (:words (nth lines-after 6))))))
+
+(test/deftest glyphs->model-test-16
+  (let [w 5
+        model (test-wrap-lines [(tw "aa ") (tw "bb ")
+                                (tw "cc |\n")
+                                (tw "dddd ") (tw "efg")] w)
+        glyphs (tg "uuuu\nvvv ww\n")
+        model-after (textfield2/glyphs->model model glyphs w dummy-interop)
+        lines-after (:lines model-after)]
+    (test/is (= [(tw "aa ") (tw "bb ")] (:words (nth lines-after 0))))
+    (test/is (= [(tw "cc ")] (:words (nth lines-after 1))))
+    (test/is (= [(tw "uuuu\n")] (:words (nth lines-after 2))))
+    (test/is (= [(tw "vvv ")] (:words (nth lines-after 3))))
+    (test/is (= [(tw "ww\n")] (:words (nth lines-after 4))))
+    (test/is (= [(tw "|\n")] (:words (nth lines-after 5))))
+    (test/is (= [(tw "dddd ")] (:words (nth lines-after 6))))
+    (test/is (= [(tw "efg")] (:words (nth lines-after 7))))))
 
 (test/deftest x->pos-in-line-test
   (let [w 7

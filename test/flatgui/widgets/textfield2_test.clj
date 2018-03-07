@@ -53,6 +53,25 @@
 
 (defn test-wrap-lines [words w] (textfield2/wrap-lines words w dummy-interop))
 
+(defn tg
+  ([s-clean interop] (mapv (fn [c] (test-sized-char-glyph-impl c interop)) s-clean))
+  ([s-clean] (tg s-clean dummy-interop)))
+
+(defn tw-impl [s interop]
+  (let [caret-pos (.indexOf s "|")
+        s-clean (.replace s "|" "")
+        s-clean-no-linebreaks (.replace s-clean (str \newline) "")
+        w-total (.getStringWidth interop s-clean-no-linebreaks nil)
+        trailing-space-count (count (take-while #(= % \space) (reverse s-clean)))
+        w-content (- w-total trailing-space-count) ; whole word may consist of spaces
+        glyphs (tg s-clean interop)
+        result-caret-pos (if (>= caret-pos 0) caret-pos)]
+    (Word. glyphs result-caret-pos result-caret-pos w-content w-total 1.0)))
+
+(defn tw [s] (tw-impl s dummy-interop))
+
+(defn twv [s] (tw-impl s dummy-var-interop))
+
 (test/deftest make-words-test-1
   (let [glyphs (mapv test-sized-char-glyph "111")
         words (textfield2/make-words glyphs 1 3 dummy-interop)]
@@ -88,6 +107,26 @@
         glyphs (vec (concat glyphs-1 glyphs-2 glyphs-3))
         words (textfield2/make-words glyphs 6 3 dummy-interop)]
     (test/is (= (list (Word. glyphs-1 nil nil 3.0 3.0 1.5) (Word. glyphs-2 nil nil 3.0 3.0 0.5) (Word. glyphs-3 1 1 3.0 3.0 1.1)) words))))
+
+(test/deftest make-words-test-5
+  (let [glyphs (tg "a b c ")
+        words (textfield2/make-words glyphs 6 6 dummy-interop)]
+    (test/is (= [(tw "a ") (tw "b ") (tw "c |")] words))))
+
+(test/deftest make-words-test-6
+  (let [glyphs (tg "a b c  d ")
+        words (textfield2/make-words glyphs 6 6 dummy-interop)]
+    (test/is (= [(tw "a ") (tw "b ") (tw "c | ") (tw "d ")] words))))
+
+(test/deftest make-words-test-7
+  (let [glyphs (tg "a   b ")
+        words (textfield2/make-words glyphs 2 3 dummy-interop)]
+    (test/is (= [(tw "a |  ") (tw "b ")] words))))
+
+(test/deftest make-words-test-8
+  (let [glyphs (tg "abcda b ")
+        words (textfield2/make-words glyphs 6 3 dummy-interop)]
+    (test/is (= [(tw "abc") (tw "da ") (tw "|b ")] words))))
 
 (defn test-model [model expected-lines expected-total-word-widths expected-caret-line expected-caret-word expected-line-heights]
   (let [model-lines (:lines model)
@@ -165,21 +204,6 @@
   (test-lines " 11   22   " 2 [[" "] ["11   "] ["22   "]] [[1.0] [5.0] [5.0]])
   (test-lines "   11 22   " 2 [["   "] ["11 "] ["22   "]] [[3.0] [3.0] [5.0]])
   (test-lines "   11   22 " 2 [["   "] ["11   "] ["22 "]] [[3.0] [5.0] [3.0]]))
-
-(defn tw-impl [s interop]
-  (let [caret-pos (.indexOf s "|")
-        s-clean (.replace s "|" "")
-        s-clean-no-linebreaks (.replace s-clean (str \newline) "")
-        w-total (.getStringWidth interop s-clean-no-linebreaks nil)
-        trailing-space-count (count (take-while #(= % \space) (reverse s-clean)))
-        w-content (- w-total trailing-space-count) ; whole word may consist of spaces
-        glyphs (mapv (fn [c] (test-sized-char-glyph-impl c interop)) s-clean)
-        result-caret-pos (if (>= caret-pos 0) caret-pos)]
-    (Word. glyphs result-caret-pos result-caret-pos w-content w-total 1.0)))
-
-(defn tw [s] (tw-impl s dummy-interop))
-
-(defn twv [s] (tw-impl s dummy-var-interop))
 
 (test/deftest wrap-test2
 
@@ -1274,6 +1298,49 @@
         expected-words [textfield2/empty-word-with-caret-&-mark]]
     (test/is (= [1 1 1 0 0 0] (model->caret-mark-pos model-before-cm)))
     (test/is (= expected-words (:words (first (:lines model-after)))))))
+
+(test/deftest glyphs->model-test-1
+  (let [w 50
+        model (test-wrap-lines [(tw "|a")] w)
+        glyphs (tg "xyz")
+        model-after (textfield2/glyphs->model model glyphs w dummy-interop)]
+    (test/is (= [(tw "xyz|a")] (:words (first (:lines model-after)))))))
+
+(test/deftest glyphs->model-test-2
+  (let [w 50
+        model (test-wrap-lines [(tw "a|")] w)
+        glyphs (tg "xyz")
+        model-after (textfield2/glyphs->model model glyphs w dummy-interop)]
+    (test/is (= [(tw "axyz|")] (:words (first (:lines model-after)))))))
+
+(test/deftest glyphs->model-test-3
+  (let [w 50
+        model textfield2/empty-model
+        glyphs (tg "xyz")
+        model-after (textfield2/glyphs->model model glyphs w dummy-interop)]
+    (test/is (= [(tw "xyz|")] (:words (first (:lines model-after)))))))
+
+(test/deftest glyphs->model-test-4
+  (let [w 50
+        model (test-wrap-lines [(tw "|a")] w)
+        glyphs (tg "x yz ")
+        model-after (textfield2/glyphs->model model glyphs w dummy-interop)]
+    (test/is (= [(tw "x ") (tw "yz ") (tw "|a")] (:words (first (:lines model-after)))))))
+
+(test/deftest glyphs->model-test-5
+  (let [w 50
+        model (test-wrap-lines [(tw "a|")] w)
+        glyphs (tg "x yz ")
+        model-after (textfield2/glyphs->model model glyphs w dummy-interop)]
+    (test/is (= [(tw "ax ") (tw "yz |")] (:words (first (:lines model-after)))))))
+
+(test/deftest glyphs->model-test-6
+  (let [w 50
+        model textfield2/empty-model
+        glyphs (tg "x yz")
+        model-after (textfield2/glyphs->model model glyphs w dummy-interop)]
+    (test/is (= [(tw "x ") (tw "yz|")] (:words (first (:lines model-after)))))))
+
 
 (test/deftest x->pos-in-line-test
   (let [w 7

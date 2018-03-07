@@ -266,7 +266,7 @@
 
 (defn create-make-words-transducer [caret-pos mark-pos w interop source-g-count]
   (fn [rf]
-    (let [state (volatile! {:w-content 0.0 :w-total 0.0 :h 0 :w-g (ArrayList.) :total-g-count 0 :init-whitespace true})]  ;TODO probably :init-whitespace is not needed if we prohibit initial whitespaces in words
+    (let [state (volatile! {:w-content 0.0 :w-total 0.0 :h 0 :w-g (ArrayList.) :total-g-count 0})]
       (fn
         ([] (rf))
         ([result]
@@ -283,24 +283,24 @@
                w-total (:w-total s)
                h (:h s)
                w-g (:w-g s)
+               count-w-g (count w-g)
                total-g-count (:total-g-count s)
                whitespace (whitespace? g)
-               init-whitespace (:init-whitespace s)
                cached-g-size (:size g) ; Size might be already cached in glyph, e.g. if this called from kill-glyphs. Also will need size further.
                g-size (if cached-g-size cached-g-size (glyph-size g interop))
                sized-g (if cached-g-size g (assoc g :size g-size))
                g-w (:w g-size)
-               effective-g-w (if (not whitespace) g-w 0)  ;TODO remove (if (or (not whitespace) (:init-whitespace s)) g-w 0)
+               effective-g-w (if (not whitespace) g-w 0)
                g-h (:h g-size)
                w&g-content (+ w-content effective-g-w)
                w&g-total (+ w-total g-w)
                w&h-h (max h g-h)]
-           (if (> w&g-content w)
+           (if (or (> w&g-content w) (and (pos? count-w-g) (whitespace? (nth w-g (dec count-w-g))) (not whitespace)))
              (do
-               (vreset! state {:w-content effective-g-w :w-total g-w :h g-h :w-g (let [a (ArrayList.)] (do (.add a sized-g) a)) :total-g-count (inc total-g-count) :init-whitespace whitespace})
-               (if (pos? (count w-g)) (rf result (make-word caret-pos mark-pos w-content w-total h w-g total-g-count source-g-count))))     ;MWds
+               (vreset! state {:w-content effective-g-w :w-total g-w :h g-h :w-g (let [a (ArrayList.)] (do (.add a sized-g) a)) :total-g-count (inc total-g-count)})
+               (if (pos? count-w-g) (rf result (make-word caret-pos mark-pos w-content w-total h w-g total-g-count source-g-count))))     ;MWds
              (do
-               (vreset! state {:w-content w&g-content :w-total w&g-total :h w&h-h :w-g (do (.add w-g sized-g) w-g) :total-g-count (inc total-g-count) :init-whitespace (if init-whitespace whitespace false)})
+               (vreset! state {:w-content w&g-content :w-total w&g-total :h w&h-h :w-g (do (.add w-g sized-g) w-g) :total-g-count (inc total-g-count)})
                result))))))))
 
 (defn make-words
@@ -356,10 +356,12 @@
           [empty-word-with-caret-&-mark]
           (make-words (vec part-after-caret-pos) 0 w interop))))))
 
+;; TODO we don't need this since there is make-words which does the same and supports cm-pos
 (defn make-glyph-line-reducer [w interop]
   (fn [words g]
     (concat (butlast words) (glyph-> (last words) g w interop))))
 
+;; TODO we don't need this since there is make-words which does the same and supports cm-pos
 (defn glyphs->words [glyphs w interop]
   (reduce
     (make-glyph-line-reducer w interop)
@@ -1071,8 +1073,6 @@
               (rewrap-partially (reduce-selection model) w (truncate-words remainder-words) interop true)
               (adjust-cm-after-kill))))))))
 
-;;; TODO more than one glyph at once (e.g. from clipboard) and only then rewrap
-
 (defn- glyph->model [model g w interop]
   (let [line-with-caret (nth (:lines model) (:caret-line model))
         caret-word-index (:caret-word line-with-caret)
@@ -1086,6 +1086,26 @@
 (defmethod glyph-> Model [model g w interop]
   (let [m (if (has-selection? model) (kill-glyphs model w interop) model)]
     (glyph->model m g w interop)))
+
+(defn- glyphs->model-insert-impl [model glyphs w interop]
+  (let [line-with-caret (nth (:lines model) (:caret-line model))
+        caret-word-index (:caret-word line-with-caret)
+        word-with-caret (nth (:words line-with-caret) caret-word-index)
+        remainder-words (vec
+                          (concat
+                            (flatten (assoc (:words line-with-caret) caret-word-index
+                                                                     (let [caret-pos (:caret-pos word-with-caret)
+                                                                           word-glyphs (:glyphs word-with-caret)
+                                                                           all-glyphs (concat (subvec word-glyphs 0 caret-pos) glyphs (subvec word-glyphs caret-pos))]
+                                                                       ;(glyphs->words all-glyphs w interop)
+                                                                       (make-words all-glyphs (+ caret-pos (count glyphs)) w interop)
+                                                                       )  ))
+                            (mapcat :words (take-last (- (count (:lines model)) (:caret-line model) 1) (:lines model)))))]
+    (rewrap-partially model w remainder-words interop false)))
+
+(defn glyphs->model [model glyphs w interop]
+  (let [m (if (has-selection? model) (kill-glyphs model w interop) model)]
+    (glyphs->model-insert-impl m glyphs w interop)))
 
 (defn do-delete [model w interop]
   (let [line-index (:caret-line model)

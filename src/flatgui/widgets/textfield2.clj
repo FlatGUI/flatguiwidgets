@@ -232,7 +232,14 @@
     (let [inside (or (= pos 0) (< pos (count glyphs)))
           g-index (if inside pos (dec pos))
           location (if inside :before :after)]
-      (assoc-in glyphs [g-index mark-type] location))
+      (try
+        (assoc-in glyphs [g-index mark-type] location)
+        (catch Exception ex
+          (do
+            (println "Debug: glyphs size=" (count glyphs) "pos=" pos "mark-type=" mark-type)
+            (.printStackTrace ex)
+            glyphs)))
+      )
     glyphs))
 
 (defn- glyph-primitive-extractor [word]

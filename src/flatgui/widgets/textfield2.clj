@@ -423,7 +423,7 @@
                  word-h (if (= empty-word-with-caret-&-mark word) (default-line-h interop) (:h word))
                  caret-pos (:caret-pos word)
                  mark-pos (:mark-pos word)
-                 end-line (or (> (+ line-w w-content) w) (linebreak? (last (:glyphs (last line)))))
+                 end-line (or (> (+ line-w w-content) w) (linebreak? (peek (:glyphs (peek line)))))
                  process-caret (fn []
                                  (if caret-pos
                                    (do
@@ -579,7 +579,7 @@
 
 (defn x->pos-in-word [word x]
   (let [glyphs (:glyphs word)
-        g-count (if (linebreak? (last glyphs)) (dec (count glyphs)) (count glyphs))]
+        g-count (if (linebreak? (peek glyphs)) (dec (count glyphs)) (count glyphs))]
     (if (pos? g-count)
       (let [x-marks (loop [xm []
                            w 0.0
@@ -597,7 +597,7 @@
                         xm))]
         (cond
           (<= x (first x-marks)) 0
-          (>= x (last x-marks)) g-count ;; cursor pos may be = g-count -- after last glyph
+          (>= x (peek x-marks)) g-count ;; cursor pos may be = g-count -- after last glyph
           :else (Math/round (double (/ (pos-bsearch x-marks x) 2)))))
       0)))
 
@@ -613,7 +613,7 @@
                               glyphs (:glyphs word)
                               word-w  (:w-total word)  ;(apply + (map (fn [g] (:w (:size g))) glyphs))
                               w+full (+ w word-w)
-                              last-glyph (last glyphs)
+                              last-glyph (peek glyphs)
                               ;; Let's assume next word zone starts in the middle of the last inter-word space char
                               space-allow (if (whitespace? last-glyph) (/ (:w (:size last-glyph)) 2) 0)]
                           (recur
@@ -623,7 +623,7 @@
                         xm))]
         (cond
           (<= x (first x-marks)) 0
-          (>= x (last x-marks)) (dec w-count) ;; word index may not be >= w-count
+          (>= x (peek x-marks)) (dec w-count) ;; word index may not be >= w-count
           :else (pos-bsearch x-marks x)))
       0)))
 
@@ -719,7 +719,7 @@
                             new-pos (if backward
                                             (let [glyphs (get-in model [:lines new-line-index :words new-word-index :glyphs])
                                                   glyph-count (count glyphs)]
-                                              (if (linebreak? (last glyphs)) (dec glyph-count) glyph-count))
+                                              (if (linebreak? (peek glyphs)) (dec glyph-count) glyph-count))
                                             0)]
                         (->
                           (move-for-keys
@@ -758,7 +758,7 @@
     model
     what
     (fn [coll] (dec (count coll)))
-    (fn [coll] (if (linebreak? (last coll)) (dec (count coll)) (count coll)))
+    (fn [coll] (if (linebreak? (peek coll)) (dec (count coll)) (count coll)))
     inc))
 
 (defmethod move-caret-mark :backward [model what _where _viewport-h _interop]
@@ -771,7 +771,7 @@
         new-word-index (if (= where :home) 0 (dec (count (:words caret-line))))
         new-pos (let [new-w-glyphs (:glyphs (nth (:words caret-line) new-word-index))
                       new-w-glyph-count (count new-w-glyphs)]
-                  (if (= where :home) 0 (if (linebreak? (last new-w-glyphs)) (dec new-w-glyph-count) new-w-glyph-count)))
+                  (if (= where :home) 0 (if (linebreak? (peek new-w-glyphs)) (dec new-w-glyph-count) new-w-glyph-count)))
         word-keys (if (= what :caret-&-mark) [:caret-word :mark-word] [:caret-word])
         pos-keys (if (= what :caret-&-mark) [:caret-pos :mark-pos] [:caret-pos])]
     (->
@@ -886,15 +886,15 @@
       (not (empty? words))
       (or
         (every? whitespace? (:glyphs word))
-        (let [last-glyph (last (:glyphs (last words)))]
+        (let [last-glyph (peek (:glyphs (peek words)))]
           (and (not (whitespace? last-glyph)) (not (linebreak? last-glyph))))))
-    (let [last-word (last words)
+    (let [last-word (peek words)
           result-caret-pos (cond
                              (:caret-pos last-word) (:caret-pos last-word)
                              (:caret-pos word) (+ (:caret-pos word) (count (:glyphs last-word)))
                              :else nil)]
       (conj
-        (vec (butlast words))
+        (pop words)
         (Word.
           (vec (concat (:glyphs last-word) (:glyphs word)))
           result-caret-pos
@@ -1144,8 +1144,8 @@
         edge-line-by-mark (= mark-line-index last-line-index)
         edge-word-by-caret (= word-index (dec (count caret-line-words)))
         edge-word-by-mark (= mark-word-index (dec (count mark-line-words)))
-        edge-glyph-by-caret (= caret-pos (if (linebreak? (last caret-word-glyphs)) (dec (count caret-word-glyphs)) (count caret-word-glyphs)))
-        edge-glyph-by-mark (= mark-pos (if (linebreak? (last mark-word-glyphs)) (dec (count mark-word-glyphs)) (count mark-word-glyphs)))]
+        edge-glyph-by-caret (= caret-pos (if (linebreak? (peek caret-word-glyphs)) (dec (count caret-word-glyphs)) (count caret-word-glyphs)))
+        edge-glyph-by-mark (= mark-pos (if (linebreak? (peek mark-word-glyphs)) (dec (count mark-word-glyphs)) (count mark-word-glyphs)))]
     (cond
       (and
         edge-line-by-caret edge-word-by-caret edge-glyph-by-caret

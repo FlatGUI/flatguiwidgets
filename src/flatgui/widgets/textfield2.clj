@@ -290,7 +290,7 @@
                g-size (if cached-g-size cached-g-size (glyph-size g interop))
                sized-g (if cached-g-size g (assoc g :size g-size))
                g-w (:w g-size)
-               effective-g-w (if (not whitespace) g-w 0)
+               effective-g-w (if (not whitespace) g-w 0.0)
                g-h (:h g-size)
                w&g-content (+ w-content effective-g-w)
                w&g-total (+ w-total g-w)
@@ -300,8 +300,11 @@
                  (and
                    (pos? count-w-g)
                    (or
-                     (and (not whitespace) (not (linebreak? g)) (delimiter? (nth w-g (dec count-w-g))))
-                     (and (linebreak? g) (linebreak? (nth w-g (dec count-w-g))))) ))
+                     ;; after linebreak new word always starts
+                     (linebreak? (nth w-g (dec count-w-g)))
+                     ;; if this is not a delimiter going after delimiter - this is new word starting
+                     ;; however linebreak going after whitespace stays at the end of a word
+                     (and (not whitespace) (not (linebreak? g)) (delimiter? (nth w-g (dec count-w-g)))))))
              (do
                (vreset! state {:w-content effective-g-w :w-total g-w :h g-h :w-g (let [a (ArrayList.)] (do (.add a sized-g) a)) :total-g-count (inc total-g-count)})
                (if (pos? count-w-g) (rf result (make-word caret-pos mark-pos w-content w-total h w-g total-g-count source-g-count))))     ;MWds
@@ -1227,27 +1230,40 @@
     (or (keyboard/key-typed? component) (clipboard/clipboard-paste? component))
     (if-let [supplied-text (if (clipboard/clipboard-paste? component)
                              (clipboard/get-plain-text component)
-                             ((get-property [:this] :text-supplier) component))]
-      (if (pos? (count supplied-text))
-        (let [_ (println "---------------------------------------")
-              _ (println "typed = " (keyboard/key-typed? component))
-              _ (println "pressed = " (keyboard/key-pressed? component))
-              _ (println "Supplied text = " supplied-text)
-              glyphs (mapv char-glyph supplied-text)
-              w (get-effective-w component)
-              r (glyph-> old-model (first glyphs) w (get-property component [:this] :interop))
-              _ (println "Model:")
-              _ (println (model->str r))
-              _ (println r)]
-          r)
-        old-model)
+                             ((get-property [:this] :text-supplier) component))
+             ]
+      (let [supplied-text-len (count supplied-text)
+            ;_ (println "---------------------------------------")
+            ;_ (println "typed = " (keyboard/key-typed? component))
+            ;_ (println "pressed = " (keyboard/key-pressed? component))
+            ;_ (println "Supplied text = " (if (nil? supplied-text) "<nil>" supplied-text) "Len=" supplied-text-len)
+            ]
+        (cond
+
+          (= supplied-text-len 1)
+          (let [
+                glyph (char-glyph (first supplied-text))
+                w (get-effective-w component)
+                r (glyph-> old-model glyph w (get-property component [:this] :interop))
+                ;_ (println "Model:")
+                ;_ (println (model->str r))
+                ;_ (println r)
+                ]
+            r)
+
+          (> supplied-text-len 1)
+          (let [glyphs (mapv char-glyph supplied-text)
+                w (get-effective-w component)]
+            (glyphs->model old-model glyphs w (get-property component [:this] :interop)))
+
+          :else old-model))
       old-model)
 
     (keyboard/key-pressed? component)
     (let [key (keyboard/get-key component)
           w (get-effective-w component)
-          _ (println "---------------------------------------")
-          _ (println "-----pressed " + key)
+          ;_ (println "---------------------------------------")
+          ;_ (println "-----pressed " + key)
           shift (inputbase/with-shift? component)
           r (condp = key
               KeyEvent/VK_BACK_SPACE (do-backspace old-model w (get-property component [:this] :interop))
@@ -1261,9 +1277,10 @@
               KeyEvent/VK_PAGE_UP (move-caret-mark old-model (if shift :caret :caret-&-mark) :page-up (m/y (get-property [:this] :clip-size)) nil)
               KeyEvent/VK_PAGE_DOWN (move-caret-mark old-model (if shift :caret :caret-&-mark) :page-down (m/y (get-property [:this] :clip-size)) nil)
               old-model)
-          _ (println "Model:")
-          _ (println (model->str r))
-          _ (println r)]
+          ;_ (println "Model:")
+          ;_ (println (model->str r))
+          ;_ (println r)
+          ]
       r)
 
     :else old-model))

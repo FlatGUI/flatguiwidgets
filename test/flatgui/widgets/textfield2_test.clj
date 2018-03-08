@@ -1455,6 +1455,23 @@
     (test/is (= [(tw "dddd ")] (:words (nth lines-after 6))))
     (test/is (= [(tw "efg")] (:words (nth lines-after 7))))))
 
+(test/deftest glyphs->model-test-17
+  (let [w 50
+        model textfield2/empty-model
+        glyphs (tg "/*\n*")
+        model-after (textfield2/glyphs->model model glyphs w dummy-interop)]
+    (test/is (= [(tw "/*\n")] (:words (nth (:lines model-after) 0))))
+    (test/is (= [(tw "*|")] (:words (nth (:lines model-after) 1))))))
+
+(test/deftest glyphs->model-test-18
+  (let [w 50
+        model textfield2/empty-model
+        glyphs (tg "/*\n *")
+        model-after (textfield2/glyphs->model model glyphs w dummy-interop)]
+    (test/is (= [(tw "/*\n")] (:words (nth (:lines model-after) 0))))
+    (test/is (= [(tw " ") (tw "*|")] (:words (nth (:lines model-after) 1))))
+    ))
+
 (test/deftest x->pos-in-line-test
   (let [w 7
         source-word (twv "|1321")
@@ -1480,7 +1497,7 @@
     (test/is (= 4 (textfield2/x->pos-in-word word 7.0)))
     (test/is (= 4 (textfield2/x->pos-in-word word 8.0)))))
 
-(test/deftest x->pos-in-line-test
+(test/deftest x->pos-in-line-test-1
   (let [w 50
         model (test-wrap-lines [(tw "|aa ") (tw "bbbbb ") (tw "ccc")] w)
         lines (:lines model)

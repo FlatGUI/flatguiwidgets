@@ -1083,7 +1083,7 @@
             (if now-is-last-wi (inc li) li)
             (if now-is-last-wi 0 (inc wi))
             false))
-        (let [remainder-words (mapcat :words (take-last (- (count lines) from-line-index) (:lines (erase-cm-in-words m))))]
+        (let [remainder-words (mapcat :words (vu/take-lastv (- (count lines) from-line-index) (:lines (erase-cm-in-words m))))]
           (if (and (= (count (:lines model)) 1) (= (count remainder-words) 1) (nil? (first remainder-words)))
             empty-model
             (->
@@ -1097,7 +1097,7 @@
         remainder-words (vec
                           (concat
                             (flatten (assoc (:words line-with-caret) caret-word-index (glyph-> word-with-caret g w interop)))
-                            (mapcat :words (take-last (- (count (:lines model)) (:caret-line model) 1) (:lines model)))))]
+                            (mapcat :words (vu/take-lastv (- (count (:lines model)) (:caret-line model) 1) (:lines model)))))]
     (rewrap-partially model w remainder-words interop false)))
 
 (defmethod glyph-> Model [model g w interop]
@@ -1117,7 +1117,7 @@
                                                                        ;(glyphs->words all-glyphs w interop)
                                                                        (make-words all-glyphs (+ caret-pos (count glyphs)) w interop)
                                                                        )  ))
-                            (mapcat :words (take-last (- (count (:lines model)) (:caret-line model) 1) (:lines model)))))]
+                            (mapcat :words (vu/take-lastv (- (count (:lines model)) (:caret-line model) 1) (:lines model)))))]
     (rewrap-partially model w remainder-words interop false)))
 
 (defn glyphs->model [model glyphs w interop]

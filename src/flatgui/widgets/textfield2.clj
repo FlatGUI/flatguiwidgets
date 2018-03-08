@@ -21,6 +21,7 @@
             [flatgui.inputchannels.clipboard :as clipboard]
             [flatgui.inputchannels.awtbase :as inputbase]
             [flatgui.util.matrix :as m]
+            [flatgui.util.vectorutil :as vu]
             [flatgui.comlogic :as fgc])
   (:import [java.awt.event KeyEvent]
            (flatgui.core.engine.ui FGTransferable)
@@ -158,12 +159,12 @@
                    s-marks @sel-marks
                    has-both-s-marks (= 2 (count s-marks))
                    s-start (cond
-                             has-both-s-marks (first s-marks)
+                             has-both-s-marks (vu/firstv s-marks)
                              selection-continued-line 0.0
-                             :else (first s-marks))
+                             :else (vu/firstv s-marks))
                    s-end (cond
                            has-both-s-marks (second s-marks)
-                           selection-continued-line (first s-marks)
+                           selection-continued-line (vu/firstv s-marks)
                            :else (if s-start @w-total-state))
                    has-sel (not= s-start s-end)
                    p (Primitive. type data style x @w-total-state @caret-state (if has-sel s-start) (if has-sel s-end))]
@@ -202,12 +203,12 @@
                      s-marks @sel-marks
                      has-both-s-marks (= 2 (count s-marks))
                      s-start (cond
-                               has-both-s-marks (first s-marks)
+                               has-both-s-marks (vu/firstv s-marks)
                                selection-continued-line 0.0
-                               :else (first s-marks))
+                               :else (vu/firstv s-marks))
                      s-end (cond
                              has-both-s-marks (second s-marks)
-                             selection-continued-line (first s-marks)
+                             selection-continued-line (vu/firstv s-marks)
                              :else (if s-start @w-total-state))
                      has-sel (not= s-start s-end)
                      p (Primitive. type data style x @w-total-state @caret-state (if has-sel s-start) (if has-sel s-end))]
@@ -596,7 +597,7 @@
                             (inc i)))
                         xm))]
         (cond
-          (<= x (first x-marks)) 0
+          (<= x (vu/firstv x-marks)) 0
           (>= x (peek x-marks)) g-count ;; cursor pos may be = g-count -- after last glyph
           :else (Math/round (double (/ (pos-bsearch x-marks x) 2)))))
       0)))
@@ -622,7 +623,7 @@
                             (inc i)))
                         xm))]
         (cond
-          (<= x (first x-marks)) 0
+          (<= x (vu/firstv x-marks)) 0
           (>= x (peek x-marks)) (dec w-count) ;; word index may not be >= w-count
           :else (pos-bsearch x-marks x)))
       0)))
@@ -915,7 +916,7 @@
         new-pos (min from-index-incl to-index-excl)
         glyphs (mapv (fn [i] (nth old-glyphs i)) (filter (fn [i] (not (and (>= i from-index-incl) (< i to-index-excl)))) (range (count old-glyphs))))
         replacement-words (make-words glyphs (if old-caret-pos new-pos) (if old-mark-pos new-pos) w interop)]
-    (first replacement-words)))
+    (vu/firstv replacement-words)))
 
 (defn- kill-glyphs-in-word [word first-in-word-range last-in-word-range w interop]
   (let [                                                    ;old-glyphs (:glyphs word)

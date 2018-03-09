@@ -151,7 +151,7 @@
         ([] (rf))
         ([result]
          (let [glyphs @glyphs-state]                         ; TODO if last glyph is linebreak then this will go to else branch, right?
-           (if (not (empty? glyphs))
+           (if (not (vu/emptyv? glyphs))
              (let [style @style-state
                    type @type-state
                    x @x-state
@@ -178,7 +178,7 @@
                  x @x-state
                  g-w (:w (if-let [size (:size g)] size (throw (IllegalStateException. (str "Glyph must be sized at this point. g=" g)))))
                  g-style (:style g)
-                 empty-glyphs (empty? glyphs)
+                 empty-glyphs (vu/emptyv? glyphs)
                  caret (:caret g)
                  mark (:mark g)
                  x-before (+ x @w-total-state)
@@ -346,12 +346,12 @@
         glyphs (:glyphs word)
         g-is-delimiter (delimiter? g)
         g-goes-after-whitespace (and (> caret-pos 0) (whitespace? (nth glyphs (dec caret-pos))))
-        part-before-caret-pos (vec (take caret-pos glyphs))
-        part-after-caret-pos (vec (drop caret-pos glyphs))]
+        part-before-caret-pos (vec (vu/takev caret-pos glyphs))  ;; TODO
+        part-after-caret-pos (vec (vu/dropv caret-pos glyphs))]   ;;
     (cond
 
       (and (not g-is-delimiter) (not g-goes-after-whitespace))
-      (make-words (vec (concat part-before-caret-pos (list g) part-after-caret-pos)) (inc caret-pos) w interop)
+      (make-words (vec (concat part-before-caret-pos [g] part-after-caret-pos)) (inc caret-pos) w interop)
 
       (and (not g-is-delimiter) g-goes-after-whitespace)
       (concat
@@ -364,12 +364,12 @@
         (make-words (vec part-after-caret-pos) nil  w interop))
 
       (whitespace? g)
-      (make-words (vec (concat part-before-caret-pos (list g) part-after-caret-pos)) (inc caret-pos) w interop)
+      (make-words (vec (concat part-before-caret-pos [g] part-after-caret-pos)) (inc caret-pos) w interop)
 
       (linebreak? g)
       (concat
         (make-words (vec (conj part-before-caret-pos g)) nil w interop)
-        (if (empty? part-after-caret-pos)
+        (if (vu/emptyv? part-after-caret-pos)
           [empty-word-with-caret-&-mark]
           (make-words (vec part-after-caret-pos) 0 w interop))))))
 
@@ -486,7 +486,7 @@
       (cond
 
         (>= line-num-to-start-rewrap 0)
-        (let [prior-lines (take line-num-to-start-rewrap (:lines model))
+        (let [prior-lines (vu/takev line-num-to-start-rewrap (:lines model))
               prior-h (apply + (map :h prior-lines))
               prior-words-in-line (:words (nth (:lines model) line-num-to-start-rewrap))
               words-to-wrap (concat
@@ -801,8 +801,8 @@
         caret-word (nth words caret-word-index)
         caret-pos (:caret-pos caret-word)]
     (+
-      (apply + (map :w-total (take caret-word-index words)))
-      (apply + (map #(:w (:size %)) (take caret-pos (:glyphs caret-word)))))))
+      (apply + (map :w-total (vu/takev caret-word-index words)))
+      (apply + (map #(:w (:size %)) (vu/takev caret-pos (:glyphs caret-word)))))))
 
 
 (defn move-up-down [model what _where new-line-index]
@@ -816,7 +816,7 @@
           new-caret-word-index (x->pos-in-line new-line line-x)
           new-words (:words new-line)
           new-caret-word (nth new-words new-caret-word-index)
-          new-caret-in-word-x (- line-x (apply + (map :w-total (take new-caret-word-index new-words))))
+          new-caret-in-word-x (- line-x (apply + (map :w-total (vu/takev new-caret-word-index new-words))))
           new-caret-pos (x->pos-in-word new-caret-word new-caret-in-word-x)
           updated-caret-model (->
                                 (assoc-in model [:lines caret-line-index :words caret-word-index :caret-pos] nil)
@@ -880,11 +880,11 @@
     (= empty-word-with-caret-&-mark word)
     (conj words word)
 
-    (or (nil? word) (empty? (:glyphs word)))
+    (or (nil? word) (vu/emptyv? (:glyphs word)))
     words
 
     (and
-      (not (empty? words))
+      (not (vu/emptyv? words))
       (or
         (every? whitespace? (:glyphs word))
         (let [last-glyph (peek (:glyphs (peek words)))]
@@ -1077,7 +1077,7 @@
             (assoc-in m [:lines li :words wi]
                       ;; This 'if' handles backspace that kills the line. The last word of a line should survive with cursor in it.
                       ;; On the next step it should be finally killed and cursor should move up one line
-                      (if (and killing-in-last-wi-in-line (nil? adj-word) (not (empty? (:glyphs word))))
+                      (if (and killing-in-last-wi-in-line (nil? adj-word) (not (vu/emptyv? (:glyphs word))))
                         empty-word-with-caret-&-mark
                         adj-word))
             (if now-is-last-wi (inc li) li)

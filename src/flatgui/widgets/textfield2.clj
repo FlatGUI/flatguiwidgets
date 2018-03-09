@@ -888,10 +888,10 @@
       (let [last-glyph (peek (:glyphs (peek words)))]
         (and
           (not (linebreak? last-glyph))
-          (or (not (whitespace? last-glyph)) (every? whitespace? (:glyphs word))
-            ))))
+          (or (not (whitespace? last-glyph)) (every? whitespace? (:glyphs word))))))
     (let [last-word (peek words)
-          ;; TODO remainder-words do not have caret now, so no need for this
+          ;; Actually the only present usage of this is without caret -
+          ;; when truncating remainder-words in kill-glyphs
           result-caret-pos (cond
                              (:caret-pos last-word) (:caret-pos last-word)
                              (:caret-pos word) (+ (:caret-pos word) (count (:glyphs last-word)))

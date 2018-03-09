@@ -606,6 +606,12 @@
         reduction (textfield2/truncate-words words)]
     (test/is (= words reduction))))
 
+(test/deftest truncated-word-reducer-test-7
+  ;; Here caret at the end of the 1st word is OK because this may be intermediate state after Del pressed for "a|\n"
+  (let [words [(tw (str "a")) (tw " ") (tw "b\n") (tw " ") (tw "b")]
+        reduction (textfield2/truncate-words words)]
+    (test/is (= [(tw (str "a ")) (tw "b\n") (tw " ") (tw "b")] reduction))))
+
 (test/deftest test-glyphs->Word-1
   (let [w 5
         word-before (tw " |")
@@ -1094,6 +1100,17 @@
     (test/is (= 2 (count lines-after)))
     (test/is (= [a-&-newline] (:words (first (:lines model-after)))))
     (test/is (= [(tw " |")] (:words (second (:lines model-after)))))))
+
+(test/deftest nosel-delete-test-12
+  (let [w 10
+        model-before (test-wrap-lines [(tw (str "a|" \newline))
+                                       (tw " ") (tw (str "b" \newline))
+                                       (tw " ") (tw "b")] w)
+        model-after (textfield2/do-delete model-before w dummy-interop)
+        lines-after (:lines model-after)]
+    (test/is (= 2 (count lines-after)))
+    (test/is (= [(tw "a| ") (tw (str "b" \newline))] (:words (first (:lines model-after)))))
+    (test/is (= [(tw " ") (tw "b")] (:words (second (:lines model-after)))))))
 
 (test/deftest sel-delete-test-1
   (let [w 7

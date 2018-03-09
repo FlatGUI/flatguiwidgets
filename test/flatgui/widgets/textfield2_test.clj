@@ -456,6 +456,29 @@
     (test/is (= 1 (count (:lines model-after))))
     (test/is (= expected-words (:words (first (:lines model-after)))))))
 
+(test/deftest insert-symbol-test-10
+  (let [w 10
+        words [(tw "a|b")]
+        model-before (test-wrap-lines words w)
+        model-after  (textfield2/glyph-> model-before textfield2/whitespace-glyph w dummy-interop)
+        expected-words [(tw "a ") (tw "|b")]]
+    (test/is (= expected-words (:words (first (:lines model-after)))))))
+
+(test/deftest insert-symbol-test-11
+  (let [w 10
+        words [(tw "a|b")]
+        model-before (test-wrap-lines words w)
+        model-after  (textfield2/glyphs->model model-before [(textfield2/char-glyph \c) textfield2/whitespace-glyph] w dummy-interop)
+        expected-words [(tw "ac ") (tw "|b")]]
+    (test/is (= expected-words (:words (first (:lines model-after)))))))
+
+(test/deftest insert-symbol-test-12
+  (let [words [(tw "a|b")]
+        model-before (textfield2/move-caret-mark (test-wrap-lines words 9) :caret :forward nil nil)
+        model-after  (textfield2/glyph-> model-before textfield2/whitespace-glyph 9 dummy-interop)
+        expected-words [(tw "a |")]]
+    (test/is (= expected-words (:words (first (:lines model-after)))))))
+
 (test/deftest primitive-test-1
   (let [w 5
         glyphs (map textfield2/char-glyph "a")

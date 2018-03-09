@@ -953,10 +953,10 @@
           last-in-word-range (kill-glyph-range-in-word word 0 sel-edge w interop)
           :else (throw (IllegalStateException.)))))))
 
-(defn- adjust-cm-after-kill [model]
+(defn- adjust-cm [model after-kill]
   (let [caret-line-index (:caret-line model)
         line-count (count (:lines model))]
-    (if (< caret-line-index line-count)
+    (if (or (< caret-line-index line-count) (not after-kill))
       (let [caret-line (get-in model [:lines caret-line-index])
             caret-word-index (:caret-word caret-line)
             caret-word (get-in caret-line [:words caret-word-index])
@@ -1090,7 +1090,7 @@
             empty-model
             (->
               (rewrap-partially (reduce-selection model) w (truncate-words remainder-words) interop true)
-              (adjust-cm-after-kill))))))))
+              (adjust-cm true))))))))
 
 (defn- glyph->model [model g w interop]
   (let [line-with-caret (nth (:lines model) (:caret-line model))
@@ -1100,7 +1100,9 @@
                           (concat
                             (flatten (assoc (:words line-with-caret) caret-word-index (glyph-> word-with-caret g w interop)))
                             (mapcat :words (vu/take-lastv (- (count (:lines model)) (:caret-line model) 1) (:lines model)))))]
-    (rewrap-partially model w remainder-words interop false)))
+    (->
+      (rewrap-partially model w remainder-words interop false)
+      (adjust-cm false))))
 
 (defmethod glyph-> Model [model g w interop]
   (let [m (if (has-selection? model) (kill-glyphs model w interop) model)]

@@ -19,6 +19,7 @@ flatgui.widgets.table2.table
             [flatgui.util.matrix :as m]
             [flatgui.util.vecmath :as v]
             [flatgui.util.rectmath :as r]
+            [flatgui.util.vectorutil :as vu]
             [flatgui.inputchannels.mouse :as mouse]))
 
 (def initial-in-use-model {:viewport-begin [0 0]
@@ -38,13 +39,13 @@ flatgui.widgets.table2.table
 (defn gen-cell-id [& dim] (keyword (str cell-id-prefix (apply str (map #(str "-" %) dim)))))
 
 (defn all-coords-2d [pss]
-  (let [row-cnt (first pss)
-        col-cnt (second pss)]
+  (let [row-cnt (vu/firstv pss)
+        col-cnt (vu/secondv pss)]
     (mapcat (fn [r] (map (fn [c] [r c]) (range col-cnt))) (range row-cnt))))
 
 (fg/defaccessorfn gen-children-regular [component pss old-children]
   (let [child-count (count (get-property [:this] :children))
-        needed-count (* (first pss) (second pss))
+        needed-count (* (vu/firstv pss) (vu/secondv pss))
         cell-prototype (get-property [:this] :cell-prototype)]
     (if (< child-count needed-count)
       (merge
@@ -65,12 +66,12 @@ flatgui.widgets.table2.table
 (fg/defaccessorfn gen-children-by-columns [component pss model-column->cell-prototype old-children]
   (let [col-count (count model-column->cell-prototype)
         existing-rows (/ (count (get-property [:this] :children)) col-count)
-        needed-rows (second pss)
+        needed-rows (vu/secondv pss)
         screen->model (get-property [:this] :screen->model)]
     (if (< existing-rows needed-rows)
       (merge
         (into {} (map (fn [coord]
-                        (let [mc-col (first (screen->model coord))
+                        (let [mc-col (vu/firstv (screen->model coord))
                               cid (apply gen-cell-id coord)
                               c (cid old-children)]
                           [cid (if c c (fg/defcomponent
@@ -79,7 +80,7 @@ flatgui.widgets.table2.table
                       ;; Multiply by margin to allow more children in advance and avoid adding
                       ;; new children (expensive operation) too often
                       (let [margin (if-let [m (get-property [:this] :child-count-dim-margin)] m 2)]
-                        (all-coords-2d [(first pss) (* needed-rows margin)]))))
+                        (all-coords-2d [(vu/firstv pss) (* needed-rows margin)]))))
         old-children)
       old-children)))
 
@@ -149,7 +150,7 @@ flatgui.widgets.table2.table
     hml-fit))
 
 (fg/defevolverfn :header-model-loc
- (if-let [cell-id (second (get-reason))]
+ (if-let [cell-id (vu/secondv (get-reason))]
    (let [no-order? (fn [d] (nil? (nth (:order old-header-model-loc) d)))
          as (get-property [:this cell-id] :atomic-state)
          model-coord (:model-coord as)
@@ -227,7 +228,7 @@ flatgui.widgets.table2.table
 ;; NOTE: This implementation does not support the case when const-size column
 ;;       goes after resized column in :fit-dim-to-size mode
 (fg/defevolverfn shift-header-model-loc-evolver :header-model-loc
-  (if-let [cell-id (second (get-reason))]
+  (if-let [cell-id (vu/secondv (get-reason))]
     (let [as (get-property [:this cell-id] :atomic-state)
           model-coord (:model-coord as)]
       (if (not= model-coord cell/not-in-use-coord)
@@ -308,11 +309,11 @@ flatgui.widgets.table2.table
 (fg/defevolverfn :content-size
   (let [header-model-pos (:positions (get-property [:this] :header-model-loc))
         header-model-size (:sizes (get-property [:this] :header-model-loc))
-        last-col (dec (count (first header-model-pos)))
-        last-row (dec (count (second header-model-pos)))]
+        last-col (dec (count (vu/firstv header-model-pos)))
+        last-row (dec (count (vu/secondv header-model-pos)))]
     (m/defpoint
-      (if (>= last-col 0) (+ (nth (first header-model-pos) last-col) (nth (first header-model-size) last-col)) 0)
-      (if (>= last-row 0) (+ (nth (second header-model-pos) last-row) (nth (second header-model-size) last-row)) 0))))
+      (if (>= last-col 0) (+ (nth (vu/firstv header-model-pos) last-col) (nth (vu/firstv header-model-size) last-col)) 0)
+      (if (>= last-row 0) (+ (nth (vu/secondv header-model-pos) last-row) (nth (vu/secondv header-model-size) last-row)) 0))))
 
 (defn edge-search [range-size start pred]
   (loop [dir-dist [(if (< start (dec range-size)) 1 -1) 1]
@@ -321,8 +322,8 @@ flatgui.widgets.table2.table
           (and (>= i 0) (< i range-size))
           (not (pred i)))
       (recur
-        (let [dir (first dir-dist)
-              dist (second dir-dist)
+        (let [dir (vu/firstv dir-dist)
+              dist (vu/secondv dir-dist)
               next-dist (inc dist)]
           (if (= 1 dir)
             (if (>= (+ start (* -1 dist)) 0)
@@ -335,7 +336,7 @@ flatgui.widgets.table2.table
       i)))
 
 ;; Accepts inclusive coords as parameters
-(defn combine-ranges [s1 s2] (mapcat (fn [e1] (map (fn [e2] [e1 e2]) (range (first s2) (inc (second s2))))) (range (first s1) (inc (second s1)))))
+(defn combine-ranges [s1 s2] (mapcat (fn [e1] (map (fn [e2] [e1 e2]) (range (vu/firstv s2) (inc (vu/secondv s2))))) (range (vu/firstv s1) (inc (vu/secondv s1)))))
 
 ;; Decrementing x+w and y+h to prepare for inclusive combine-ranges
 (defn rects->coords [rects] (mapcat (fn [vr] (combine-ranges [(:x vr) (dec (+ (:x vr) (:w vr)))] [(:y vr) (dec (+ (:y vr) (:h vr)))])) rects))
@@ -343,7 +344,7 @@ flatgui.widgets.table2.table
 (fg/defaccessorfn enough-cells? [component]
   (let [pss (get-property [:this] :physical-screen-size)
         child-count (count (get-property [:this] :children))
-        needed-count (* (first pss) (second pss))]
+        needed-count (* (vu/firstv pss) (vu/secondv pss))]
     (>= child-count needed-count)))
 
 (fg/defaccessorfn dimensions-non-empty? [component]
@@ -385,7 +386,7 @@ flatgui.widgets.table2.table
            noc {}]
       (if (not (empty? vcs))
         (let [coord (first vcs)
-              mc-col (first (screen->model coord))
+              mc-col (vu/firstv (screen->model coord))
               cell-prototype (get-cell-prototype-by-col component mc-col model-column->cell-prototype)
               cid (find-first-suitable unused-cids cell-prototype)]
           (recur
@@ -438,17 +439,17 @@ flatgui.widgets.table2.table
                             :else search-result)))
 
             old-screen-area (:screen-area old-in-use-model)
-            new-screen-area [(mapv #(search-fn % (nth (first old-screen-area) %) true) dimensions)
-                             (mapv #(search-fn % (nth (second old-screen-area) %) false) dimensions)]
+            new-screen-area [(mapv #(search-fn % (nth (vu/firstv old-screen-area) %) true) dimensions)
+                             (mapv #(search-fn % (nth (vu/secondv old-screen-area) %) false) dimensions)]
 
-            nx1 (first (first new-screen-area))
-            ny1 (second (first new-screen-area))
-            nx2 (inc (first (second new-screen-area)))        ; Incrementing ..2 coords because it's inclusive
-            ny2 (inc (second (second new-screen-area)))
-            ox1 (first (first old-screen-area))
-            oy1 (second (first old-screen-area))
-            ox2 (inc (first (second old-screen-area)))
-            oy2 (inc (second (second old-screen-area)))
+            nx1 (vu/firstv (vu/firstv new-screen-area))
+            ny1 (vu/secondv (vu/firstv new-screen-area))
+            nx2 (inc (vu/firstv (vu/secondv new-screen-area)))        ; Incrementing ..2 coords because it's inclusive
+            ny2 (inc (vu/secondv (vu/secondv new-screen-area)))
+            ox1 (vu/firstv (vu/firstv old-screen-area))
+            oy1 (vu/secondv (vu/firstv old-screen-area))
+            ox2 (inc (vu/firstv (vu/secondv old-screen-area)))
+            oy2 (inc (vu/secondv (vu/secondv old-screen-area)))
             new-screen-rect {:x nx1 :y ny1 :w (- nx2 nx1) :h (- ny2 ny1)}
             old-screen-rect {:x ox1 :y oy1 :w (- ox2 ox1) :h (- oy2 oy1)}
             ;_ (println "old new screen rect" old-screen-rect new-screen-rect)
@@ -488,7 +489,7 @@ flatgui.widgets.table2.table
 ;; Caution: selection id not kept up to date with :header-model-loc and may
 ;;          become outdated for example after rows removed
 (fg/defevolverfn cbc-selection :selection
-  (if-let [cell-id (second (get-reason))]
+  (if-let [cell-id (vu/secondv (get-reason))]
     (let [as (get-property [:this cell-id] :atomic-state)
           mc (:model-coord as)]
       (if (not= mc cell/not-in-use-coord)

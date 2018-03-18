@@ -17,7 +17,9 @@
   (:import (flatgui.core.engine IResultCollector Container ClojureContainerParser)
            (flatgui.core IFGInteropUtil)
            (java.awt.event KeyEvent)
-           (flatgui.widgets.textfield2 Word)))
+           (flatgui.widgets.textfield2 Word)
+           (java.util.function Supplier)
+           ))
 
 (def dummy-interop
   (proxy [IFGInteropUtil] []
@@ -478,6 +480,28 @@
         model-after  (textfield2/glyph-> model-before textfield2/whitespace-glyph 9 dummy-interop)
         expected-words [(tw "a |")]]
     (test/is (= expected-words (:words (first (:lines model-after)))))))
+
+(test/deftest insert-symbol-test-13
+  (let [w 11
+        words [(tw "    ") (tw "abc ")
+               (tw "|bbbbbbbbbb")]
+        model-before (test-wrap-lines words w)
+        model-after (textfield2/glyph-> model-before textfield2/linebreak-glyph w dummy-interop)
+        ]
+    (test/is (= [(tw "    ") (tw "abc \n")] (:words (nth (:lines model-after) 0))))
+    (test/is (= [(tw "|bbbbbbbbbb")] (:words (nth (:lines model-after) 1))))))
+
+(defrecord CGlyph [type data style]
+  Supplier
+  (get [_this] data))
+
+(test/deftest insert-symbol-custom-glyph-test
+  (let [w 11
+        model-before textfield2/empty-model
+        custom-glyph (CGlyph. :char "Alpha" textfield2/default-style)
+        model-after (textfield2/glyph-> model-before custom-glyph w dummy-interop)
+        ]
+    (test/is (= "Alpha" (.get (get-in model-after [:lines 0 :words 0 :glyphs 0]))))))
 
 (test/deftest primitive-test-1
   (let [w 5
@@ -1135,6 +1159,17 @@
     (test/is (= [(tw "a| ") (tw (str "b" \newline))] (:words (first (:lines model-after)))))
     (test/is (= [(tw " ") (tw "b")] (:words (second (:lines model-after)))))))
 
+;(test/deftest nosel-delete-test-13
+;  (let [w 3
+;        model-before (test-wrap-lines [(tw "ab ")
+;                                       (tw "|c ")] w)
+;        model-after (textfield2/do-delete model-before w dummy-interop)
+;        lines-after (:lines model-after)]
+;    (test/is (= 1 (count lines-after)))
+;    (test/is (= 0 (:caret-line model-after)))
+;    (test/is (= [(tw "ab | ")] (:words (first (:lines model-after))))) ;TODO continue on this
+;    ))
+
 (test/deftest sel-delete-test-1
   (let [w 7
         model (test-wrap-lines [(tw "aa ") (tw "|bb ")
@@ -1343,6 +1378,54 @@
         expected-words [textfield2/empty-word-with-caret-&-mark]]
     (test/is (= [1 1 1 0 0 0] (model->caret-mark-pos model-before-cm)))
     (test/is (= expected-words (:words (first (:lines model-after)))))))
+
+(test/deftest sel-delete-test-13
+  (let [w 50
+        model (test-wrap-lines [(tw "    ") (tw "aaa ") (tw "bbbbb\n")
+                                (tw "  |  ") (tw "aa ") (tw "bbbb\n")
+                                (tw "    ") (tw "aa ") (tw "bbb\n")
+                                (tw "  \n")
+                                (tw "xx \n")
+                                ] w)
+        model-before-cm (->
+                          (textfield2/move-caret-mark model :caret :down nil nil)
+                          (textfield2/move-caret-mark :caret :down nil nil))
+        model-after (textfield2/do-delete model-before-cm w dummy-interop)
+        ]
+    (test/is (= [3 0 2 1 0 2] (model->caret-mark-pos model-before-cm)))
+    (test/is (= [(tw "    ") (tw "aaa ") (tw (str "bbbbb" \newline))] (:words (nth (:lines model-after) 0))))
+    (test/is (= [(tw "  |\n")] (:words (nth (:lines model-after) 1))))
+    (test/is (= [(tw "xx \n")] (:words (nth (:lines model-after) 2))))))
+
+(test/deftest sel-delete-test-14
+  (let [w 50
+        model (test-wrap-lines [(tw "abc ") (tw "def\n")
+                                (tw "    ") (tw "|rge\n")
+                                (tw "aaa ") (tw "bbbb\n")] w)
+        model-before-cm (->
+                          (textfield2/move-caret-mark model :mark :forward nil nil)
+                          (textfield2/move-caret-mark :mark :forward nil nil)
+                          (textfield2/move-caret-mark :mark :forward nil nil))
+        model-after (textfield2/do-delete model-before-cm w dummy-interop)
+        ]
+    (test/is (= [1 1 0 1 1 3] (model->caret-mark-pos model-before-cm)))
+    (test/is (= [(tw "abc ") (tw "def\n")] (:words (nth (:lines model-after) 0))))
+    (test/is (= [(tw "    |\n")] (:words (nth (:lines model-after) 1))))
+    (test/is (= [(tw "aaa ") (tw "bbbb\n")] (:words (nth (:lines model-after) 2))))))
+
+(test/deftest sel-delete-test-15
+  (let [w 50
+        model (test-wrap-lines [(tw "    ") (tw "|rge\n")
+                                (tw "aaa ") (tw "bbbb\n")] w)
+        model-before-cm (->
+                          (textfield2/move-caret-mark model :mark :forward nil nil)
+                          (textfield2/move-caret-mark :mark :forward nil nil)
+                          (textfield2/move-caret-mark :mark :forward nil nil))
+        model-after (textfield2/do-delete model-before-cm w dummy-interop)
+        ]
+    (test/is (= [0 1 0 0 1 3] (model->caret-mark-pos model-before-cm)))
+    (test/is (= [(tw "    \n")] (:words (nth (:lines model-after) 0)))) ;TODO should stay on line 0?
+    (test/is (= [(tw "|aaa ") (tw "bbbb\n")] (:words (nth (:lines model-after) 1))))))
 
 (test/deftest glyphs->model-test-1
   (let [w 50
@@ -1655,6 +1738,55 @@
 
     (test/is (= [2 0 4 1 0 4] (model->caret-mark-pos model-c2)))
     (test/is (= [0 0 4 1 0 4] (model->caret-mark-pos model-c0)))))
+
+;;;
+;;; Sanity checks
+;;;
+
+(test/deftest check-spaces-after-space-test-1
+  (let [words [(tw "abc ") (tw "  ")]]
+    (test/is (thrown? IllegalStateException (textfield2/check-spaces-after-space words 1)))))
+
+(test/deftest check-spaces-after-space-test-2
+  (let [words [(tw "abc ") (tw "  \n")]]
+    (test/is (thrown? IllegalStateException (textfield2/check-spaces-after-space words 1)))))
+
+(test/deftest check-unattached-linebreak-test
+  (let [words [(tw "abc ") (tw "\n")]]
+    (test/is (thrown? IllegalStateException (textfield2/check-unattached-linebreak words 1)))))
+
+(test/deftest check-delimiter-after-linebreak-test-1
+  (let [words [(tw "abc ") (tw "abc\n ")]]
+    (test/is (thrown? IllegalStateException (textfield2/check-delimiter-after-linebreak words 1)))))
+
+(test/deftest check-delimiter-after-linebreak-test-2
+  (let [words [(tw "abc \n  ") (tw "abc")]]
+    (test/is (thrown? IllegalStateException (textfield2/check-delimiter-after-linebreak words 0)))))
+
+(test/deftest check-no-delimiter-at-word-end-test
+  (let [words [(tw "abc") (tw "abc ")]]
+    (test/is (thrown? IllegalStateException (textfield2/check-no-delimiter-at-word-end words 0)))))
+
+(test/deftest check-inconsistent-cm-test
+  (let [model textfield2/empty-model]
+    (test/is (thrown? IllegalStateException (textfield2/check-inconsistent-cm (assoc model :caret-line nil))))
+    (test/is (thrown? IllegalStateException (textfield2/check-inconsistent-cm (assoc model :caret-line -1))))
+    (test/is (thrown? IllegalStateException (textfield2/check-inconsistent-cm (assoc model :caret-line 1))))
+    (test/is (thrown? IllegalStateException (textfield2/check-inconsistent-cm (assoc model :mark-line nil))))
+    (test/is (thrown? IllegalStateException (textfield2/check-inconsistent-cm (assoc model :mark-line -1))))
+    (test/is (thrown? IllegalStateException (textfield2/check-inconsistent-cm (assoc model :mark-line 1))))
+    (test/is (thrown? IllegalStateException (textfield2/check-inconsistent-cm (assoc-in model [:lines 0 :caret-word] nil))))
+    (test/is (thrown? IllegalStateException (textfield2/check-inconsistent-cm (assoc-in model [:lines 0 :caret-word] -1))))
+    (test/is (thrown? IllegalStateException (textfield2/check-inconsistent-cm (assoc-in model [:lines 0 :caret-word] 1))))
+    (test/is (thrown? IllegalStateException (textfield2/check-inconsistent-cm (assoc-in model [:lines 0 :mark-word] nil))))
+    (test/is (thrown? IllegalStateException (textfield2/check-inconsistent-cm (assoc-in model [:lines 0 :mark-word] -1))))
+    (test/is (thrown? IllegalStateException (textfield2/check-inconsistent-cm (assoc-in model [:lines 0 :mark-word] 1))))
+    (test/is (thrown? IllegalStateException (textfield2/check-inconsistent-cm (assoc-in model [:lines 0 :words 0 :caret-pos] nil))))
+    (test/is (thrown? IllegalStateException (textfield2/check-inconsistent-cm (assoc-in model [:lines 0 :words 0 :caret-pos] -1))))
+    (test/is (thrown? IllegalStateException (textfield2/check-inconsistent-cm (assoc-in model [:lines 0 :words 0 :caret-pos] 1))))
+    (test/is (thrown? IllegalStateException (textfield2/check-inconsistent-cm (assoc-in model [:lines 0 :words 0 :mark-pos] nil))))
+    (test/is (thrown? IllegalStateException (textfield2/check-inconsistent-cm (assoc-in model [:lines 0 :words 0 :mark-pos] -1))))
+    (test/is (thrown? IllegalStateException (textfield2/check-inconsistent-cm (assoc-in model [:lines 0 :words 0 :mark-pos] 1))))))
 
 ;;;
 ;;; Live tests

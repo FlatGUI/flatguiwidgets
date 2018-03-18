@@ -111,14 +111,28 @@
     (= :linebreak (:type g)) \u23CE
     :else (:data g)))
 
+(def caret-str \u2502)
+
+(def mark-str \u205E)
+
+(def caret-mark-str \u2551)
+
 (defn word->str-ext [word]
   (let [raw-str (apply str (map glyph-data-mapper-ext (:glyphs word)))
-        caret-pos (:caret-pos word)]
+        caret-pos (:caret-pos word)
+        mark-pos (:mark-pos word)]
     (str
       "`"
-      (if caret-pos
-        (str (subs raw-str 0 caret-pos) "|" (subs raw-str caret-pos))
-        raw-str)
+      (cond
+        (and caret-pos (nil? mark-pos)) (str (subs raw-str 0 caret-pos) caret-str (subs raw-str caret-pos))
+        (and (nil? caret-pos) mark-pos) (str (subs raw-str 0 mark-pos) mark-str (subs raw-str mark-pos))
+        (and caret-pos mark-pos (= caret-pos mark-pos)) (str (subs raw-str 0 caret-pos) caret-mark-str (subs raw-str caret-pos))
+        (and caret-pos mark-pos) (let [caret-first (< caret-pos mark-pos)]
+                                   (if caret-first
+                                     (str (subs raw-str 0 caret-pos) caret-str (subs raw-str caret-pos mark-pos) mark-str (subs raw-str mark-pos))
+                                     (str (subs raw-str 0 mark-pos) mark-str (subs raw-str mark-pos caret-pos) caret-str (subs raw-str caret-pos))))
+
+        :else raw-str)
       "`")))
 
 (defn line->str [line] (str (apply str (map word->str-ext (:words line))) "\n"))
@@ -393,6 +407,23 @@
 
 (defn lines->line-heights [lines] (mapv :h lines))
 
+(defn collapse-words [last-word word]
+  (let [result-caret-pos (cond
+                           (:caret-pos last-word) (:caret-pos last-word)
+                           (:caret-pos word) (+ (:caret-pos word) (count (:glyphs last-word)))
+                           :else nil)
+        result-mark-pos (cond
+                          (:mark-pos last-word) (:mark-pos last-word)
+                          (:mark-pos word) (+ (:mark-pos word) (count (:glyphs last-word)))
+                          :else nil)]
+    (Word.
+      (vec (concat (:glyphs last-word) (:glyphs word)))
+      result-caret-pos
+      result-mark-pos
+      (+ (:w-content last-word) (if (every? whitespace? (:glyphs word)) 0 (:w-content word)))
+      (+ (:w-total last-word) (:w-total word))
+      (max (:h last-word) (:h word)))))
+
 (defn wrap-lines
   ([w interop]
     (fn [rf]
@@ -452,13 +483,23 @@
                        (process-sel)
                        process-result)))
                  (do
-                   (vswap! line-state conj word)
+                   (if (and (not (vu/emptyv? line)) (delimiter? (vu/firstv (:glyphs word))))
+                     (do
+                       (vreset! line-state (conj (pop line) (collapse-words (peek line) word)))
+                       (if (not @line-caret-met-state) (vswap! line-caret-index-state dec)))
+                     (vswap! line-state conj word))
                    (vswap! line-w-state + w-total)
                    (vswap! line-h-state max word-h)
                    (process-caret)
                    (process-sel)
                    result)))))))))
   ([words w interop] (transduce (wrap-lines w interop) conj words)))
+
+(defn assert-word [model line-index word-index]
+  (let [word (get-in model [:lines line-index :words word-index])]
+    (do
+      (assert word (str "No word line-index=" line-index " word-index=" word-index))
+      model)))
 
 ;; Example 1:
 ;; line 0 - will be contained in prior-lines
@@ -500,11 +541,24 @@
                           result-caret-line result-mark-line (+ prior-h (:total-h remainder-model)))]
           (if (and because-glyphs-killed (<= caret-line-index (dec (count (:lines new-model)))))
             (let [count-following (count caret-line-and-following-words)
-                  word-killed (>= caret-word-index count-following)
-                  new-caret-word-index (if word-killed (dec count-following) caret-word-index)
-                  new-caret-pos (if word-killed (count (:glyphs (nth caret-line-and-following-words new-caret-word-index))) caret-pos)]
+                  caret-word-killed (>= caret-word-index count-following)
+                  new-caret-line (get-in new-model [:lines caret-line-index])
+                  new-caret-line-words (:words new-caret-line)
+                  new-caret-line-word-count (count new-caret-line-words)
+                  word-count-reduced (>= caret-word-index new-caret-line-word-count)
+                  new-caret-word-index (cond
+                                         caret-word-killed (dec count-following)
+                                         word-count-reduced (dec new-caret-line-word-count)
+                                         :else caret-word-index)
+                  new-caret-pos (if (or caret-word-killed word-count-reduced)
+                                  (let [new-cw-glyphs (:glyphs (nth caret-line-and-following-words new-caret-word-index))]
+                                    (if (linebreak? (vu/lastv new-cw-glyphs))
+                                      (dec (count new-cw-glyphs))
+                                      (count new-cw-glyphs)))
+                                  caret-pos)]
               (->
-                (assoc-in new-model [:lines caret-line-index :caret-word] new-caret-word-index)
+                (assert-word new-model caret-line-index new-caret-word-index)
+                (assoc-in [:lines caret-line-index :caret-word] new-caret-word-index)
                 (assoc-in [:lines caret-line-index :mark-word] new-caret-word-index)
                 (assoc-in [:lines caret-line-index :words new-caret-word-index :caret-pos] new-caret-pos)
                 (assoc-in [:lines caret-line-index :words new-caret-word-index :mark-pos] new-caret-pos)))
@@ -515,6 +569,7 @@
                       (let [count-following (count caret-line-and-following-words)
                             word-killed (and (pos? count-following) (>= caret-word-index count-following))
                             new-caret-word-index (if word-killed (dec count-following) caret-word-index)
+                            _ (assert (< new-caret-word-index (count caret-line-and-following-words)) (str "No word in vec, index=" new-caret-word-index))
                             new-caret-pos (if word-killed (count (:glyphs (nth caret-line-and-following-words new-caret-word-index))) caret-pos)]
                         (->
                           (assoc-in caret-line-and-following-words [new-caret-word-index :caret-pos] new-caret-pos)
@@ -625,7 +680,11 @@
         (cond
           (<= x (vu/firstv x-marks)) 0
           (>= x (peek x-marks)) (dec w-count) ;; word index may not be >= w-count
-          :else (pos-bsearch x-marks x)))
+          :else (let [p (pos-bsearch x-marks x)]
+                  (do
+                    (if (>= p w-count)
+                      (throw (IllegalStateException.)))
+                    p))))
       0)))
 
 (defmulti move-caret-mark (fn [_model what where _viewport-h _interop]
@@ -642,7 +701,7 @@
         caret-word (nth (:words caret-line) caret-word-index)
         caret-pos (:caret-pos caret-word)]
     (->
-      (assoc-in model [:lines mark-line-index :words mark-word-index :mark-pos] nil)
+      (assoc-in model [:lines mark-line-index :words mark-word-index :mark-pos] nil)     ;(!)
       (assoc-in [:lines mark-line-index :mark-word] nil)
       (assoc-in [:lines caret-line-index :mark-word] caret-word-index)
       (assoc-in [:lines caret-line-index :words caret-word-index :mark-pos] caret-pos)
@@ -780,7 +839,8 @@
         model
         (count pos-keys)
         (fn [m k] (->
-                    (assoc-in m [:lines caret-line-index :words caret-word-index (nth pos-keys k)] nil)
+                    (assert-word m caret-line-index new-word-index)
+                    (assoc-in [:lines caret-line-index :words caret-word-index (nth pos-keys k)] nil)       ;(!)
                     (assoc-in [:lines caret-line-index (nth word-keys k)] new-word-index)
                     (assoc-in [:lines caret-line-index :words new-word-index (nth pos-keys k)] new-pos)))
         false)
@@ -819,7 +879,8 @@
           new-caret-in-word-x (- line-x (apply + (map :w-total (vu/takev new-caret-word-index new-words))))
           new-caret-pos (x->pos-in-word new-caret-word new-caret-in-word-x)
           updated-caret-model (->
-                                (assoc-in model [:lines caret-line-index :words caret-word-index :caret-pos] nil)
+                                (assert-word model new-line-index new-caret-word-index)
+                                (assoc-in [:lines caret-line-index :words caret-word-index :caret-pos] nil)
                                 (assoc-in [:lines caret-line-index :caret-word] nil)
                                 (assoc-in [:lines new-line-index :caret-word] new-caret-word-index)
                                 (assoc-in [:lines new-line-index :words new-caret-word-index :caret-pos] new-caret-pos)
@@ -827,7 +888,7 @@
           mark-change (= what :caret-&-mark)
           updated-cm-model (if mark-change
                              (->
-                               (assoc-in updated-caret-model [:lines mark-line-index :words mark-word-index :mark-pos] nil)
+                               (assoc-in updated-caret-model [:lines mark-line-index :words mark-word-index :mark-pos] nil) ;(!)
                                (assoc-in [:lines mark-line-index :mark-word] nil)
                                (assoc-in [:lines new-line-index :mark-word] new-caret-word-index)
                                (assoc-in [:lines new-line-index :words new-caret-word-index :mark-pos] new-caret-pos)
@@ -888,23 +949,14 @@
       (let [last-glyph (peek (:glyphs (peek words)))]
         (and
           (not (linebreak? last-glyph))
-          (or (not (whitespace? last-glyph)) (every? whitespace? (:glyphs word))))))
-    (let [last-word (peek words)
-          ;; Actually the only present usage of this is without caret -
-          ;; when truncating remainder-words in kill-glyphs
-          result-caret-pos (cond
-                             (:caret-pos last-word) (:caret-pos last-word)
-                             (:caret-pos word) (+ (:caret-pos word) (count (:glyphs last-word)))
-                             :else nil)]
+          (or
+            (not (whitespace? last-glyph))
+            (every? whitespace? (:glyphs word))
+            (linebreak? (vu/firstv (:glyphs word)))))))
+    (let [last-word (peek words)]
       (conj
         (pop words)
-        (Word.
-          (vec (concat (:glyphs last-word) (:glyphs word)))
-          result-caret-pos
-          result-caret-pos
-          (+ (:w-content last-word) (if (every? whitespace? (:glyphs word)) 0 (:w-content word)))
-          (+ (:w-total last-word) (:w-total word))
-          (max (:h last-word) (:h word)))))
+        (collapse-words last-word word)))
 
     :else
     (conj words word)))
@@ -953,7 +1005,7 @@
           last-in-word-range (kill-glyph-range-in-word word 0 sel-edge w interop)
           :else (throw (IllegalStateException.)))))))
 
-(defn- adjust-cm [model after-kill]
+(defn- adjust-cm [model after-kill old-model]
   (let [caret-line-index (:caret-line model)
         line-count (count (:lines model))]
     (if (or (< caret-line-index line-count) (not after-kill))
@@ -987,9 +1039,12 @@
             new-cm-line (nth (:lines model) new-cm-line-index)
             new-cm-words (:words new-cm-line)
             new-cm-word-index (dec (count new-cm-words))
-            new-cm-pos 0]
+            new-cm-pos 0
+            ;new-cm-pos (count (:glyphs (nth (:words new-cm-line) new-cm-word-index))) ;TODO nosel-delete-test-13
+            ]
         (->
-          (assoc model :caret-line new-cm-line-index)
+          (assert-word model new-cm-line-index new-cm-word-index)
+          (assoc :caret-line new-cm-line-index)
           (assoc :mark-line new-cm-line-index)
           (assoc-in [:lines new-cm-line-index :caret-word] new-cm-word-index)
           (assoc-in [:lines new-cm-line-index :mark-word] new-cm-word-index)
@@ -1090,7 +1145,7 @@
             empty-model
             (->
               (rewrap-partially (reduce-selection model) w (truncate-words remainder-words) interop true)
-              (adjust-cm true))))))))
+              (adjust-cm true model))))))))
 
 (defn- glyph->model [model g w interop]
   (let [line-with-caret (nth (:lines model) (:caret-line model))
@@ -1102,7 +1157,7 @@
                             (mapcat :words (vu/take-lastv (- (count (:lines model)) (:caret-line model) 1) (:lines model)))))]
     (->
       (rewrap-partially model w remainder-words interop false)
-      (adjust-cm false))))
+      (adjust-cm false model))))
 
 (defmethod glyph-> Model [model g w interop]
   (let [m (if (has-selection? model) (kill-glyphs model w interop) model)]
@@ -1229,27 +1284,127 @@
         content-size)
       old-viewport-matrix)))
 
-(fg/defevolverfn :model
-  (cond
 
-    ;; TODO not good because might need to rewrap aacording to :clip-size
-    ;(false? (get-property [:this] :editable))
-    ;old-model
+;; TODO for each reason, try-catch with detailed debug output
+;; TODO optional sanity check after evolve - situations like:
+;; - `ew ``fv  `` `` \n`
+;; - `x\n `
+;; - caret-word is null in caret line
 
-    (mouse/is-mouse-event? component)
-    old-model
+(defn check-spaces-after-space [words wi]
+  (if (pos? wi)
+    (let [prev-word (nth words (dec wi))]
+      (if (and
+            (whitespace? (vu/lastv (:glyphs prev-word)))
+            (every? #(or (whitespace? %) (linebreak? %)) (:glyphs (nth words wi))))
+        (throw (IllegalStateException. "every-space word after word ending with space"))))))
 
-    (or (keyboard/key-typed? component) (clipboard/clipboard-paste? component))
-    (if-let [supplied-text (if (clipboard/clipboard-paste? component)
-                             (clipboard/get-plain-text component)
-                             ((get-property [:this] :text-supplier) component))
-             ]
-      (let [supplied-text-len (count supplied-text)
-            ;_ (println "---------------------------------------")
-            ;_ (println "typed = " (keyboard/key-typed? component))
-            ;_ (println "pressed = " (keyboard/key-pressed? component))
-            ;_ (println "Supplied text = " (if (nil? supplied-text) "<nil>" supplied-text) "Len=" supplied-text-len)
-            ]
+(defn check-unattached-linebreak [words wi]
+  (if (and
+        (pos? wi)
+        (linebreak? (vu/firstv (:glyphs (nth words wi)))))
+    (throw (IllegalStateException. "unattached linebreak"))))
+
+(defn check-delimiter-after-linebreak [words wi]
+  (let [word (nth words wi)
+        glyphs (:glyphs word)]
+    (loop [i (dec (count glyphs))
+           delimiter-met false]
+      (if (and (>= i 0) (delimiter? (nth glyphs i)))
+        (do
+          (if (and delimiter-met (linebreak? (nth glyphs i))) (throw (IllegalStateException. "linebreak not the last glyph")))
+          (recur
+            (dec i)
+            (if (delimiter? (nth glyphs i)) true delimiter-met)))))))
+
+(defn check-no-delimiter-at-word-end [words wi]
+  (if (and
+        (< wi (dec (count words)))
+        (not (delimiter? (vu/lastv (:glyphs (nth words wi))))))
+    (throw (IllegalStateException. "non-last in line word without delimiter at end"))))
+
+(def sanity-checks-word [check-spaces-after-space
+                         check-unattached-linebreak
+                         check-delimiter-after-linebreak
+                         check-no-delimiter-at-word-end])
+
+(defn check-inconsistent-cm [model]
+  (let [out-range? (fn [x cnt] (not (and (>= x 0) (< x cnt))))
+        caret-line-index (:caret-line model)
+        mark-line-index (:mark-line model)
+        lines (:lines model)
+        line-cnt (count lines)]
+    (do
+      (if (nil? caret-line-index) (throw (IllegalStateException. "caret-line-index nil")))
+      (if (nil? mark-line-index) (throw (IllegalStateException. "mark-line-index nil")))
+      (if (out-range? caret-line-index line-cnt) (throw (IllegalStateException. (str "caret-line-index " caret-line-index " out of range of " line-cnt))))
+      (if (out-range? mark-line-index line-cnt) (throw (IllegalStateException. (str "mark-line-index " mark-line-index " out of range of " line-cnt))))
+      (let [caret-line (nth lines caret-line-index)
+            mark-line (nth lines mark-line-index)
+            caret-word-index (:caret-word caret-line)
+            mark-word-index (:mark-word mark-line)
+            caret-line-words (:words caret-line)
+            caret-line-word-count (count (:words caret-line))
+            mark-line-words (:words mark-line)
+            mark-line-word-count (count (:words mark-line))]
+        (do
+          (if (nil? caret-word-index) (throw (IllegalStateException. "caret-word-index nil")))
+          (if (nil? mark-word-index) (throw (IllegalStateException. "mark-word-index nil")))
+          (if (out-range? caret-word-index caret-line-word-count) (throw (IllegalStateException. (str "caret-word-index " caret-word-index " out of range of " caret-line-word-count))))
+          (if (out-range? mark-word-index mark-line-word-count) (throw (IllegalStateException. (str "mark-word-index " mark-word-index " out of range of " mark-line-word-count))))
+          (let [caret-word (nth caret-line-words caret-word-index)
+                mark-word (nth mark-line-words mark-word-index)
+                caret-word-max-pos (inc (count (:glyphs caret-word)))
+                mark-word-max-pos (inc (count (:glyphs mark-word)))
+                caret-pos (:caret-pos caret-word)
+                mark-pos (:mark-pos mark-word)]
+            (do
+              (if (nil? caret-pos) (throw (IllegalStateException. "caret-pos nil")))
+              (if (nil? mark-pos) (throw (IllegalStateException. "mark-pos nil")))
+              (if (out-range? caret-pos caret-word-max-pos) (throw (IllegalStateException. (str "caret-pos " caret-pos " out of range of " caret-line-word-count))))
+              (if (out-range? mark-pos mark-word-max-pos) (throw (IllegalStateException. (str "mark-pos " mark-pos " out of range of " mark-word-max-pos)))))))))))
+
+(def sanity-checks-model [check-inconsistent-cm])
+
+(def perform-sanity-check true)
+
+(defn sanity-check [model]
+  (do
+    (loop [i 0]
+      (if (< i (count sanity-checks-model))
+        (do
+          ((nth sanity-checks-model i) model)
+          (recur (inc i)))))
+    (let [lines (:lines model)]
+      (loop [l 0]
+        (if (< l (count lines))
+          (recur
+            (do
+              (let [words (:words (nth lines l))]
+                (loop [w 0]
+                  (if (< w (count words))
+                    (do
+                      (loop [s 0]
+                        (if (< s (count sanity-checks-word))
+                          (do
+                            (if (not (vu/emptyv? (:glyphs (nth words w))))
+                              ((nth sanity-checks-word s) words w))
+                            (recur (inc s)))))
+                      (recur (inc w))))))
+              (inc l))))))))
+
+(fg/defaccessorfn evolve-model-supplied-text [component old-model]
+  (if-let [supplied-text (if (clipboard/clipboard-paste? component)
+                           (clipboard/get-plain-text component)
+                           ((get-property [:this] :text-supplier) component))
+           ]
+    (let [supplied-text-len (count supplied-text)
+          ;_ (println "---------------------------------------")
+          ;_ (println "typed = " (keyboard/key-typed? component))
+          ;_ (println "pressed = " (keyboard/key-pressed? component))
+          ;_ (println "Supplied text = " (if (nil? supplied-text) "<nil>" supplied-text) "Len=" supplied-text-len)
+          ]
+      (try
         (cond
 
           (= supplied-text-len 1)
@@ -1268,34 +1423,62 @@
                 w (get-effective-w component)]
             (glyphs->model old-model glyphs w (get-property component [:this] :interop)))
 
-          :else old-model))
-      old-model)
+          :else old-model)
+        (catch Exception ex
+          (do
+            (println "Evolving model for supplied-text =" supplied-text)
+            (println (model->str old-model))
+            (throw ex)))))
+    old-model))
 
-    (keyboard/key-pressed? component)
-    (let [key (keyboard/get-key component)
-          w (get-effective-w component)
-          ;_ (println "---------------------------------------")
-          ;_ (println "-----pressed " + key)
-          shift (inputbase/with-shift? component)
-          r (condp = key
-              KeyEvent/VK_BACK_SPACE (do-backspace old-model w (get-property component [:this] :interop))
-              KeyEvent/VK_DELETE (do-delete old-model w (get-property component [:this] :interop))
-              KeyEvent/VK_LEFT (move-caret-mark old-model (if shift :caret :caret-&-mark) :backward nil nil)
-              KeyEvent/VK_RIGHT (move-caret-mark old-model (if shift :caret :caret-&-mark) :forward nil nil)
-              KeyEvent/VK_HOME (move-caret-mark old-model (if shift :caret :caret-&-mark) :home nil nil)
-              KeyEvent/VK_END (move-caret-mark old-model (if shift :caret :caret-&-mark) :end nil nil)
-              KeyEvent/VK_UP (move-caret-mark old-model (if shift :caret :caret-&-mark) :up nil nil)
-              KeyEvent/VK_DOWN (move-caret-mark old-model (if shift :caret :caret-&-mark) :down nil nil)
-              KeyEvent/VK_PAGE_UP (move-caret-mark old-model (if shift :caret :caret-&-mark) :page-up (m/y (get-property [:this] :clip-size)) nil)
-              KeyEvent/VK_PAGE_DOWN (move-caret-mark old-model (if shift :caret :caret-&-mark) :page-down (m/y (get-property [:this] :clip-size)) nil)
-              old-model)
-          ;_ (println "Model:")
-          ;_ (println (model->str r))
-          ;_ (println r)
-          ]
-      r)
+(fg/defaccessorfn evolve-model-key-pressed [component old-model]
+  (let [key (keyboard/get-key component)
+        w (get-effective-w component)
+        ;_ (println "---------------------------------------")
+        ;_ (println "-----pressed " + key)
+        shift (inputbase/with-shift? component)
+        ]
+    (try
+      (condp = key
+        KeyEvent/VK_BACK_SPACE (do-backspace old-model w (get-property component [:this] :interop))
+        KeyEvent/VK_DELETE (do-delete old-model w (get-property component [:this] :interop))
+        KeyEvent/VK_LEFT (move-caret-mark old-model (if shift :caret :caret-&-mark) :backward nil nil)
+        KeyEvent/VK_RIGHT (move-caret-mark old-model (if shift :caret :caret-&-mark) :forward nil nil)
+        KeyEvent/VK_HOME (move-caret-mark old-model (if shift :caret :caret-&-mark) :home nil nil)
+        KeyEvent/VK_END (move-caret-mark old-model (if shift :caret :caret-&-mark) :end nil nil)
+        KeyEvent/VK_UP (move-caret-mark old-model (if shift :caret :caret-&-mark) :up nil nil)
+        KeyEvent/VK_DOWN (move-caret-mark old-model (if shift :caret :caret-&-mark) :down nil nil)
+        KeyEvent/VK_PAGE_UP (move-caret-mark old-model (if shift :caret :caret-&-mark) :page-up (m/y (get-property [:this] :clip-size)) nil)
+        KeyEvent/VK_PAGE_DOWN (move-caret-mark old-model (if shift :caret :caret-&-mark) :page-down (m/y (get-property [:this] :clip-size)) nil)
+        old-model)
+      (catch Exception ex
+        (do
+          (println "Evolving model for key =" key)
+          (println (model->str old-model))
+          (throw ex))))
+    ))
 
-    :else old-model))
+(fg/defevolverfn :model
+  (let [new-model (cond
+
+                    ;; TODO not good because might need to rewrap aacording to :clip-size
+                    ;(false? (get-property [:this] :editable))
+                    ;old-model
+
+                    (mouse/is-mouse-event? component)
+                    old-model
+
+                    (or (keyboard/key-typed? component) (clipboard/clipboard-paste? component))
+                    (evolve-model-supplied-text component old-model)
+
+
+                    (keyboard/key-pressed? component)
+                    (evolve-model-key-pressed component old-model)
+
+                    :else old-model)]
+    (do
+      (if perform-sanity-check (sanity-check new-model))
+      new-model)))
 
 (fg/defwidget "textfield"
   {:text-supplier textcommons/textfield-dflt-text-suplier

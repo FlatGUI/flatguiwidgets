@@ -417,7 +417,7 @@
                           (:mark-pos word) (+ (:mark-pos word) (count (:glyphs last-word)))
                           :else nil)]
     (Word.
-      (vec (concat (:glyphs last-word) (:glyphs word)))
+      (into (:glyphs last-word) (:glyphs word))
       result-caret-pos
       result-mark-pos
       (+ (:w-content last-word) (if (every? whitespace? (:glyphs word)) 0 (:w-content word)))
@@ -537,7 +537,7 @@
               result-caret-line (if because-glyphs-killed (:caret-line model) (+ (count prior-lines) (:caret-line remainder-model)))
               result-mark-line (if because-glyphs-killed (:mark-line model) (+ (count prior-lines) (:mark-line remainder-model))) ;TODO result-mark-line is the same. Rewrite this method, do not compure caret line/word/pos
               new-model (Model.
-                          (vec (concat prior-lines (mapv (fn [l] (update l :y + prior-h)) (:lines remainder-model))))
+                          (into prior-lines (mapv (fn [l] (update l :y + prior-h)) (:lines remainder-model)))
                           result-caret-line result-mark-line (+ prior-h (:total-h remainder-model)))]
           (if (and because-glyphs-killed (<= caret-line-index (dec (count (:lines new-model)))))
             (let [count-following (count caret-line-and-following-words)

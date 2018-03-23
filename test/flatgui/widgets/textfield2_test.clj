@@ -498,6 +498,13 @@
         expected-words [(tw "a ") (tw "c| ") (tw "b")]]
     (test/is (= expected-words (:words (first (:lines model-after)))))))
 
+(test/deftest insert-symbol-test-15
+  (let [words [(tw "a|cd")]
+        model-before (test-wrap-lines words 9)
+        model-after  (textfield2/glyph-> model-before textfield2/whitespace-glyph 9 dummy-interop)
+        expected-words [(tw "a ") (tw "|cd")]]
+    (test/is (= expected-words (:words (first (:lines model-after)))))))
+
 (defrecord CGlyph [type data style]
   Supplier
   (get [_this] data))
@@ -677,6 +684,56 @@
         word-before (tw "a | ")
         words-after (vec (textfield2/glyph-> word-before (test-sized-char-glyph \b) w dummy-interop))]
     (test/is (= [(tw "a ") (tw "b| ")] words-after))))
+
+(test/deftest test-glyphs->Word-3
+  (let [w 10
+        word-before (tw "a|cd")
+        words-after (vec (textfield2/glyph-> word-before (test-sized-char-glyph \b) w dummy-interop))]
+    (test/is (= [(tw "ab|cd")] words-after))))
+
+(test/deftest test-glyphs->Word-4
+  (let [w 10
+        word-before (tw "a|cd")
+        words-after (vec (textfield2/glyph-> word-before textfield2/whitespace-glyph w dummy-interop))]
+    ;; glyph-> Word is not supposed to be smart enough to move caret to the next word, this happens later
+    (test/is (= [(tw "a |") (tw "cd")] words-after))))
+
+(test/deftest test-glyphs->Word-5
+  (let [w 10
+        word-before (tw "a | ")
+        words-after (vec (textfield2/glyph-> word-before textfield2/whitespace-glyph w dummy-interop))]
+    ;; glyph-> Word is not supposed to be smart enough to move caret to the next word, this happens later
+    (test/is (= [(tw "a  | ")] words-after))))
+
+(test/deftest test-glyphs->Word-6
+  (let [w 10
+        word-before (tw "ab|c")
+        words-after (vec (textfield2/glyph-> word-before (textfield2/char-glyph \newline) w dummy-interop))]
+    (test/is (= [(tw "ab\n") (tw "|c")] words-after))))
+
+(test/deftest test-glyphs->Word-7
+  (let [w 10
+        word-before (tw "abc|")
+        words-after (vec (textfield2/glyph-> word-before (textfield2/char-glyph \newline) w dummy-interop))]
+    (test/is (= [(tw "abc\n") textfield2/empty-word-with-caret-&-mark] words-after))))
+
+(test/deftest test-glyphs->Word-8
+  (let [w 10
+        word-before (tw "ab |c")
+        words-after (vec (textfield2/glyph-> word-before (textfield2/char-glyph \newline) w dummy-interop))]
+    (test/is (= [(tw "ab \n") (tw "|c")] words-after))))
+
+(test/deftest test-glyphs->Word-9
+  (let [w 10
+        word-before (tw "abc |")
+        words-after (vec (textfield2/glyph-> word-before (textfield2/char-glyph \newline) w dummy-interop))]
+    (test/is (= [(tw "abc \n") textfield2/empty-word-with-caret-&-mark] words-after))))
+
+(test/deftest test-glyphs->Word-10
+  (let [w 10
+        word-before (tw "ab | ")
+        words-after (vec (textfield2/glyph-> word-before (textfield2/char-glyph \newline) w dummy-interop))]
+    (test/is (= [(tw "ab \n") (tw "| ")] words-after))))
 
 (test/deftest test-glyphs->Model-1
   (let [w 5

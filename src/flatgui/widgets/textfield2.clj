@@ -375,7 +375,14 @@
       (and (whitespace? g) (not g-goes-after-whitespace) (some #(not (whitespace? %)) part-before-caret-pos))
       (concat
         (make-words (conj part-before-caret-pos g) (inc caret-pos) w interop)
-        (make-words part-after-caret-pos nil  w interop))
+        (make-words part-after-caret-pos nil w interop))
+      ;(if (< caret-pos (count part-before-caret-pos))    ;TODO probably can do it as early as here
+      ;  (concat
+      ;    (make-words (conj part-before-caret-pos g) (inc caret-pos) w interop)
+      ;    (make-words part-after-caret-pos nil w interop))
+      ;  (concat
+      ;    (make-words (conj part-before-caret-pos g) nil w interop)
+      ;    (make-words part-after-caret-pos 0 w interop)))
 
       (whitespace? g)
       (make-words (into (conj part-before-caret-pos g) part-after-caret-pos) (inc caret-pos) w interop)

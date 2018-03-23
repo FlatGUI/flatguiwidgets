@@ -491,6 +491,13 @@
     (test/is (= [(tw "    ") (tw "abc \n")] (:words (nth (:lines model-after) 0))))
     (test/is (= [(tw "|bbbbbbbbbb")] (:words (nth (:lines model-after) 1))))))
 
+(test/deftest insert-symbol-test-14
+  (let [words [(tw "a | ") (tw "b")]
+        model-before (test-wrap-lines words 9)
+        model-after  (textfield2/glyph-> model-before (textfield2/char-glyph \c) 9 dummy-interop)
+        expected-words [(tw "a ") (tw "c| ") (tw "b")]]
+    (test/is (= expected-words (:words (first (:lines model-after)))))))
+
 (defrecord CGlyph [type data style]
   Supplier
   (get [_this] data))
@@ -662,9 +669,14 @@
 (test/deftest test-glyphs->Word-1
   (let [w 5
         word-before (tw " |")
-        words-after (vec (textfield2/glyph-> word-before (test-sized-char-glyph \b) w dummy-interop))
-        ]
+        words-after (vec (textfield2/glyph-> word-before (test-sized-char-glyph \b) w dummy-interop))]
     (test/is (= [(tw " ") (tw "b|")] words-after))))
+
+(test/deftest test-glyphs->Word-2
+  (let [w 10
+        word-before (tw "a | ")
+        words-after (vec (textfield2/glyph-> word-before (test-sized-char-glyph \b) w dummy-interop))]
+    (test/is (= [(tw "a ") (tw "b| ")] words-after))))
 
 (test/deftest test-glyphs->Model-1
   (let [w 5
@@ -1633,8 +1645,7 @@
         glyphs (tg "/*\n *")
         model-after (textfield2/glyphs->model model glyphs w dummy-interop)]
     (test/is (= [(tw "/*\n")] (:words (nth (:lines model-after) 0))))
-    (test/is (= [(tw " ") (tw "*|")] (:words (nth (:lines model-after) 1))))
-    ))
+    (test/is (= [(tw " ") (tw "*|")] (:words (nth (:lines model-after) 1))))))
 
 (test/deftest x->pos-in-line-test
   (let [w 7

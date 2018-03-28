@@ -508,90 +508,67 @@
       (assert word (str "No word line-index=" line-index " word-index=" word-index))
       model)))
 
-;; Example 1:
-;; line 0 - will be contained in prior-lines
-;; line 1 - so line-num-to-start-rewrap will be = 1
-;; line 2 - caret/mark line; caret-line-and-following-words will contain words of all lines starting from this one
-;; line 3 ...
-;;
-;; Example 2:
-;; line 0 - caret/mark line; line-num-to-start-rewrap will be = -1;
-;; line 1 ...
-(defn rewrap-partially [model w caret-line-and-following-words interop because-glyphs-killed]
-   (let [;line-num-to-start-rewrap (dec (min (:caret-line model) (:mark-line model)))
-         caret-line-index (:caret-line model)
-         caret-line (get-in model [:lines caret-line-index])
-         caret-word-index (:caret-word caret-line)
-         caret-word (get-in caret-line [:words caret-word-index])
-         caret-pos (:caret-pos caret-word)
-         mark-line-index (:mark-line model)
-         mark-line (get-in model [:lines mark-line-index])
-         mark-word-index (:mark-word mark-line)
-         mark-word (get-in mark-line [:words mark-word-index])
-         mark-pos (:mark-pos mark-word)
-         line-num-to-start-rewrap (dec caret-line-index)]
-    (if (and (= caret-line-index mark-line-index) (= caret-word-index mark-word-index) (= caret-pos mark-pos))
-      (cond
+(defn rewrap-partially
+   ([model w caret-line-and-following-words interop because-glyphs-killed line-num-to-start-rewrap]
+     (let [caret-line-index (:caret-line model)
+           caret-line (get-in model [:lines caret-line-index])
+           caret-word-index (:caret-word caret-line)
+           caret-word (get-in caret-line [:words caret-word-index])
+           caret-pos (:caret-pos caret-word)
+           mark-line-index (:mark-line model)
+           mark-line (get-in model [:lines mark-line-index])
+           mark-word-index (:mark-word mark-line)
+           mark-word (get-in mark-line [:words mark-word-index])
+           mark-pos (:mark-pos mark-word)]
+       (if (and (= caret-line-index mark-line-index) (= caret-word-index mark-word-index) (= caret-pos mark-pos))
+         (cond
 
-        (>= line-num-to-start-rewrap 0)
-        (let [prior-lines (vu/takev line-num-to-start-rewrap (:lines model))
-              prior-h (apply + (map :h prior-lines))
-              prior-words-in-line (:words (nth (:lines model) line-num-to-start-rewrap))
-              words-to-wrap (concat
-                              prior-words-in-line
-                              caret-line-and-following-words)
-              remainder-model (wrap-lines words-to-wrap w interop)
-              result-caret-line (if because-glyphs-killed (:caret-line model) (+ (count prior-lines) (:caret-line remainder-model)))
-              result-mark-line (if because-glyphs-killed (:mark-line model) (+ (count prior-lines) (:mark-line remainder-model))) ;TODO result-mark-line is the same. Rewrite this method, do not compure caret line/word/pos
-              new-model (Model.
-                          (into prior-lines (mapv (fn [l] (update l :y + prior-h)) (:lines remainder-model)))
-                          result-caret-line result-mark-line (+ prior-h (:total-h remainder-model)))]
-          (if (and because-glyphs-killed (<= caret-line-index (dec (count (:lines new-model)))))
-            (let [count-following (count caret-line-and-following-words)
-                  caret-word-killed (>= caret-word-index count-following)
-                  new-caret-line (get-in new-model [:lines caret-line-index])
-                  new-caret-line-words (:words new-caret-line)
-                  new-caret-line-word-count (count new-caret-line-words)
-                  word-count-reduced (>= caret-word-index new-caret-line-word-count)
-                  new-caret-word-index (cond
-                                         caret-word-killed (dec count-following)
-                                         word-count-reduced (dec new-caret-line-word-count)
-                                         :else caret-word-index)
-                  new-caret-pos (if (or caret-word-killed word-count-reduced)
-                                  (let [new-cw-glyphs (:glyphs (nth caret-line-and-following-words new-caret-word-index))]
-                                    (if (linebreak? (vu/lastv new-cw-glyphs))
-                                      (dec (count new-cw-glyphs))
-                                      (count new-cw-glyphs)))
-                                  caret-pos)]
-              ;(->
-              ;  (assert-word new-model caret-line-index new-caret-word-index)
-              ;  (assoc-in [:lines caret-line-index :caret-word] new-caret-word-index)
-              ;  (assoc-in [:lines caret-line-index :mark-word] new-caret-word-index)
-              ;  (assoc-in [:lines caret-line-index :words new-caret-word-index :caret-pos] new-caret-pos)
-              ;  (assoc-in [:lines caret-line-index :words new-caret-word-index :mark-pos] new-caret-pos))
-              new-model
-              )
-            new-model))
+           (>= line-num-to-start-rewrap 0)
+           (let [prior-lines (vu/takev line-num-to-start-rewrap (:lines model))
+                 prior-h (apply + (map :h prior-lines))
+                 prior-words-in-line (:words (nth (:lines model) line-num-to-start-rewrap))
+                 words-to-wrap (concat
+                                 prior-words-in-line
+                                 caret-line-and-following-words)
+                 remainder-model (wrap-lines words-to-wrap w interop)
+                 result-caret-line (if because-glyphs-killed (:caret-line model) (+ (count prior-lines) (:caret-line remainder-model)))
+                 result-mark-line (if because-glyphs-killed (:mark-line model) (+ (count prior-lines) (:mark-line remainder-model))) ;TODO result-mark-line is the same. Rewrite this method, do not compure caret line/word/pos
+                 new-model (Model.
+                             (into prior-lines (mapv (fn [l] (update l :y + prior-h)) (:lines remainder-model)))
+                             result-caret-line result-mark-line (+ prior-h (:total-h remainder-model)))]
+             (if (and because-glyphs-killed (<= caret-line-index (dec (count (:lines new-model)))))
+               (let [count-following (count caret-line-and-following-words)
+                     caret-word-killed (>= caret-word-index count-following)
+                     new-caret-line (get-in new-model [:lines caret-line-index])
+                     new-caret-line-words (:words new-caret-line)
+                     new-caret-line-word-count (count new-caret-line-words)
+                     word-count-reduced (>= caret-word-index new-caret-line-word-count)]
+                 new-model)
+               new-model))
 
-        (pos? (count caret-line-and-following-words))
-        (let [words (if because-glyphs-killed
-                      (let [count-following (count caret-line-and-following-words)
-                            word-killed (and (pos? count-following) (>= caret-word-index count-following))
-                            new-caret-word-index (if word-killed (dec count-following) caret-word-index)
-                            _ (assert (< new-caret-word-index (count caret-line-and-following-words)) (str "No word in vec, index=" new-caret-word-index))
-                            new-caret-pos (if word-killed (count (:glyphs (nth caret-line-and-following-words new-caret-word-index))) caret-pos)]
+           (pos? (count caret-line-and-following-words))
+           (let [words (if because-glyphs-killed
+                         (let [count-following (count caret-line-and-following-words)
+                               word-killed (and (pos? count-following) (>= caret-word-index count-following))
+                               new-caret-word-index (if word-killed (dec count-following) caret-word-index)
+                               _ (assert (< new-caret-word-index (count caret-line-and-following-words)) (str "No word in vec, index=" new-caret-word-index))]
+                           caret-line-and-following-words)
+                         caret-line-and-following-words)]
+             (wrap-lines words w interop))
 
-                        ;(->
-                        ;  (assoc-in caret-line-and-following-words [new-caret-word-index :caret-pos] new-caret-pos)
-                        ;  (assoc-in [new-caret-word-index :mark-pos] new-caret-pos))
-                        caret-line-and-following-words
-
-                        )
-                      caret-line-and-following-words)]
-          (wrap-lines words w interop))
-
-        :else empty-model)
-      (throw (IllegalStateException. "model selection is not reduced")))))
+           :else empty-model)
+         (throw (IllegalStateException. "model selection is not reduced")))))
+  ([model w caret-line-and-following-words interop because-glyphs-killed]
+    ;; Example 1:
+    ;; line 0 - will be contained in prior-lines
+    ;; line 1 - so line-num-to-start-rewrap will be = 1
+    ;; line 2 - caret/mark line; caret-line-and-following-words will contain words of all lines starting from this one
+    ;; line 3 ...
+    ;;
+    ;; Example 2:
+    ;; line 0 - caret/mark line; line-num-to-start-rewrap will be = -1;
+    ;; line 1 ...
+   (rewrap-partially model w caret-line-and-following-words interop because-glyphs-killed (dec (:caret-line model)))))
 
 (defn has-selection? [model]
   (if (not= (:caret-line model) (:mark-line model))
@@ -1183,7 +1160,7 @@
           (if (and (= (count (:lines model)) 1) (= (count remainder-words) 1) (nil? (first remainder-words)))
             empty-model
             (->
-              (rewrap-partially reduced-selection-model w (truncate-words remainder-words) interop true)
+              (rewrap-partially reduced-selection-model w (truncate-words remainder-words) interop true (dec (min caret-line-index mark-line-index)))
               (propagate-cm-index-up true model))))))))
 
 (defn- glyph->model [model g w interop]                         ;TODO rebuild-primitives??
@@ -1420,7 +1397,7 @@
 
 (def perform-sanity-check true)
 
-(defn sanity-check [model]
+(defn sanity-check [model]                                        ;;TODO primitives maybe
   (do
     (loop [i 0]
       (if (< i (count sanity-checks-model))

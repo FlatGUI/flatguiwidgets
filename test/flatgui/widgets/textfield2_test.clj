@@ -1537,6 +1537,23 @@
     (test/is (= [(tw "    |\n")] (:words (nth (:lines model-after) 0))))
     (test/is (= [(tw "aaa ") (tw "bbbb\n")] (:words (nth (:lines model-after) 1))))))
 
+(test/deftest sel-delete-test-16
+  (let [w 250
+        model (test-wrap-lines [(tw "aaa\n")
+                                (tw "bbb\n")
+                                (tw "ccc|\n")
+                                (tw "ddd")] w)
+        model-before-cm (->
+                          (textfield2/move-caret-mark model :mark :home nil nil)
+                          (textfield2/move-caret-mark :mark :up nil nil))
+        model-after (textfield2/do-delete model-before-cm w dummy-interop)]
+    (test/is (= [1 0 0 2 0 3] (model->caret-mark-pos model-before-cm)))
+    (test/is (= 3 (count (:lines model-after))))
+    (test/is (= [(tw "aaa\n")] (:words (nth (:lines model-after) 0))))
+    (test/is (= [(tw "|\n")] (:words (nth (:lines model-after) 1))))
+    (test/is (= [(tw "ddd")] (:words (nth (:lines model-after) 2))))
+    ))
+
 (test/deftest glyphs->model-test-1
   (let [w 50
         model (test-wrap-lines [(tw "|a")] w)

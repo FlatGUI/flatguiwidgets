@@ -1067,8 +1067,11 @@
         mark-word (get-in mark-line [:words mark-word-index])
         mark-pos (:mark-pos mark-word)]
     (if (and (= caret-line-index mark-line-index) (= caret-word-index mark-word-index) (= caret-pos mark-pos))
-      (if (and (> caret-word-index 0) (= 1 (count (:glyphs caret-word))))
-        (move-caret-mark-1-char model true true backward-edge-fn backward-edge-last-in-line-fn dec false false)
+      (if (= 1 (count (:glyphs caret-word)))
+        (cond
+          (> caret-word-index 0) (move-caret-mark-1-char model true true backward-edge-fn backward-edge-last-in-line-fn dec false false)
+          (and (= caret-word-index 0) (> (count (:words caret-line)) 0)) (move-caret-mark-1-char model true true forward-edge-fn forward-edge-last-in-line-fn inc false nil)
+          :else model)
         model)
       (let [caret-before-mark (if (= caret-line-index mark-line-index)
                                 (if (= caret-word-index mark-word-index) (< caret-pos mark-pos) (< caret-word-index mark-word-index))
@@ -1079,7 +1082,12 @@
           (and first-word-killing last-word-killing)
           (let [notlast-fn (fn [li line wi] (not (and (= wi (dec (count (:words line)))) (= li (dec (count (:lines model)))))))
                 notfirst-fn (fn [li wi] (not (and (= wi 0) (= li 0))))]
-            (if caret-before-mark
+            (cond
+
+              (and (= caret-line-index mark-line-index) (= 1 (count (:words caret-line))))
+              (move-caret-to-mark model false)
+
+              caret-before-mark
               (if (notlast-fn mark-line-index mark-line mark-word-index)
                 (->
                   (move-caret-to-mark model false)
@@ -1088,6 +1096,8 @@
                   (if (notfirst-fn caret-line-index caret-word-index)
                     (move-caret-mark-1-char cm true true backward-edge-fn backward-edge-last-in-line-fn dec false false)
                     cm)))
+
+              :else
               (if (notlast-fn caret-line-index caret-line caret-word-index)
                 (->
                   (move-mark-to-caret model false)

@@ -1238,6 +1238,49 @@
     (test/is (= 0 (:caret-line model-after)))
     (test/is (= [(tw "ab | ")] (:words (first (:lines model-after)))))))
 
+(test/deftest nosel-delete-test-14
+  (let [w 30
+        model-before (test-wrap-lines [(tw " ") (tw "a\n")
+                                       (tw "| ") (tw "a\n")
+                                       (tw " ") (tw "a\n")] w)
+        model-after (textfield2/do-delete model-before w dummy-interop)
+        lines-after (:lines model-after)]
+    (test/is (= 3 (count lines-after)))
+    (test/is (= 1 (:caret-line model-after)))
+    (test/is (= [(tw "|a\n")] (:words (second (:lines model-after)))))))
+
+(test/deftest nosel-delete-test-15
+  (let [w 3
+        model-before (test-wrap-lines [(tw " ") (tw "a\n")
+                                       (tw "| ")
+                                       (tw "aaa\n")] w)
+        model-after (textfield2/do-delete model-before w dummy-interop)
+        lines-after (:lines model-after)]
+    (test/is (= 2 (count lines-after)))
+    (test/is (= 1 (:caret-line model-after)))
+    (test/is (= [(tw "|aaa\n")] (:words (second (:lines model-after)))))))
+
+(test/deftest nosel-delete-test-16
+  (let [w 3
+        model-before (test-wrap-lines [(tw " ") (tw "a\n")
+                                       (tw "|\n")
+                                       (tw "")] w)
+        model-after (textfield2/do-delete model-before w dummy-interop)
+        lines-after (:lines model-after)]
+    (test/is (= 2 (count lines-after)))
+    (test/is (= 1 (:caret-line model-after)))
+    (test/is (= [(tw " ") (tw "a\n")] (:words (first (:lines model-after)))))
+    (test/is (= [textfield2/empty-word-with-caret-&-mark] (:words (second (:lines model-after)))))))
+
+(test/deftest nosel-delete-test-17
+  (let [w 30
+        model-before (test-wrap-lines [(tw "| ")] w)
+        model-after (textfield2/do-delete model-before w dummy-interop)
+        lines-after (:lines model-after)]
+    (test/is (= 1 (count lines-after)))
+    (test/is (= 0 (:caret-line model-after)))
+    (test/is (= [textfield2/empty-word-with-caret-&-mark] (:words (first (:lines model-after)))))))
+
 (test/deftest sel-delete-test-1
   (let [w 7
         model (test-wrap-lines [(tw "aa ") (tw "|bb ")
@@ -1720,6 +1763,19 @@
         model-after (textfield2/glyphs->model model glyphs w dummy-interop)]
     (test/is (= [(tw "/*\n")] (:words (nth (:lines model-after) 0))))
     (test/is (= [(tw " ") (tw "*|")] (:words (nth (:lines model-after) 1))))))
+
+(test/deftest glyphs->model-test-19
+  (let [w 50
+        model (test-wrap-lines [(tw "aa\n")
+                                (tw "bb|")] w)
+        model-before (->
+                       (textfield2/move-caret-mark model :caret :backward nil nil)
+                       (textfield2/move-caret-mark :caret :backward nil nil))
+        glyphs (tg "aa")
+        model-after (textfield2/glyphs->model model-before glyphs w dummy-interop)
+        lines-after (:lines model-after)]
+    (test/is (= [(tw "aa\n")] (:words (nth lines-after 0))))
+    (test/is (= [(tw "aa|")] (:words (nth lines-after 1))))))
 
 (test/deftest x->pos-in-line-test
   (let [w 7

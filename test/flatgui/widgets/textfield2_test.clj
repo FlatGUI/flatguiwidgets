@@ -310,31 +310,6 @@
     (test/is (= [1.0 1.0] (mapv :h (:lines model-after))))
     (test/is (= [0.0 1.0] (mapv :y (:lines model-after))))))
 
-;; TODO not sure of this is needed, maybe kill-glyphs (in truncate-words?) should split long words. This is related to nosel-delete-test-20
-(test/deftest wrap-test6
-  (let [w 7
-        words [(tw "aaaaa|bbbbb")]
-        model (test-wrap-lines words w)]
-    (test/is (= 2 (count (:lines model))))
-    (test/is (= [(tw "aaaaa|bb")] (:words (nth (:lines model) 0))))
-    (test/is (= [(tw "bbb")] (:words (nth (:lines model) 1))))
-    (test/is (= 2.0 (:total-h model)))
-    (test/is (= [1.0 1.0] (mapv :h (:lines model))))
-    (test/is (= [0.0 1.0] (mapv :y (:lines model))))))
-
-;; TODO not sure of this is needed, maybe kill-glyphs (in truncate-words?) should split long words. This is related to nosel-delete-test-20
-(test/deftest wrap-test7
-  (let [w 7
-        words [(tw "aaaaa|bbbbbbbbbb")]
-        model (test-wrap-lines words w)]
-    (test/is (= 3 (count (:lines model))))
-    (test/is (= [(tw "aaaaa|bb")] (:words (nth (:lines model) 0))))
-    (test/is (= [(tw "bbbbbbb")] (:words (nth (:lines model) 1))))
-    (test/is (= [(tw "b")] (:words (nth (:lines model) 2))))
-    (test/is (= 3.0 (:total-h model)))
-    (test/is (= [1.0 1.0 1.0] (mapv :h (:lines model))))
-    (test/is (= [0.0 1.0 2.0] (mapv :y (:lines model))))))
-
 (test/deftest insert-symbol-test-1
   (let [words [(tw "T|he ") (tw "quick ")
                (tw "brown ") (tw "fox ")
@@ -701,38 +676,38 @@
 
 (test/deftest truncated-word-reducer-test-1
   (let [words [(tw "The ") nil (tw "|  ")]
-        reduction (textfield2/truncate-words words)]
+        reduction (textfield2/truncate-words words 20 dummy-interop)]
     (test/is (= [(tw "The |  ")] reduction))))
 
 (test/deftest truncated-word-reducer-test-2
   (let [words [(tw "The| ") nil (tw "  ")]
-        reduction (textfield2/truncate-words words)]
+        reduction (textfield2/truncate-words words 20 dummy-interop)]
     (test/is (= [(tw "The|   ")] reduction))))
 
 (test/deftest truncated-word-reducer-test-3
   (let [words [(tw "The ") (tw " | ") (tw "  ")]
-        reduction (textfield2/truncate-words words)]
+        reduction (textfield2/truncate-words words 20 dummy-interop)]
     (test/is (= [(tw "The  |   ")] reduction))))
 
 (test/deftest truncated-word-reducer-test-4
   (let [words [(tw "aa") (tw "b|b")]
-        reduction (textfield2/truncate-words words)]
+        reduction (textfield2/truncate-words words 20 dummy-interop)]
     (test/is (= [(tw "aab|b")] reduction))))
 
 (test/deftest truncated-word-reducer-test-5
   (let [words [(tw "a ") nil nil (tw "|d")]
-        reduction (textfield2/truncate-words words)]
+        reduction (textfield2/truncate-words words 20 dummy-interop)]
     (test/is (= [(tw "a ") (tw "|d")] reduction))))
 
 (test/deftest truncated-word-reducer-test-6
   (let [words [(tw (str "aa" \newline)) (tw "b|b")]
-        reduction (textfield2/truncate-words words)]
+        reduction (textfield2/truncate-words words 20 dummy-interop)]
     (test/is (= words reduction))))
 
 (test/deftest truncated-word-reducer-test-7
   ;; Here caret at the end of the 1st word is OK because this may be intermediate state after Del pressed for "a|\n"
   (let [words [(tw (str "a")) (tw " ") (tw "b\n") (tw " ") (tw "b")]
-        reduction (textfield2/truncate-words words)]
+        reduction (textfield2/truncate-words words 20 dummy-interop)]
     (test/is (= [(tw (str "a ")) (tw "b\n") (tw " ") (tw "b")] reduction))))
 
 (test/deftest test-glyphs->Word-1
@@ -1367,23 +1342,7 @@
     (test/is (= [(tw "bbb|bbbb ")] (:words (nth (:lines model-after) 2))))
     (test/is (= [(tw "cccc ")] (:words (nth (:lines model-after) 3))))))
 
-;;TODO caret-pos in model-before - this happened in real life
-;; possible to achieve by copypasting "bbb" or just typing "b" without any delimiter at the end into the end of second string `  ``a ` - but sanity check blocks this
-;; need to decide - probably it should work like in notepad - insert these bbb right into next line making all b-s a single word
-;(test/deftest nosel-delete-test-19
-;  (let [w 7
-;        model-before (test-wrap-lines [(tw "xy\n")
-;                                       (tw "  ") (tw "a ") (tw "bbb|")
-;                                       (tw "bbbbb ")(tw "cccc ")] w)
-;        model-after (textfield2/do-delete model-before w dummy-interop)]
-;    (test/is (= 2 (:caret-line model-after)))
-;    (test/is (= 2 (:mark-line model-after)))
-;    (test/is (= [(tw "  ") (tw "a ")] (:words (nth (:lines model-after) 1))))
-;    (test/is (= [(tw "bbb|bbbb ")] (:words (nth (:lines model-after) 2))))
-;    (test/is (= [(tw "cccc ")] (:words (nth (:lines model-after) 3))))
-;    ))
-
-(test/deftest nosel-delete-test-20
+(test/deftest nosel-delete-test-19
   (let [w 7
         glyphs (tg "aaaaa bbbbbbbbbb")
         words (textfield2/make-words glyphs 5 w dummy-interop)
@@ -1397,8 +1356,7 @@
     (test/is (= 0 (:mark-line model-after)))
     (test/is (= [(tw "aaaaa|bb")] (:words (nth (:lines model-after) 0))))
     (test/is (= [(tw "bbbbbbb")] (:words (nth (:lines model-after) 1))))
-    ;(test/is (= [(tw "b")] (:words (nth (:lines model-after) 2))))
-    ))
+    (test/is (= [(tw "b")] (:words (nth (:lines model-after) 2))))))
 
 (test/deftest sel-delete-test-1
   (let [w 7
@@ -1610,7 +1568,7 @@
         model-after (textfield2/do-delete model-before-cm w dummy-interop)
         expected-words [(tw "|l ")]]
 
-    (test/is (= [0 2 0 0 0 0] (model->caret-mark-pos model-before-cm)))
+    (test/is (= [0 1 1 0 0 0] (model->caret-mark-pos model-before-cm)))
 
     (test/is (= expected-words (:words (first (:lines model-after)))))))
 

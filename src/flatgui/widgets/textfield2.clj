@@ -414,7 +414,7 @@
 
 (defn lines->line-heights [lines] (mapv :h lines))
 
-(defn collapse-words [last-word word]
+(defn collapse-words [last-word word w interop]
   (let [result-caret-pos (cond
                            (:caret-pos last-word) (:caret-pos last-word)
                            (:caret-pos word) (+ (:caret-pos word) (count (:glyphs last-word)))
@@ -423,15 +423,16 @@
                           (:mark-pos last-word) (:mark-pos last-word)
                           (:mark-pos word) (+ (:mark-pos word) (count (:glyphs last-word)))
                           :else nil)]
-    (Word.
+    (make-words
       (into (:glyphs last-word) (:glyphs word))
       result-caret-pos
       result-mark-pos
-      (+ (:w-content last-word) (if (every? whitespace? (:glyphs word)) 0 (:w-content word)))
-      (+ (:w-total last-word) (:w-total word))
-      (max (:h last-word) (:h word)))))
+      w
+      interop)))
 
 (defn wrap-lines
+  ;; This fn does not split words that are longer than viewport width.
+  ;; It is supposed that incoming words are already split
   ([w interop]
     (fn [rf]
       (let [line-state (volatile! [])
@@ -496,7 +497,7 @@
                            (delimiter? (vu/firstv (:glyphs word)))
                            (and (not (delimiter? (peek (:glyphs (peek line))))) (not (delimiter? (vu/firstv (:glyphs word))))) ))
                      (do
-                       (vreset! line-state (conj (pop line) (collapse-words (peek line) word)))
+                       (vreset! line-state (into (pop line) (collapse-words (peek line) word w interop)))
                        (if (not @line-caret-met-state) (vswap! line-caret-index-state dec)))
                      (vswap! line-state conj word))
                    (vswap! line-w-state + w-total)
@@ -957,34 +958,35 @@
 (defmethod move-caret-mark :page-down [model what where viewport-h _interop]
   (move-page-up-down model what where viewport-h _interop))
 
-(defn truncated-word-reducer [words word]
-  (cond
+(defn make-truncated-word-reducer [w interop]
+  (fn [words word]
+    (cond
 
-    ;; This is for the last word of a line survival
-    (= empty-word-with-caret-&-mark word)
-    (conj words word)
+      ;; This is for the last word of a line survival
+      (= empty-word-with-caret-&-mark word)
+      (conj words word)
 
-    (or (nil? word) (vu/emptyv? (:glyphs word)))
-    words
+      (or (nil? word) (vu/emptyv? (:glyphs word)))
+      words
 
-    (and
-      (not (vu/emptyv? words))
-      (let [last-glyph (peek (:glyphs (peek words)))]
-        (and
-          (not (linebreak? last-glyph))
-          (or
-            (not (whitespace? last-glyph))
-            (every? whitespace? (:glyphs word))
-            (linebreak? (vu/firstv (:glyphs word)))))))
-    (let [last-word (peek words)]
-      (conj
-        (pop words)
-        (collapse-words last-word word)))
+      (and
+        (not (vu/emptyv? words))
+        (let [last-glyph (peek (:glyphs (peek words)))]
+          (and
+            (not (linebreak? last-glyph))
+            (or
+              (not (whitespace? last-glyph))
+              (every? whitespace? (:glyphs word))
+              (linebreak? (vu/firstv (:glyphs word)))))))
+      (let [last-word (peek words)]
+        (into
+          (pop words)
+          (collapse-words last-word word w interop)))
 
-    :else
-    (conj words word)))
+      :else
+      (conj words word))))
 
-(defn truncate-words [words] (vec (reduce truncated-word-reducer [] words)))
+(defn truncate-words [words w interop] (vec (reduce (make-truncated-word-reducer w interop) [] words)))
 
 (defn- kill-glyph-range-in-word [word from-index-incl to-index-excl w interop]
   (let [old-glyphs (:glyphs word)
@@ -1174,7 +1176,7 @@
           (if (and (= (count (:lines model)) 1) (= (count remainder-words) 1) (nil? (first remainder-words)))
             empty-model
             (->
-              (rewrap-partially reduced-selection-model w (truncate-words remainder-words) interop true (dec (min caret-line-index mark-line-index)))
+              (rewrap-partially reduced-selection-model w (truncate-words remainder-words w interop) interop true (dec (min caret-line-index mark-line-index)))
               (propagate-cm-index-up true model))))))))
 
 (defn- glyph->model [model g w interop]                         ;TODO rebuild-primitives??

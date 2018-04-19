@@ -1358,6 +1358,31 @@
     (test/is (= [(tw "bbbbbbb")] (:words (nth (:lines model-after) 1))))
     (test/is (= [(tw "b")] (:words (nth (:lines model-after) 2))))))
 
+(test/deftest nosel-delete-test-20
+  (let [w 3
+        model-before (test-wrap-lines [(tw "aaa")
+                                       (tw "aaa")
+                                       (tw "aaa|")
+                                       (tw "aa")] w)
+        model-after (textfield2/do-delete model-before w dummy-interop)
+        lines-after (:lines model-after)]
+    (test/is (= 4 (count lines-after)))
+    (test/is (= [3 0 0 3 0 0] (model->caret-mark-pos model-after)))
+    (test/is (= [(tw "|a")] (:words (nth (:lines model-after) 3))))))
+
+(test/deftest nosel-delete-test-21
+  (let [w 3
+        model-before (test-wrap-lines [(tw "aaa")
+                                       (tw "aaa")
+                                       (tw "aaa")
+                                       (tw "|aa")] w)
+        model-after (textfield2/do-backspace model-before w dummy-interop)
+        lines-after (:lines model-after)]
+    (test/is (= 4 (count lines-after)))
+    (test/is (= [2 0 2 2 0 2] (model->caret-mark-pos model-after)))
+    (test/is (= [(tw "aa|a")] (:words (nth (:lines model-after) 2))))
+    (test/is (= [(tw "a")] (:words (nth (:lines model-after) 3))))))
+
 (test/deftest sel-delete-test-1
   (let [w 7
         model (test-wrap-lines [(tw "aa ") (tw "|bb ")

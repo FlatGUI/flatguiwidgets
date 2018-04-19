@@ -1215,7 +1215,7 @@
           (let [caret-word (nth caret-line-words caret-word-index)
                 caret-pos (:caret-pos caret-word)]
             (if (= caret-pos (count (:glyphs caret-word)))
-              (move-caret-mark model :caret-&-mark :forward nil nil)
+              (move-caret-mark model :caret-&-mark :forward nil nil) ;TODO no need to rebuild primitives
               model))
           model))
       model)))
@@ -1283,7 +1283,15 @@
       (throw (IllegalStateException. "Cursor may be in edge glyph position of the word only at the end of the line"))
 
       :else
-      (kill-glyphs model w interop))))
+      (let [m (if (and edge-word-by-caret (= caret-pos (count caret-word-glyphs)))
+                ;; No delimiter at the end means we are inside a long word forcefully split to fit viewport width. Move to the beginning of next line to kill there
+                (move-caret-mark-1-char model true true forward-edge-fn forward-edge-last-in-line-fn inc false nil)
+                model)]
+        (kill-glyphs m w interop)))))
+
+(defn- get-last-glyph-in-line [line]
+  (let [words (:words line)]
+    (peek (:glyphs (peek words)))))
 
 (defn do-backspace [model w interop]
   (let [line-index (:caret-line model)
@@ -1302,13 +1310,20 @@
 
       (and (= 1 (count words)) (= empty-word-with-caret-&-mark word))
       (->
-        (move-caret-mark model :caret-&-mark :backward nil nil)
+        (move-caret-mark model :caret-&-mark :backward nil nil) ;TODO no need to rebuild primitives here
         (do-delete w interop)
+        (do-delete w interop))
+
+      (and edge-word (not edge-line) (not (delimiter? (get-last-glyph-in-line (nth lines (dec line-index))))))
+      ;; Twice back because otherwise delete moves down to next line when detects caret at the end with no delimiter
+      (->
+        (move-caret-mark model :caret-&-mark :backward nil nil)  ;TODO no need to rebuild primitives here
+        (move-caret-mark :caret-&-mark :backward nil nil)
         (do-delete w interop))
 
       :else
       (->
-        (move-caret-mark model :caret-&-mark :backward nil nil)
+        (move-caret-mark model :caret-&-mark :backward nil nil)  ;TODO no need to rebuild primitives here
         (do-delete w interop)))))
 
 (fg/defaccessorfn get-effective-w [component]

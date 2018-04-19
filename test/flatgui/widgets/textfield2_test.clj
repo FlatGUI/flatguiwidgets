@@ -310,6 +310,31 @@
     (test/is (= [1.0 1.0] (mapv :h (:lines model-after))))
     (test/is (= [0.0 1.0] (mapv :y (:lines model-after))))))
 
+;; TODO not sure of this is needed, maybe kill-glyphs (in truncate-words?) should split long words. This is related to nosel-delete-test-20
+(test/deftest wrap-test6
+  (let [w 7
+        words [(tw "aaaaa|bbbbb")]
+        model (test-wrap-lines words w)]
+    (test/is (= 2 (count (:lines model))))
+    (test/is (= [(tw "aaaaa|bb")] (:words (nth (:lines model) 0))))
+    (test/is (= [(tw "bbb")] (:words (nth (:lines model) 1))))
+    (test/is (= 2.0 (:total-h model)))
+    (test/is (= [1.0 1.0] (mapv :h (:lines model))))
+    (test/is (= [0.0 1.0] (mapv :y (:lines model))))))
+
+;; TODO not sure of this is needed, maybe kill-glyphs (in truncate-words?) should split long words. This is related to nosel-delete-test-20
+(test/deftest wrap-test7
+  (let [w 7
+        words [(tw "aaaaa|bbbbbbbbbb")]
+        model (test-wrap-lines words w)]
+    (test/is (= 3 (count (:lines model))))
+    (test/is (= [(tw "aaaaa|bb")] (:words (nth (:lines model) 0))))
+    (test/is (= [(tw "bbbbbbb")] (:words (nth (:lines model) 1))))
+    (test/is (= [(tw "b")] (:words (nth (:lines model) 2))))
+    (test/is (= 3.0 (:total-h model)))
+    (test/is (= [1.0 1.0 1.0] (mapv :h (:lines model))))
+    (test/is (= [0.0 1.0 2.0] (mapv :y (:lines model))))))
+
 (test/deftest insert-symbol-test-1
   (let [words [(tw "T|he ") (tw "quick ")
                (tw "brown ") (tw "fox ")
@@ -504,6 +529,43 @@
         model-after  (textfield2/glyph-> model-before textfield2/whitespace-glyph 9 dummy-interop)
         expected-words [(tw "a ") (tw "|cd")]]
     (test/is (= expected-words (:words (first (:lines model-after)))))))
+
+(test/deftest insert-symbol-test-16
+  (let [w 7
+        glyphs (tg "bb aaaaaaaaa")
+        words (textfield2/make-words glyphs 4 w dummy-interop)
+        model-before (test-wrap-lines words w)
+        model-after  (textfield2/glyph-> model-before (textfield2/char-glyph \X) w dummy-interop)]
+    (test/is (= [(tw "bb ")] (:words (nth (:lines model-before) 0))))
+    (test/is (= [(tw "a|aaaaaa")] (:words (nth (:lines model-before) 1))))
+    (test/is (= [(tw "aa")] (:words (nth (:lines model-before) 2))))
+    (test/is (= [(tw "bb ")] (:words (nth (:lines model-after) 0))))
+    (test/is (= [(tw "aX|aaaaa")] (:words (nth (:lines model-after) 1))))
+    (test/is (= [(tw "aaa")] (:words (nth (:lines model-after) 2))))))
+
+(test/deftest insert-symbol-test-17
+  (let [w 7
+        glyphs (tg "bb aaaaaaaaa")
+        words (textfield2/make-words glyphs 3 w dummy-interop)
+        model-before (test-wrap-lines words w)
+        model-after  (textfield2/glyph-> model-before textfield2/whitespace-glyph w dummy-interop)]
+    (test/is (= [(tw "bb ")] (:words (nth (:lines model-before) 0))))
+    (test/is (= [(tw "|aaaaaaa")] (:words (nth (:lines model-before) 1))))
+    (test/is (= [(tw "aa")] (:words (nth (:lines model-before) 2))))
+    (test/is (= [(tw "bb  ")] (:words (nth (:lines model-after) 0))))
+    (test/is (= [(tw "|aaaaaaa")] (:words (nth (:lines model-after) 1))))
+    (test/is (= [(tw "aa")] (:words (nth (:lines model-after) 2))))))
+
+(test/deftest insert-symbol-test-18
+  (let [w 5
+        words [(tw "a |") (tw "bbbbb")]
+        model-before (test-wrap-lines words w)
+        model-after  (textfield2/glyph-> model-before (textfield2/char-glyph \b) w dummy-interop)]
+    (test/is (= [(tw "a |")] (:words (nth (:lines model-before) 0))))
+    (test/is (= [(tw "bbbbb")] (:words (nth (:lines model-before) 1))))
+    (test/is (= [(tw "a ")] (:words (nth (:lines model-after) 0))))
+    (test/is (= [(tw "b|bbbb")] (:words (nth (:lines model-after) 1))))
+    (test/is (= [(tw "b")] (:words (nth (:lines model-after) 2))))))
 
 (defrecord CGlyph [type data style]
   Supplier
@@ -808,6 +870,17 @@
       0
       [1.0            1.0])
     (test/is (= 2 (get-in model-after [:lines 0 :words 0 :caret-pos])))))
+
+(test/deftest test-glyphs->Model-5
+  (let [w 5
+        words [(tw "a |") (tw "bbbbb")]
+        model-before (test-wrap-lines words w)
+        model-after  (textfield2/glyph-> model-before (textfield2/char-glyph \b) w dummy-interop)]
+    (test/is (= [(tw "a |")] (:words (nth (:lines model-before) 0))))
+    (test/is (= [(tw "bbbbb")] (:words (nth (:lines model-before) 1))))
+    (test/is (= [(tw "a ")] (:words (nth (:lines model-after) 0))))
+    (test/is (= [(tw "b|bbbb")] (:words (nth (:lines model-after) 1))))
+    (test/is (= [(tw "b")] (:words (nth (:lines model-after) 2))))))
 
 (defn word-content-equal [w1 w2] (= (:glyphs w1) (:glyphs w2)))
 
@@ -1280,6 +1353,52 @@
     (test/is (= 1 (count lines-after)))
     (test/is (= 0 (:caret-line model-after)))
     (test/is (= [textfield2/empty-word-with-caret-&-mark] (:words (first (:lines model-after)))))))
+
+(test/deftest nosel-delete-test-18
+  (let [w 7
+        glyphs (tg "xy\n  a bbbbbbbb cccc ")
+        words (textfield2/make-words glyphs 10 w dummy-interop)
+        model-before (test-wrap-lines words w)
+        model-after (textfield2/do-delete model-before w dummy-interop)]
+    (test/is (= [(tw "  ") (tw "a ")] (:words (nth (:lines model-before) 1))))
+    (test/is (= [(tw "bbb|bbbb")] (:words (nth (:lines model-before) 2))))
+    (test/is (= [(tw "b ")  (tw "cccc ")] (:words (nth (:lines model-before) 3))))
+    (test/is (= [(tw "  ") (tw "a ")] (:words (nth (:lines model-after) 1))))
+    (test/is (= [(tw "bbb|bbbb ")] (:words (nth (:lines model-after) 2))))
+    (test/is (= [(tw "cccc ")] (:words (nth (:lines model-after) 3))))))
+
+;;TODO caret-pos in model-before - this happened in real life
+;; possible to achieve by copypasting "bbb" or just typing "b" without any delimiter at the end into the end of second string `  ``a ` - but sanity check blocks this
+;; need to decide - probably it should work like in notepad - insert these bbb right into next line making all b-s a single word
+;(test/deftest nosel-delete-test-19
+;  (let [w 7
+;        model-before (test-wrap-lines [(tw "xy\n")
+;                                       (tw "  ") (tw "a ") (tw "bbb|")
+;                                       (tw "bbbbb ")(tw "cccc ")] w)
+;        model-after (textfield2/do-delete model-before w dummy-interop)]
+;    (test/is (= 2 (:caret-line model-after)))
+;    (test/is (= 2 (:mark-line model-after)))
+;    (test/is (= [(tw "  ") (tw "a ")] (:words (nth (:lines model-after) 1))))
+;    (test/is (= [(tw "bbb|bbbb ")] (:words (nth (:lines model-after) 2))))
+;    (test/is (= [(tw "cccc ")] (:words (nth (:lines model-after) 3))))
+;    ))
+
+(test/deftest nosel-delete-test-20
+  (let [w 7
+        glyphs (tg "aaaaa bbbbbbbbbb")
+        words (textfield2/make-words glyphs 5 w dummy-interop)
+        model-before (test-wrap-lines words w)
+        model-after (textfield2/do-delete model-before w dummy-interop)]
+    (test/is (= [(tw "aaaaa| ")] (:words (nth (:lines model-before) 0))))
+    (test/is (= [(tw "bbbbbbb")] (:words (nth (:lines model-before) 1))))
+    (test/is (= [(tw "bbb")] (:words (nth (:lines model-before) 2))))
+    (test/is (= 3 (count (:lines model-after))))
+    (test/is (= 0 (:caret-line model-after)))
+    (test/is (= 0 (:mark-line model-after)))
+    (test/is (= [(tw "aaaaa|bb")] (:words (nth (:lines model-after) 0))))
+    (test/is (= [(tw "bbbbbbb")] (:words (nth (:lines model-after) 1))))
+    ;(test/is (= [(tw "b")] (:words (nth (:lines model-after) 2))))
+    ))
 
 (test/deftest sel-delete-test-1
   (let [w 7
@@ -1776,6 +1895,18 @@
         lines-after (:lines model-after)]
     (test/is (= [(tw "aa\n")] (:words (nth lines-after 0))))
     (test/is (= [(tw "aa|")] (:words (nth lines-after 1))))))
+
+(test/deftest glyphs->model-test-20
+  (let [w 5
+        words [(tw "a |") (tw "bbbbb")]
+        model-before (test-wrap-lines words w)
+        glyphs (tg "bb")
+        model-after (textfield2/glyphs->model model-before glyphs w dummy-interop)]
+    (test/is (= [(tw "a |")] (:words (nth (:lines model-before) 0))))
+    (test/is (= [(tw "bbbbb")] (:words (nth (:lines model-before) 1))))
+    (test/is (= [(tw "a ")] (:words (nth (:lines model-after) 0))))
+    (test/is (= [(tw "bb|bbb")] (:words (nth (:lines model-after) 1))))
+    (test/is (= [(tw "bb")] (:words (nth (:lines model-after) 2))))))
 
 (test/deftest x->pos-in-line-test
   (let [w 7

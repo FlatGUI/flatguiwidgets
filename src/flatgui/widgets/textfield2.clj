@@ -490,7 +490,11 @@
                        (process-sel)
                        process-result)))
                  (do
-                   (if (and (not (vu/emptyv? line)) (delimiter? (vu/firstv (:glyphs word))))
+                   (if (and
+                         (not (vu/emptyv? line))
+                         (or
+                           (delimiter? (vu/firstv (:glyphs word)))
+                           (and (not (delimiter? (peek (:glyphs (peek line))))) (not (delimiter? (vu/firstv (:glyphs word))))) ))
                      (do
                        (vreset! line-state (conj (pop line) (collapse-words (peek line) word)))
                        (if (not @line-caret-met-state) (vswap! line-caret-index-state dec)))
@@ -1198,8 +1202,26 @@
       (propagate-cm-index-up false model)
       (move-cm-to-next-word-if-needed))))
 
+(defn shift-cm-before-ins-if-needed [model]
+  (let [lines (:lines model)
+        caret-line-index (:caret-line model)]
+    (if (< caret-line-index (dec (count lines)))
+      (let [caret-line (nth lines caret-line-index)
+            caret-line-words (:words caret-line)
+            caret-word-index (:caret-word caret-line)]
+        (if (= caret-word-index (dec (count caret-line-words)))
+          (let [caret-word (nth caret-line-words caret-word-index)
+                caret-pos (:caret-pos caret-word)]
+            (if (= caret-pos (count (:glyphs caret-word)))
+              (move-caret-mark model :caret-&-mark :forward nil nil)
+              model))
+          model))
+      model)))
+
 (defmethod glyph-> Model [model g w interop]
-  (let [m (if (has-selection? model) (kill-glyphs model w interop) model)]
+  (let [m (if (has-selection? model)
+            (kill-glyphs model w interop)
+            (shift-cm-before-ins-if-needed model))]
     (glyph->model m g w interop)))
 
 (defn- glyphs->model-insert-impl [model glyphs w interop]
@@ -1219,7 +1241,9 @@
     (rewrap-partially model w remainder-words interop false)))
 
 (defn glyphs->model [model glyphs w interop]
-  (let [m (if (has-selection? model) (kill-glyphs model w interop) model)]
+  (let [m (if (has-selection? model)
+            (kill-glyphs model w interop)
+            (shift-cm-before-ins-if-needed model))]
     (glyphs->model-insert-impl m glyphs w interop)))
 
 (defn do-delete [model w interop]

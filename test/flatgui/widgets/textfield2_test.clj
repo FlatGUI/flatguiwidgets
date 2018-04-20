@@ -542,6 +542,42 @@
     (test/is (= [(tw "b|bbbb")] (:words (nth (:lines model-after) 1))))
     (test/is (= [(tw "b")] (:words (nth (:lines model-after) 2))))))
 
+(test/deftest insert-symbol-test-19a
+  (let [w 4
+        model (test-wrap-lines [(tw "aaaa")
+                                (tw "aaaa")
+                                (tw "aa|a")] w)
+        model-before-cm (->
+                          (textfield2/move-caret-mark model :caret :backward nil nil)
+                          (textfield2/move-caret-mark :caret :backward nil nil)
+                          (textfield2/move-caret-mark :caret :backward nil nil))
+        model-after (textfield2/glyph-> model-before-cm (textfield2/char-glyph \X) w dummy-interop)
+        lines-after (:lines model-after)
+        ]
+    (test/is (= 3 (count lines-after)))
+    (test/is (= [1 0 4 2 0 2] (model->caret-mark-pos model-before-cm)))
+    (test/is (= [2 0 1 2 0 1] (model->caret-mark-pos model-after)))
+    (test/is (= [(tw "aaaa")] (:words (nth (:lines model-after) 1))))
+    (test/is (= [(tw "X|a")] (:words (nth (:lines model-after) 2))))))
+
+(test/deftest insert-symbol-test-19b
+  (let [w 4
+        model (test-wrap-lines [(tw "aaaa")
+                                (tw "aaaa|")
+                                (tw "aa|a")] w)
+        model-before-cm (->
+                          (textfield2/move-caret-mark model :caret :forward nil nil)
+                          (textfield2/move-caret-mark :caret :forward nil nil)
+                          (textfield2/move-caret-mark :caret :forward nil nil))
+        model-after (textfield2/glyph-> model-before-cm (textfield2/char-glyph \X) w dummy-interop)
+        lines-after (:lines model-after)
+        ]
+    (test/is (= 3 (count lines-after)))
+    (test/is (= [2 0 2 1 0 4] (model->caret-mark-pos model-before-cm)))
+    (test/is (= [2 0 1 2 0 1] (model->caret-mark-pos model-after)))
+    (test/is (= [(tw "aaaa")] (:words (nth (:lines model-after) 1))))
+    (test/is (= [(tw "X|a")] (:words (nth (:lines model-after) 2))))))
+
 (defrecord CGlyph [type data style]
   Supplier
   (get [_this] data))
@@ -2033,6 +2069,44 @@
     (test/is (= [(tw "a ")] (:words (nth (:lines model-after) 0))))
     (test/is (= [(tw "bb|bbb")] (:words (nth (:lines model-after) 1))))
     (test/is (= [(tw "bb")] (:words (nth (:lines model-after) 2))))))
+
+(test/deftest glyphs->model-test-21a
+  (let [w 4
+        model (test-wrap-lines [(tw "aaaa")
+                                (tw "aaaa")
+                                (tw "aa|a")] w)
+        model-before-cm (->
+                          (textfield2/move-caret-mark model :caret :backward nil nil)
+                          (textfield2/move-caret-mark :caret :backward nil nil)
+                          (textfield2/move-caret-mark :caret :backward nil nil))
+        glyphs (tg "XX")
+        model-after (textfield2/glyphs->model model-before-cm glyphs w dummy-interop)
+        lines-after (:lines model-after)
+        ]
+    (test/is (= 3 (count lines-after)))
+    (test/is (= [1 0 4 2 0 2] (model->caret-mark-pos model-before-cm)))
+    (test/is (= [2 0 2 2 0 2] (model->caret-mark-pos model-after)))
+    (test/is (= [(tw "aaaa")] (:words (nth (:lines model-after) 1))))
+    (test/is (= [(tw "XX|a")] (:words (nth (:lines model-after) 2))))))
+
+(test/deftest glyphs->model-test-21b
+  (let [w 4
+        model (test-wrap-lines [(tw "aaaa")
+                                (tw "aaaa|")
+                                (tw "aa|a")] w)
+        model-before-cm (->
+                          (textfield2/move-caret-mark model :caret :forward nil nil)
+                          (textfield2/move-caret-mark :caret :forward nil nil)
+                          (textfield2/move-caret-mark :caret :forward nil nil))
+        glyphs (tg "XX")
+        model-after (textfield2/glyphs->model model-before-cm glyphs w dummy-interop)
+        lines-after (:lines model-after)
+        ]
+    (test/is (= 3 (count lines-after)))
+    (test/is (= [2 0 2 1 0 4] (model->caret-mark-pos model-before-cm)))
+    (test/is (= [2 0 2 2 0 2] (model->caret-mark-pos model-after)))
+    (test/is (= [(tw "aaaa")] (:words (nth (:lines model-after) 1))))
+    (test/is (= [(tw "XX|a")] (:words (nth (:lines model-after) 2))))))
 
 (test/deftest x->pos-in-line-test
   (let [w 7

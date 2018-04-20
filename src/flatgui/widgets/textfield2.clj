@@ -1220,34 +1220,6 @@
           model))
       model)))
 
-(defmethod glyph-> Model [model g w interop]
-  (let [m (if (has-selection? model)
-            (kill-glyphs model w interop)
-            (shift-cm-before-ins-if-needed model))]
-    (glyph->model m g w interop)))
-
-(defn- glyphs->model-insert-impl [model glyphs w interop]
-  (let [line-with-caret (nth (:lines model) (:caret-line model))
-        caret-word-index (:caret-word line-with-caret)
-        word-with-caret (nth (:words line-with-caret) caret-word-index)
-        remainder-words (vec
-                          (concat
-                            (flatten (assoc (:words line-with-caret) caret-word-index
-                                                                     (let [caret-pos (:caret-pos word-with-caret)
-                                                                           word-glyphs (:glyphs word-with-caret)
-                                                                           all-glyphs (concat (subvec word-glyphs 0 caret-pos) glyphs (subvec word-glyphs caret-pos))]
-                                                                       ;(glyphs->words all-glyphs w interop)
-                                                                       (make-words all-glyphs (+ caret-pos (count glyphs)) w interop)
-                                                                       )  ))
-                            (mapcat :words (vu/take-lastv (- (count (:lines model)) (:caret-line model) 1) (:lines model)))))]
-    (rewrap-partially model w remainder-words interop false)))
-
-(defn glyphs->model [model glyphs w interop]
-  (let [m (if (has-selection? model)
-            (kill-glyphs model w interop)
-            (shift-cm-before-ins-if-needed model))]
-    (glyphs->model-insert-impl m glyphs w interop)))
-
 (defn do-delete [model w interop]
   (let [line-index (:caret-line model)
         mark-line-index (:mark-line model)
@@ -1339,6 +1311,34 @@
       (->
         (move-caret-mark model :caret-&-mark :backward nil nil)  ;TODO no need to rebuild primitives here
         (do-delete w interop)))))
+
+(defmethod glyph-> Model [model g w interop]
+  (let [m (if (has-selection? model)
+            (do-delete model w interop)
+            (shift-cm-before-ins-if-needed model))]
+    (glyph->model m g w interop)))
+
+(defn- glyphs->model-insert-impl [model glyphs w interop]
+  (let [line-with-caret (nth (:lines model) (:caret-line model))
+        caret-word-index (:caret-word line-with-caret)
+        word-with-caret (nth (:words line-with-caret) caret-word-index)
+        remainder-words (vec
+                          (concat
+                            (flatten (assoc (:words line-with-caret) caret-word-index
+                                                                     (let [caret-pos (:caret-pos word-with-caret)
+                                                                           word-glyphs (:glyphs word-with-caret)
+                                                                           all-glyphs (concat (subvec word-glyphs 0 caret-pos) glyphs (subvec word-glyphs caret-pos))]
+                                                                       ;(glyphs->words all-glyphs w interop)
+                                                                       (make-words all-glyphs (+ caret-pos (count glyphs)) w interop)
+                                                                       )  ))
+                            (mapcat :words (vu/take-lastv (- (count (:lines model)) (:caret-line model) 1) (:lines model)))))]
+    (rewrap-partially model w remainder-words interop false)))
+
+(defn glyphs->model [model glyphs w interop]
+  (let [m (if (has-selection? model)
+            (do-delete model w interop)
+            (shift-cm-before-ins-if-needed model))]
+    (glyphs->model-insert-impl m glyphs w interop)))
 
 (fg/defaccessorfn get-effective-w [component]
   (- (m/x (get-property component [:this] :clip-size)) (awt/strh component)))

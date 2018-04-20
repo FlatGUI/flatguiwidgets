@@ -1283,9 +1283,20 @@
       (throw (IllegalStateException. "Cursor may be in edge glyph position of the word only at the end of the line"))
 
       :else
-      (let [m (if (and edge-word-by-caret (= caret-pos (count caret-word-glyphs)))
+      (let [no-sel (and (= line-index mark-line-index) (= word-index mark-word-index) (= caret-pos mark-pos))
+            m (cond
+
+                (and no-sel edge-word-by-caret (= caret-pos (count caret-word-glyphs)))
                 ;; No delimiter at the end means we are inside a long word forcefully split to fit viewport width. Move to the beginning of next line to kill there
                 (move-caret-mark-1-char model true true forward-edge-fn forward-edge-last-in-line-fn inc false nil)
+
+                (and (not no-sel) edge-word-by-caret (= caret-pos (count caret-word-glyphs)) (> mark-line-index line-index))
+                (move-caret-mark-1-char model true false forward-edge-fn forward-edge-last-in-line-fn inc false nil)
+
+                (and (not no-sel) edge-word-by-mark (= mark-pos (count mark-word-glyphs)) (> line-index mark-line-index))
+                (move-caret-mark-1-char model false true forward-edge-fn forward-edge-last-in-line-fn inc false nil)
+
+                :else
                 model)]
         (kill-glyphs m w interop)))))
 

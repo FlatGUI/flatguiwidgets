@@ -1316,6 +1316,9 @@
         edge-word (= word-index 0)
         edge-glyph (= pos 0)]
     (cond
+      (has-selection? model)
+      (do-delete model w interop)
+
       (and edge-line edge-word edge-glyph)
       model
 

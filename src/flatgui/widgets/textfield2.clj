@@ -1179,7 +1179,7 @@
               (rewrap-partially reduced-selection-model w (truncate-words remainder-words w interop) interop true (dec (min caret-line-index mark-line-index)))
               (propagate-cm-index-up true model))))))))
 
-(defn- glyph->model [model g w interop]                         ;TODO rebuild-primitives??
+(defn- glyph->model [model g w interop]
   (let [line-with-caret (nth (:lines model) (:caret-line model))
         caret-word-index (:caret-word line-with-caret)
         word-with-caret (nth (:words line-with-caret) caret-word-index)

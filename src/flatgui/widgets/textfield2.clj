@@ -430,6 +430,11 @@
       w
       interop)))
 
+(def sel-process-states
+  {:before :selection
+   :selection :after
+   :after :after})
+
 (defn wrap-lines
   ;; This fn does not split words that are longer than viewport width.
   ;; It is supposed that incoming words are already split
@@ -439,21 +444,30 @@
             line-w-state (volatile! 0)
             line-h-state (volatile! 0)
             model-h-state (volatile! 0.0)
+
             line-caret-index-state (volatile! 0)
             line-caret-met-state (volatile! false)
             model-caret-index-state (volatile! 0)
             model-caret-met-state (volatile! false)
-            model-sel-met-state (volatile! false)
+
+            line-mark-index-state (volatile! 0)
+            line-mark-met-state (volatile! false)
+            model-mark-index-state (volatile! 0)
+            model-mark-met-state (volatile! false)
+
+            model-sel-met-state (volatile! :before)
             model-selection-continues-to-next-line-state (volatile! false)]
         (fn
           ([] (rf))
           ([result]
            (let [caret-word (if @line-caret-met-state @line-caret-index-state)
+                 mark-word (if @line-mark-met-state @line-mark-index-state)
                  line-h @line-h-state
                  line-y @model-h-state
-                 final-result (rf result (make-line @line-state caret-word caret-word @model-selection-continues-to-next-line-state line-y line-h))
-                 caret-line (if @model-caret-met-state @model-caret-index-state)]
-             (Model. final-result caret-line caret-line (+ line-y line-h))))
+                 final-result (rf result (make-line @line-state caret-word mark-word @model-selection-continues-to-next-line-state line-y line-h))
+                 caret-line (if @model-caret-met-state @model-caret-index-state)
+                 mark-line (if @model-mark-met-state @model-mark-index-state)]
+             (Model. final-result caret-line mark-line (+ line-y line-h))))
           ([result word]
            (let [line @line-state
                  line-w @line-w-state
@@ -470,11 +484,18 @@
                                      (vreset! model-caret-met-state true)
                                      (vreset! line-caret-met-state true))
                                    (if (not @line-caret-met-state) (vswap! line-caret-index-state inc))))
+                 process-mark (fn []
+                                (if mark-pos
+                                  (do
+                                    (vreset! model-mark-met-state true)
+                                    (vreset! line-mark-met-state true))
+                                  (if (not @line-mark-met-state) (vswap! line-mark-index-state inc))))
                  process-sel (fn [] (if (and (or caret-pos mark-pos) (not= caret-pos mark-pos))
-                                      (vreset! model-sel-met-state true)))]
+                                      (vswap! model-sel-met-state sel-process-states)))]
              (do
                (if end-line
                  (let [line-caret-index (if @line-caret-met-state @line-caret-index-state)
+                       line-mark-index (if @line-mark-met-state @line-mark-index-state)
                        line-y @model-h-state]
                    (vreset! line-state [word])
                    (vreset! line-w-state w-total)
@@ -482,12 +503,18 @@
                    (vreset! line-h-state word-h)
                    (vreset! line-caret-index-state 0)
                    (vreset! line-caret-met-state false)
+                   (vreset! line-mark-index-state 0)
+                   (vreset! line-mark-met-state false)
                    (if (not @model-caret-met-state) (vswap! model-caret-index-state inc))
+                   (if (not @model-mark-met-state) (vswap! model-mark-index-state inc))
                    (let [sel-cont @model-selection-continues-to-next-line-state
-                         process-result (rf result (make-line line line-caret-index line-caret-index sel-cont line-y line-h))]
+                         process-result (rf result (make-line line line-caret-index line-mark-index sel-cont line-y line-h))]
                      (do
-                       (if @model-sel-met-state (vreset! model-selection-continues-to-next-line-state true))
+                       (cond
+                         (= @model-sel-met-state :selection) (vreset! model-selection-continues-to-next-line-state true)
+                         (= @model-sel-met-state :after) (vreset! model-selection-continues-to-next-line-state false))
                        (process-caret)
+                       (process-mark)
                        (process-sel)
                        process-result)))
                  (do
@@ -498,14 +525,56 @@
                            (and (not (delimiter? (peek (:glyphs (peek line))))) (not (delimiter? (vu/firstv (:glyphs word))))) ))
                      (do
                        (vreset! line-state (into (pop line) (collapse-words (peek line) word w interop)))
-                       (if (not @line-caret-met-state) (vswap! line-caret-index-state dec)))
+                       (if (not @line-caret-met-state) (vswap! line-caret-index-state dec))
+                       (if (not @line-mark-met-state) (vswap! line-mark-index-state dec)))
                      (vswap! line-state conj word))
                    (vswap! line-w-state + w-total)
                    (vswap! line-h-state max word-h)
                    (process-caret)
+                   (process-mark)
                    (process-sel)
                    result)))))))))
-  ([words w interop] (transduce (wrap-lines w interop) conj words)))
+  ([words w interop] (if (empty? words)
+                       empty-model
+                       (transduce (wrap-lines w interop) conj words))))
+
+;;;;;;;; TODO constantly maintain abs positions otherwise this is overhead
+;;;
+(defn word-pos->abs [line word-index pos]
+  (+
+    (apply + (map (fn [word] (count (:glyphs word))) (take word-index (:words line))))
+    pos))
+
+(defn line-word-pos->abs [model line-index word-index pos]
+  (let [lines (:lines model)]
+    (+
+      (apply + (mapcat
+                 (fn [line] (map (fn [word] (count (:glyphs word))) (:words line)))
+                 (take line-index lines)))
+      (word-pos->abs (nth lines line-index) word-index pos))))
+;;;
+;;;;;;;;;;;;;;
+
+(defn abs->line-word-pos [model abs-pos])
+
+(defn rewrap-full [model w interop]
+  (let [caret-line-index (:caret-line model)
+        caret-line (get-in model [:lines caret-line-index])
+        caret-word-index (:caret-word caret-line)
+        caret-word (get-in caret-line [:words caret-word-index])
+        caret-pos (:caret-pos caret-word)
+        mark-line-index (:mark-line model)
+        mark-line (get-in model [:lines mark-line-index])
+        mark-word-index (:mark-word mark-line)
+        mark-word (get-in mark-line [:words mark-word-index])
+        mark-pos (:mark-pos mark-word)
+        caret-abs-pos (line-word-pos->abs model caret-line-index caret-word-index caret-pos)
+        mark-abs-pos (line-word-pos->abs model mark-line-index mark-word-index mark-pos)
+        glyphs (mapcat
+                 (fn [line] (mapcat :glyphs (:words line)))
+                 (:lines model))
+        new-words (make-words glyphs caret-abs-pos mark-abs-pos w interop)]
+    (wrap-lines new-words w interop)))
 
 (defn assert-word [model line-index word-index]
   (let [word (get-in model [:lines line-index :words word-index])]
@@ -1565,9 +1634,11 @@
                     (or (keyboard/key-typed? component) (clipboard/clipboard-paste? component))
                     (evolve-model-supplied-text component old-model)
 
-
                     (keyboard/key-pressed? component)
                     (evolve-model-key-pressed component old-model)
+
+                    (= [:this] (get-reason))
+                    (rewrap-full old-model (get-effective-w component) (get-property component [:this] :interop))
 
                     :else old-model)]
     (do

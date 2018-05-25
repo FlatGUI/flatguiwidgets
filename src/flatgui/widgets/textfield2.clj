@@ -97,7 +97,7 @@
 
 (defrecord Model [lines caret-line mark-line total-h])
 
-(defrecord Line [words caret-word mark-word y h primitives])
+(defrecord Line [words caret-word mark-word first-glyph-abs y h primitives])
 
 (defrecord Word [glyphs caret-pos mark-pos w-content w-total h]
   Object
@@ -269,8 +269,8 @@
   (let [glyphs (mapcat glyph-primitive-extractor words)]
     (transduce (create-render-line-primitives-transducer selection-continued-line) conj glyphs)))
 
-(defn make-line [words caret-word mark-word selection-continued-line y h]
-  (Line. words caret-word mark-word y h (words->primitives words selection-continued-line)))
+(defn make-line [words caret-word mark-word first-glyph-abs selection-continued-line y h]
+  (Line. words caret-word mark-word first-glyph-abs y h (words->primitives words selection-continued-line)))
 
 (defn make-word [caret-pos mark-pos w-content w-total h w-g total-g-count source-g-count]
   (let [w-g-count (.size w-g)
@@ -344,6 +344,7 @@
                    [(make-line
                       [empty-word-with-caret-&-mark]
                       0 0
+                      0
                       false
                       0.0
                       0)]
@@ -444,6 +445,7 @@
             line-w-state (volatile! 0)
             line-h-state (volatile! 0)
             model-h-state (volatile! 0.0)
+            first-glyph-abs (volatile! 0)
 
             line-caret-index-state (volatile! 0)
             line-caret-met-state (volatile! false)
@@ -456,7 +458,8 @@
             model-mark-met-state (volatile! false)
 
             model-sel-met-state (volatile! :before)
-            model-selection-continues-to-next-line-state (volatile! false)]
+            model-selection-continues-to-next-line-state (volatile! false)
+            total-glyph-count (volatile! 0)]
         (fn
           ([] (rf))
           ([result]
@@ -464,7 +467,7 @@
                  mark-word (if @line-mark-met-state @line-mark-index-state)
                  line-h @line-h-state
                  line-y @model-h-state
-                 final-result (rf result (make-line @line-state caret-word mark-word @model-selection-continues-to-next-line-state line-y line-h))
+                 final-result (rf result (make-line @line-state caret-word mark-word @first-glyph-abs @model-selection-continues-to-next-line-state line-y line-h))
                  caret-line (if @model-caret-met-state @model-caret-index-state)
                  mark-line (if @model-mark-met-state @model-mark-index-state)]
              (Model. final-result caret-line mark-line (+ line-y line-h))))
@@ -496,8 +499,11 @@
                (if end-line
                  (let [line-caret-index (if @line-caret-met-state @line-caret-index-state)
                        line-mark-index (if @line-mark-met-state @line-mark-index-state)
-                       line-y @model-h-state]
+                       line-y @model-h-state
+                       line-first-glyph-abs @first-glyph-abs]
                    (vreset! line-state [word])
+                   (vreset! first-glyph-abs @total-glyph-count)
+                   (vswap! total-glyph-count + (count (:glyphs word)))
                    (vreset! line-w-state w-total)
                    (vswap! model-h-state + line-h)
                    (vreset! line-h-state word-h)
@@ -508,7 +514,7 @@
                    (if (not @model-caret-met-state) (vswap! model-caret-index-state inc))
                    (if (not @model-mark-met-state) (vswap! model-mark-index-state inc))
                    (let [sel-cont @model-selection-continues-to-next-line-state
-                         process-result (rf result (make-line line line-caret-index line-mark-index sel-cont line-y line-h))]
+                         process-result (rf result (make-line line line-caret-index line-mark-index line-first-glyph-abs sel-cont line-y line-h))]
                      (do
                        (cond
                          (= @model-sel-met-state :selection) (vreset! model-selection-continues-to-next-line-state true)
@@ -530,6 +536,7 @@
                      (vswap! line-state conj word))
                    (vswap! line-w-state + w-total)
                    (vswap! line-h-state max word-h)
+                   (vswap! total-glyph-count + (count (:glyphs word)))
                    (process-caret)
                    (process-mark)
                    (process-sel)

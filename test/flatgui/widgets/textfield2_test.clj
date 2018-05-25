@@ -342,6 +342,15 @@
     (test/is (= 2 (count (:lines model))))
     (test/is (= [0 1 1 0 1 0] (model->caret-mark-pos model)))))
 
+(test/deftest wrap-total-glyph-count-test
+  (let [w 5
+        words [(tw "aaa ") (tw "bbb|bb") (tw "cccc") ]
+        model (test-wrap-lines words w)
+        lines (:lines model)]
+    (test/is (= 3 (count (:lines model))))
+    (test/is (= [0 4 9] (mapv :first-glyph-abs lines)))
+    ))
+
 (test/deftest insert-symbol-test-1
   (let [words [(tw "T|he ") (tw "quick ")
                (tw "brown ") (tw "fox ")

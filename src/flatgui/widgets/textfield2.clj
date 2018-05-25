@@ -545,22 +545,17 @@
                        empty-model
                        (transduce (wrap-lines w interop) conj words))))
 
-;;;;;;;; TODO constantly maintain abs positions otherwise this is overhead
-;;;
 (defn word-pos->abs [line word-index pos]
   (+
     (apply + (map (fn [word] (count (:glyphs word))) (take word-index (:words line))))
     pos))
 
 (defn line-word-pos->abs [model line-index word-index pos]
-  (let [lines (:lines model)]
+  (let [lines (:lines model)
+        line (nth lines line-index)]
     (+
-      (apply + (mapcat
-                 (fn [line] (map (fn [word] (count (:glyphs word))) (:words line)))
-                 (take line-index lines)))
-      (word-pos->abs (nth lines line-index) word-index pos))))
-;;;
-;;;;;;;;;;;;;;
+      (:first-glyph-abs line)
+      (word-pos->abs line word-index pos))))
 
 ;; TODO maintain glyph count per line?
 (defn abs->line-word-pos [model abs-pos]

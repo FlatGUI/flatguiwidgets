@@ -555,7 +555,9 @@
 ;;;
 ;;;;;;;;;;;;;;
 
-(defn abs->line-word-pos [model abs-pos])
+;; TODO maintain glyph count per line?
+(defn abs->line-word-pos [model abs-pos]
+  (let []))
 
 (defn rewrap-full [model w interop]
   (let [caret-line-index (:caret-line model)

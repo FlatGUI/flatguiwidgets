@@ -2295,10 +2295,10 @@
     (test/is (= [2 0 4 1 0 4] (model->caret-mark-pos model-c2)))
     (test/is (= [0 0 4 1 0 4] (model->caret-mark-pos model-c0)))))
 
-(test/deftest line-word-pos->abs-test
+(test/deftest line-word-pos->abs-test-1
   (let [w 4
-        model (test-wrap-lines [(tw "aaa bbb cc ")
-                                (tw "dd e|e ff ")
+        model (test-wrap-lines [(tw "aaa ") (tw "bbb ") (tw "cc ")
+                                (tw "dd ") (tw "e|e ") (tw "ff ")
                                 (tw "gggg")] w)
         caret-line-index (:caret-line model)
         caret-line (get-in model [:lines caret-line-index])
@@ -2306,6 +2306,85 @@
         caret-word (get-in caret-line [:words caret-word-index])
         caret-pos (:caret-pos caret-word)]
     (test/is (= 15 (textfield2/line-word-pos->abs model caret-line-index caret-word-index caret-pos)))))
+
+(test/deftest line-word-pos->abs-test-2
+  (let [w 4
+        model (test-wrap-lines [(tw "|aaa ")
+                                (tw "bbbb")
+                                (tw "cccc")] w)
+        caret-line-index (:caret-line model)
+        caret-line (get-in model [:lines caret-line-index])
+        caret-word-index (:caret-word caret-line)
+        caret-word (get-in caret-line [:words caret-word-index])
+        caret-pos (:caret-pos caret-word)]
+    (test/is (= 0 (textfield2/line-word-pos->abs model caret-line-index caret-word-index caret-pos)))))
+
+(test/deftest line-word-pos->abs-test-3
+  (let [w 4
+        model (test-wrap-lines [(tw "aaa ")
+                                (tw "|bbbb")
+                                (tw "cccc")] w)
+        caret-line-index (:caret-line model)
+        caret-line (get-in model [:lines caret-line-index])
+        caret-word-index (:caret-word caret-line)
+        caret-word (get-in caret-line [:words caret-word-index])
+        caret-pos (:caret-pos caret-word)]
+    (test/is (= 4 (textfield2/line-word-pos->abs model caret-line-index caret-word-index caret-pos)))))
+
+(test/deftest line-word-pos->abs-test-4
+  (let [w 4
+        model (test-wrap-lines [(tw "aaa ")
+                                (tw "bbbb|")
+                                (tw "cccc")] w)
+        caret-line-index (:caret-line model)
+        caret-line (get-in model [:lines caret-line-index])
+        caret-word-index (:caret-word caret-line)
+        caret-word (get-in caret-line [:words caret-word-index])
+        caret-pos (:caret-pos caret-word)]
+    (test/is (= 8 (textfield2/line-word-pos->abs model caret-line-index caret-word-index caret-pos)))))
+
+(test/deftest line-word-pos->abs-test-5
+  (let [w 4
+        model (test-wrap-lines [(tw "aaa ")
+                                (tw "bbbb")
+                                (tw "cccc|")] w)
+        caret-line-index (:caret-line model)
+        caret-line (get-in model [:lines caret-line-index])
+        caret-word-index (:caret-word caret-line)
+        caret-word (get-in caret-line [:words caret-word-index])
+        caret-pos (:caret-pos caret-word)]
+    (test/is (= 12 (textfield2/line-word-pos->abs model caret-line-index caret-word-index caret-pos)))))
+
+(test/deftest abs->line-word-pos-test-1
+  (let [w 10
+        model (test-wrap-lines [(tw "aaa ") (tw "bbb ") (tw "cc ")
+                                (tw "dd ") (tw "ee ") (tw "ff ")
+                                (tw "gggg|")] w)]
+    (test/is (= [0 0 0] (textfield2/abs->line-word-pos model 0)))
+    (test/is (= [0 0 2] (textfield2/abs->line-word-pos model 2)))
+    (test/is (= [0 1 0] (textfield2/abs->line-word-pos model 4)))
+    (test/is (= [0 1 1] (textfield2/abs->line-word-pos model 5)))
+    (test/is (= [0 2 0] (textfield2/abs->line-word-pos model 8)))
+    (test/is (= [0 2 2] (textfield2/abs->line-word-pos model 10)))
+    (test/is (= [1 0 0] (textfield2/abs->line-word-pos model 11)))
+    (test/is (= [1 0 2] (textfield2/abs->line-word-pos model 13)))
+    (test/is (= [1 1 0] (textfield2/abs->line-word-pos model 14)))
+    (test/is (= [1 1 1] (textfield2/abs->line-word-pos model 15)))
+    (test/is (= [1 2 0] (textfield2/abs->line-word-pos model 17)))
+    (test/is (= [1 2 2] (textfield2/abs->line-word-pos model 19)))
+    (test/is (= [2 0 0] (textfield2/abs->line-word-pos model 20)))
+    (test/is (= [2 0 4] (textfield2/abs->line-word-pos model 24)))))
+
+(test/deftest abs->line-word-pos-test-2
+  (let [w 5
+        model (test-wrap-lines [(tw "aaaa ")
+                                (tw "bb ") (tw "cc")] w)]
+    (test/is (= [0 0 0] (textfield2/abs->line-word-pos model 0)))
+    (test/is (= [1 0 0] (textfield2/abs->line-word-pos model 5)))
+    (test/is (= [1 0 2] (textfield2/abs->line-word-pos model 7)))
+    (test/is (= [1 1 0] (textfield2/abs->line-word-pos model 8)))
+    (test/is (= [1 1 1] (textfield2/abs->line-word-pos model 9)))
+    (test/is (= [1 1 2] (textfield2/abs->line-word-pos model 10)))))
 
 (test/deftest rewrap-full-test
   (let [w 4

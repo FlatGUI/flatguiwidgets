@@ -557,9 +557,33 @@
       (:first-glyph-abs line)
       (word-pos->abs line word-index pos))))
 
-;; TODO maintain glyph count per line?
 (defn abs->line-word-pos [model abs-pos]
-  (let []))
+  (let [lines (:lines model)
+        line-abs-positions (mapv :first-glyph-abs lines)
+        line-search-result (Collections/binarySearch line-abs-positions abs-pos)
+        line-index (if (>= line-search-result 0) line-search-result (- (- line-search-result) 2))
+        line-abs-pos (nth line-abs-positions line-index)
+        line (nth lines line-index)
+        words (:words line)
+        word-count (count words)
+        last-wi (dec word-count)
+        word-index-&-begin (loop [wi 0
+                                  i-abs-pos line-abs-pos]
+                             (let [word (nth words wi)
+                                   wgcnt (count (:glyphs word))
+                                   next-i-abs-pos (+ i-abs-pos wgcnt)]
+                               (if (> next-i-abs-pos abs-pos)
+                                 [wi i-abs-pos]
+                                 (if (< wi last-wi)
+                                   (recur (inc wi) next-i-abs-pos)
+                                   ;; Will reach this point for the last pos in the last word of the last line.
+                                   ;; Otherwise inter-word position is interpreted as the beginning of the
+                                   ;; next word, not the end of the previous
+                                   [wi i-abs-pos]))))
+        word-index (vu/firstv word-index-&-begin)
+        word-abs-begin (vu/secondv word-index-&-begin)
+        pos (- abs-pos word-abs-begin)]
+    [line-index word-index pos]))
 
 (defn rewrap-full [model w interop]
   (let [caret-line-index (:caret-line model)

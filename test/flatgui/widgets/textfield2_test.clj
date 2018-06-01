@@ -507,6 +507,14 @@
         expected-words [(tw "a ") (tw "|b")]]
     (test/is (= expected-words (:words (first (:lines model-after)))))))
 
+(test/deftest insert-symbol-test-10a
+  (let [w 10
+        words [(tw "a|b")]
+        model-before (test-wrap-lines words w)
+        model-after  (textfield2/glyphs->model model-before [textfield2/whitespace-glyph] w dummy-interop)
+        expected-words [(tw "a ") (tw "|b")]]
+    (test/is (= expected-words (:words (first (:lines model-after)))))))
+
 (test/deftest insert-symbol-test-11
   (let [w 10
         words [(tw "a|b")]
@@ -543,6 +551,13 @@
   (let [words [(tw "a|cd")]
         model-before (test-wrap-lines words 9)
         model-after  (textfield2/glyph-> model-before textfield2/whitespace-glyph 9 dummy-interop)
+        expected-words [(tw "a ") (tw "|cd")]]
+    (test/is (= expected-words (:words (first (:lines model-after)))))))
+
+(test/deftest insert-symbol-test-15a
+  (let [words [(tw "a|cd")]
+        model-before (test-wrap-lines words 9)
+        model-after  (textfield2/glyphs->model model-before [textfield2/whitespace-glyph] 9 dummy-interop)
         expected-words [(tw "a ") (tw "|cd")]]
     (test/is (= expected-words (:words (first (:lines model-after)))))))
 
@@ -2136,7 +2151,7 @@
   (let [w 4
         model (test-wrap-lines [(tw "aaaa")
                                 (tw "aaaa|")
-                                (tw "aa|a")] w)
+                                (tw "aaa")] w)
         model-before-cm (->
                           (textfield2/move-caret-mark model :caret :forward nil nil)
                           (textfield2/move-caret-mark :caret :forward nil nil)
@@ -2150,6 +2165,266 @@
     (test/is (= [2 0 2 2 0 2] (model->caret-mark-pos model-after)))
     (test/is (= [(tw "aaaa")] (:words (nth (:lines model-after) 1))))
     (test/is (= [(tw "XX|a")] (:words (nth (:lines model-after) 2))))))
+
+(test/deftest glyphs->model-custom-location-test-1
+  (let [w 5
+        words [(tw "aa ") (tw "!b#b")
+               (tw "cc ") ]
+        model (test-wrap-lines words w)
+        glyphs (tg "XX")
+        model-after-0 (textfield2/glyphs->model-custom-location model glyphs 0 w dummy-interop)
+        model-after-1 (textfield2/glyphs->model-custom-location model glyphs 1 w dummy-interop)
+        model-after-2 (textfield2/glyphs->model-custom-location model glyphs 2 w dummy-interop)
+        model-after-3 (textfield2/glyphs->model-custom-location model glyphs 3 w dummy-interop)
+        model-after-4 (textfield2/glyphs->model-custom-location model glyphs 4 w dummy-interop)
+        model-after-5 (textfield2/glyphs->model-custom-location model glyphs 5 w dummy-interop)
+        model-after-6 (textfield2/glyphs->model-custom-location model glyphs 6 w dummy-interop)
+        model-after-7 (textfield2/glyphs->model-custom-location model glyphs 7 w dummy-interop)
+        model-after-8 (textfield2/glyphs->model-custom-location model glyphs 8 w dummy-interop)]
+
+    (test/is (= 2 (count (:lines model-after-0))))
+    (test/is (= [1 0 1 1 0 0] (model->caret-mark-pos model-after-0)))
+    (test/is (= [(tw "XXaa ")] (:words (nth (:lines model-after-0) 0))))
+    (test/is (= [(tw "!b#bcc ")] (:words (nth (:lines model-after-0) 1))))
+
+    (test/is (= 2 (count (:lines model-after-1))))
+    (test/is (= [1 0 1 1 0 0] (model->caret-mark-pos model-after-1)))
+    (test/is (= [(tw "aXXa ")] (:words (nth (:lines model-after-1) 0))))
+    (test/is (= [(tw "!b#bcc ")] (:words (nth (:lines model-after-1) 1))))
+
+    (test/is (= 2 (count (:lines model-after-2))))
+    (test/is (= [1 0 1 1 0 0] (model->caret-mark-pos model-after-2)))
+    (test/is (= [(tw "aaXX ")] (:words (nth (:lines model-after-2) 0))))
+    (test/is (= [(tw "!b#bcc ")] (:words (nth (:lines model-after-2) 1))))
+
+    (test/is (= 3 (count (:lines model-after-3))))
+    (test/is (= [1 0 3 1 0 2] (model->caret-mark-pos model-after-3)))
+    (test/is (= [(tw "aa ")] (:words (nth (:lines model-after-3) 0))))
+    (test/is (= [(tw "XX!b#b")] (:words (nth (:lines model-after-3) 1))))
+    (test/is (= [(tw "cc ")] (:words (nth (:lines model-after-3) 2))))
+
+    (test/is (= 3 (count (:lines model-after-4))))
+    (test/is (= [1 0 3 1 0 0] (model->caret-mark-pos model-after-4)))
+    (test/is (= [(tw "aa ")] (:words (nth (:lines model-after-4) 0))))
+    (test/is (= [(tw "!bXX#b")] (:words (nth (:lines model-after-4) 1))))
+    (test/is (= [(tw "cc ")] (:words (nth (:lines model-after-4) 2))))
+
+    (test/is (= 3 (count (:lines model-after-5))))
+    (test/is (= [1 0 1 1 0 0] (model->caret-mark-pos model-after-5)))
+    (test/is (= [(tw "aa ")] (:words (nth (:lines model-after-5) 0))))
+    (test/is (= [(tw "!b#bXX")] (:words (nth (:lines model-after-5) 1))))
+    (test/is (= [(tw "cc ")] (:words (nth (:lines model-after-5) 2))))
+
+    (test/is (= 2 (count (:lines model-after-6))))
+    (test/is (= [0 1 1 0 1 0] (model->caret-mark-pos model-after-6)))
+    (test/is (= [(tw "aa ") (tw "!b#b")] (:words (nth (:lines model-after-6) 0))))
+    (test/is (= [(tw "cXXc ")] (:words (nth (:lines model-after-6) 1))))
+
+    (test/is (= 2 (count (:lines model-after-7))))
+    (test/is (= [0 1 1 0 1 0] (model->caret-mark-pos model-after-7)))
+    (test/is (= [(tw "aa ") (tw "!b#b")] (:words (nth (:lines model-after-7) 0))))
+    (test/is (= [(tw "ccXX ")] (:words (nth (:lines model-after-7) 1))))
+
+    (test/is (= 2 (count (:lines model-after-8))))
+    (test/is (= [0 1 1 0 1 0] (model->caret-mark-pos model-after-8)))
+    (test/is (= [(tw "aa ") (tw "!b#b")] (:words (nth (:lines model-after-8) 0))))
+    (test/is (= [(tw "cc ") (tw "XX")] (:words (nth (:lines model-after-8) 1))))))
+
+(test/deftest glyphs->model-custom-location-test-2
+  (let [w 5
+        words [(tw "aa ") (tw "b|b")
+               (tw "cc ") ]
+        model (test-wrap-lines words w)
+        glyphs (tg "XX")
+        model-after-0 (textfield2/glyphs->model-custom-location model glyphs 0 w dummy-interop)
+        model-after-1 (textfield2/glyphs->model-custom-location model glyphs 1 w dummy-interop)
+        model-after-2 (textfield2/glyphs->model-custom-location model glyphs 2 w dummy-interop)
+        model-after-3 (textfield2/glyphs->model-custom-location model glyphs 3 w dummy-interop)
+        model-after-4 (textfield2/glyphs->model-custom-location model glyphs 4 w dummy-interop)
+        model-after-5 (textfield2/glyphs->model-custom-location model glyphs 5 w dummy-interop)
+        model-after-6 (textfield2/glyphs->model-custom-location model glyphs 6 w dummy-interop)
+        model-after-7 (textfield2/glyphs->model-custom-location model glyphs 7 w dummy-interop)
+        model-after-8 (textfield2/glyphs->model-custom-location model glyphs 8 w dummy-interop)]
+
+    (test/is (= 2 (count (:lines model-after-0))))
+    (test/is (= [1 0 1 1 0 1] (model->caret-mark-pos model-after-0)))
+    (test/is (= [(tw "XXaa ")] (:words (nth (:lines model-after-0) 0))))
+    (test/is (= [(tw "b|bcc ")] (:words (nth (:lines model-after-0) 1))))
+
+    (test/is (= 2 (count (:lines model-after-1))))
+    (test/is (= [1 0 1 1 0 1] (model->caret-mark-pos model-after-1)))
+    (test/is (= [(tw "aXXa ")] (:words (nth (:lines model-after-1) 0))))
+    (test/is (= [(tw "b|bcc ")] (:words (nth (:lines model-after-1) 1))))
+
+    (test/is (= 2 (count (:lines model-after-2))))
+    (test/is (= [1 0 1 1 0 1] (model->caret-mark-pos model-after-2)))
+    (test/is (= [(tw "aaXX ")] (:words (nth (:lines model-after-2) 0))))
+    (test/is (= [(tw "b|bcc ")] (:words (nth (:lines model-after-2) 1))))
+
+    (test/is (= 3 (count (:lines model-after-3))))
+    (test/is (= [1 0 3 1 0 3] (model->caret-mark-pos model-after-3)))
+    (test/is (= [(tw "aa ")] (:words (nth (:lines model-after-3) 0))))
+    (test/is (= [(tw "XXb|b")] (:words (nth (:lines model-after-3) 1))))
+    (test/is (= [(tw "cc ")] (:words (nth (:lines model-after-3) 2))))
+
+    (test/is (= 3 (count (:lines model-after-4))))
+    (test/is (= [1 0 3 1 0 3] (model->caret-mark-pos model-after-4)))
+    (test/is (= [(tw "aa ")] (:words (nth (:lines model-after-4) 0))))
+    (test/is (= [(tw "bXX|b")] (:words (nth (:lines model-after-4) 1))))
+    (test/is (= [(tw "cc ")] (:words (nth (:lines model-after-4) 2))))
+
+    (test/is (= 3 (count (:lines model-after-5))))
+    (test/is (= [1 0 1 1 0 1] (model->caret-mark-pos model-after-5)))
+    (test/is (= [(tw "aa ")] (:words (nth (:lines model-after-5) 0))))
+    (test/is (= [(tw "b|bXX")] (:words (nth (:lines model-after-5) 1))))
+    (test/is (= [(tw "cc ")] (:words (nth (:lines model-after-5) 2))))
+
+    (test/is (= 2 (count (:lines model-after-6))))
+    (test/is (= [0 1 1 0 1 1] (model->caret-mark-pos model-after-6)))
+    (test/is (= [(tw "aa ") (tw "b|b")] (:words (nth (:lines model-after-6) 0))))
+    (test/is (= [(tw "cXXc ")] (:words (nth (:lines model-after-6) 1))))
+
+    (test/is (= 2 (count (:lines model-after-7))))
+    (test/is (= [0 1 1 0 1 1] (model->caret-mark-pos model-after-7)))
+    (test/is (= [(tw "aa ") (tw "b|b")] (:words (nth (:lines model-after-7) 0))))
+    (test/is (= [(tw "ccXX ")] (:words (nth (:lines model-after-7) 1))))
+
+    (test/is (= 2 (count (:lines model-after-8))))
+    (test/is (= [0 1 1 0 1 1] (model->caret-mark-pos model-after-8)))
+    (test/is (= [(tw "aa ") (tw "b|b")] (:words (nth (:lines model-after-8) 0))))
+    (test/is (= [(tw "cc ") (tw "XX")] (:words (nth (:lines model-after-8) 1))))))
+
+(test/deftest glyphs->model-custom-location-test-3
+  (let [w 5
+        words [(tw "uu ")  (tw "vv")
+               (tw "kk ")  (tw "mm")
+               (tw "aa ") (tw "!b#b")
+               (tw "cc ") ]
+        model (test-wrap-lines words w)
+        glyphs (tg "XX")
+        ;model-after-0 (textfield2/glyphs->model-custom-location model glyphs 10 w dummy-interop) ;TODO produces inconsistent model
+        model-after-1 (textfield2/glyphs->model-custom-location model glyphs 11 w dummy-interop)
+        model-after-2 (textfield2/glyphs->model-custom-location model glyphs 12 w dummy-interop)
+        model-after-3 (textfield2/glyphs->model-custom-location model glyphs 13 w dummy-interop)
+        model-after-4 (textfield2/glyphs->model-custom-location model glyphs 14 w dummy-interop)
+        model-after-5 (textfield2/glyphs->model-custom-location model glyphs 15 w dummy-interop)
+        model-after-6 (textfield2/glyphs->model-custom-location model glyphs 16 w dummy-interop)
+        model-after-7 (textfield2/glyphs->model-custom-location model glyphs 17 w dummy-interop)
+        model-after-8 (textfield2/glyphs->model-custom-location model glyphs 18 w dummy-interop)]
+
+    ;(test/is (= 4 (count (:lines model-after-0))))
+    ;(test/is (= [3 0 1 3 0 0] (model->caret-mark-pos model-after-0)))
+    ;(test/is (= [(tw "XXaa ")] (:words (nth (:lines model-after-0) 3))))
+    ;(test/is (= [(tw "!b#bcc ")] (:words (nth (:lines model-after-0) 3))))
+
+    (test/is (= 4 (count (:lines model-after-1))))
+    (test/is (= [3 0 1 3 0 0] (model->caret-mark-pos model-after-1)))
+    (test/is (= [(tw "aXXa ")] (:words (nth (:lines model-after-1) 2))))
+    (test/is (= [(tw "!b#bcc ")] (:words (nth (:lines model-after-1) 3))))
+
+    (test/is (= 4 (count (:lines model-after-2))))
+    (test/is (= [3 0 1 3 0 0] (model->caret-mark-pos model-after-2)))
+    (test/is (= [(tw "aaXX ")] (:words (nth (:lines model-after-2) 2))))
+    (test/is (= [(tw "!b#bcc ")] (:words (nth (:lines model-after-2) 3))))
+
+    (test/is (= 5 (count (:lines model-after-3))))
+    (test/is (= [3 0 3 3 0 2] (model->caret-mark-pos model-after-3)))
+    (test/is (= [(tw "aa ")] (:words (nth (:lines model-after-3) 2))))
+    (test/is (= [(tw "XX!b#b")] (:words (nth (:lines model-after-3) 3))))
+    (test/is (= [(tw "cc ")] (:words (nth (:lines model-after-3) 4))))
+
+    (test/is (= 5 (count (:lines model-after-4))))
+    (test/is (= [3 0 3 3 0 0] (model->caret-mark-pos model-after-4)))
+    (test/is (= [(tw "aa ")] (:words (nth (:lines model-after-4) 2))))
+    (test/is (= [(tw "!bXX#b")] (:words (nth (:lines model-after-4) 3))))
+    (test/is (= [(tw "cc ")] (:words (nth (:lines model-after-4) 4))))
+
+    (test/is (= 5 (count (:lines model-after-5))))
+    (test/is (= [3 0 1 3 0 0] (model->caret-mark-pos model-after-5)))
+    (test/is (= [(tw "aa ")] (:words (nth (:lines model-after-5) 2))))
+    (test/is (= [(tw "!b#bXX")] (:words (nth (:lines model-after-5) 3))))
+    (test/is (= [(tw "cc ")] (:words (nth (:lines model-after-5) 4))))
+
+    (test/is (= 4 (count (:lines model-after-6))))
+    (test/is (= [2 1 1 2 1 0] (model->caret-mark-pos model-after-6)))
+    (test/is (= [(tw "aa ") (tw "!b#b")] (:words (nth (:lines model-after-6) 2))))
+    (test/is (= [(tw "cXXc ")] (:words (nth (:lines model-after-6) 3))))
+
+    (test/is (= 4 (count (:lines model-after-7))))
+    (test/is (= [2 1 1 2 1 0] (model->caret-mark-pos model-after-7)))
+    (test/is (= [(tw "aa ") (tw "!b#b")] (:words (nth (:lines model-after-7) 2))))
+    (test/is (= [(tw "ccXX ")] (:words (nth (:lines model-after-7) 3))))
+
+    (test/is (= 4 (count (:lines model-after-8))))
+    (test/is (= [2 1 1 2 1 0] (model->caret-mark-pos model-after-8)))
+    (test/is (= [(tw "aa ") (tw "!b#b")] (:words (nth (:lines model-after-8) 2))))
+    (test/is (= [(tw "cc ") (tw "XX")] (:words (nth (:lines model-after-8) 3))))))
+
+(test/deftest glyphs->model-custom-location-test-4
+  (let [w 5
+        words [(tw "uu ")  (tw "vv")
+               (tw "kk ")  (tw "mm")
+               (tw "aa ") (tw "b|b")
+               (tw "cc ") ]
+        model (test-wrap-lines words w)
+        glyphs (tg "XX")
+        ;model-after-0 (textfield2/glyphs->model-custom-location model glyphs 10 w dummy-interop) ;TODO produces inconsistent model
+        model-after-1 (textfield2/glyphs->model-custom-location model glyphs 11 w dummy-interop)
+        model-after-2 (textfield2/glyphs->model-custom-location model glyphs 12 w dummy-interop)
+        model-after-3 (textfield2/glyphs->model-custom-location model glyphs 13 w dummy-interop)
+        model-after-4 (textfield2/glyphs->model-custom-location model glyphs 14 w dummy-interop)
+        model-after-5 (textfield2/glyphs->model-custom-location model glyphs 15 w dummy-interop)
+        model-after-6 (textfield2/glyphs->model-custom-location model glyphs 16 w dummy-interop)
+        model-after-7 (textfield2/glyphs->model-custom-location model glyphs 17 w dummy-interop)
+        model-after-8 (textfield2/glyphs->model-custom-location model glyphs 18 w dummy-interop)]
+
+    ;(test/is (= 4 (count (:lines model-after-0))))
+    ;(test/is (= [3 0 1 3 0 0] (model->caret-mark-pos model-after-0)))
+    ;(test/is (= [(tw "XXaa ")] (:words (nth (:lines model-after-0) 3))))
+    ;(test/is (= [(tw "!b#bcc ")] (:words (nth (:lines model-after-0) 3))))
+
+    (test/is (= 4 (count (:lines model-after-1))))
+    (test/is (= [3 0 1 3 0 1] (model->caret-mark-pos model-after-1)))
+    (test/is (= [(tw "aXXa ")] (:words (nth (:lines model-after-1) 2))))
+    (test/is (= [(tw "!b#bcc ")] (:words (nth (:lines model-after-1) 3))))
+
+    (test/is (= 4 (count (:lines model-after-2))))
+    (test/is (= [3 0 1 3 0 1] (model->caret-mark-pos model-after-2)))
+    (test/is (= [(tw "aaXX ")] (:words (nth (:lines model-after-2) 2))))
+    (test/is (= [(tw "!b#bcc ")] (:words (nth (:lines model-after-2) 3))))
+
+    (test/is (= 5 (count (:lines model-after-3))))
+    (test/is (= [3 0 3 3 0 3] (model->caret-mark-pos model-after-3)))
+    (test/is (= [(tw "aa ")] (:words (nth (:lines model-after-3) 2))))
+    (test/is (= [(tw "XX!b#b")] (:words (nth (:lines model-after-3) 3))))
+    (test/is (= [(tw "cc ")] (:words (nth (:lines model-after-3) 4))))
+
+    (test/is (= 5 (count (:lines model-after-4))))
+    (test/is (= [3 0 3 3 0 3] (model->caret-mark-pos model-after-4)))
+    (test/is (= [(tw "aa ")] (:words (nth (:lines model-after-4) 2))))
+    (test/is (= [(tw "!bXX#b")] (:words (nth (:lines model-after-4) 3))))
+    (test/is (= [(tw "cc ")] (:words (nth (:lines model-after-4) 4))))
+
+    (test/is (= 5 (count (:lines model-after-5))))
+    (test/is (= [3 0 1 3 0 1] (model->caret-mark-pos model-after-5)))
+    (test/is (= [(tw "aa ")] (:words (nth (:lines model-after-5) 2))))
+    (test/is (= [(tw "!b#bXX")] (:words (nth (:lines model-after-5) 3))))
+    (test/is (= [(tw "cc ")] (:words (nth (:lines model-after-5) 4))))
+
+    (test/is (= 4 (count (:lines model-after-6))))
+    (test/is (= [2 1 1 2 1 1] (model->caret-mark-pos model-after-6)))
+    (test/is (= [(tw "aa ") (tw "!b#b")] (:words (nth (:lines model-after-6) 2))))
+    (test/is (= [(tw "cXXc ")] (:words (nth (:lines model-after-6) 3))))
+
+    (test/is (= 4 (count (:lines model-after-7))))
+    (test/is (= [2 1 1 2 1 1] (model->caret-mark-pos model-after-7)))
+    (test/is (= [(tw "aa ") (tw "!b#b")] (:words (nth (:lines model-after-7) 2))))
+    (test/is (= [(tw "ccXX ")] (:words (nth (:lines model-after-7) 3))))
+
+    (test/is (= 4 (count (:lines model-after-8))))
+    (test/is (= [2 1 1 2 1 1] (model->caret-mark-pos model-after-8)))
+    (test/is (= [(tw "aa ") (tw "!b#b")] (:words (nth (:lines model-after-8) 2))))
+    (test/is (= [(tw "cc ") (tw "XX")] (:words (nth (:lines model-after-8) 3))))))
 
 (test/deftest x->pos-in-line-test
   (let [w 7
@@ -2366,13 +2641,13 @@
     (test/is (= [0 1 1] (textfield2/abs->line-word-pos model 5)))
     (test/is (= [0 2 0] (textfield2/abs->line-word-pos model 8)))
     (test/is (= [0 2 2] (textfield2/abs->line-word-pos model 10)))
-    (test/is (= [1 0 0] (textfield2/abs->line-word-pos model 11)))
+    (test/is (= [0 2 3] (textfield2/abs->line-word-pos model 11)))
     (test/is (= [1 0 2] (textfield2/abs->line-word-pos model 13)))
     (test/is (= [1 1 0] (textfield2/abs->line-word-pos model 14)))
     (test/is (= [1 1 1] (textfield2/abs->line-word-pos model 15)))
     (test/is (= [1 2 0] (textfield2/abs->line-word-pos model 17)))
     (test/is (= [1 2 2] (textfield2/abs->line-word-pos model 19)))
-    (test/is (= [2 0 0] (textfield2/abs->line-word-pos model 20)))
+    (test/is (= [1 2 3] (textfield2/abs->line-word-pos model 20)))
     (test/is (= [2 0 4] (textfield2/abs->line-word-pos model 24)))))
 
 (test/deftest abs->line-word-pos-test-2
@@ -2380,7 +2655,7 @@
         model (test-wrap-lines [(tw "aaaa ")
                                 (tw "bb ") (tw "cc")] w)]
     (test/is (= [0 0 0] (textfield2/abs->line-word-pos model 0)))
-    (test/is (= [1 0 0] (textfield2/abs->line-word-pos model 5)))
+    (test/is (= [0 0 5] (textfield2/abs->line-word-pos model 5)))
     (test/is (= [1 0 2] (textfield2/abs->line-word-pos model 7)))
     (test/is (= [1 1 0] (textfield2/abs->line-word-pos model 8)))
     (test/is (= [1 1 1] (textfield2/abs->line-word-pos model 9)))
@@ -2461,6 +2736,23 @@
     (test/is (thrown? IllegalStateException (textfield2/check-inconsistent-cm (assoc-in model [:lines 0 :words 0 :mark-pos] nil))))
     (test/is (thrown? IllegalStateException (textfield2/check-inconsistent-cm (assoc-in model [:lines 0 :words 0 :mark-pos] -1))))
     (test/is (thrown? IllegalStateException (textfield2/check-inconsistent-cm (assoc-in model [:lines 0 :words 0 :mark-pos] 1))))))
+
+(test/deftest make-recur-delta-fn-test
+  (let [recur-delta-fw (textfield2/make-recur-delta-fn false)
+        recur-delta-bk (textfield2/make-recur-delta-fn true)
+        fw0 (loop [v [0]
+                  d 0]
+             (if (< (count v) 10)
+               (let [new-d (recur-delta-fw d)] (recur (conj v new-d) new-d))
+               v))
+        bk0 (loop [v [0]
+                  d 0]
+             (if (< (count v) 10)
+               (let [new-d (recur-delta-bk d)] (recur (conj v new-d) new-d))
+               v))
+        ]
+    (test/is (= [ 0  1 -1  2 -2  3 -3  4 -4  5] fw0))
+    (test/is (= [ 0 -1  1 -2  2 -3  3 -4  4 -5] bk0))))
 
 ;;;
 ;;; Live tests

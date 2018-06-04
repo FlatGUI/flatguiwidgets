@@ -621,8 +621,12 @@
                             prior-words-in-line
                             caret-line-and-following-words)
             remainder-model (wrap-lines words-to-wrap w interop)
-            result-caret-line (if because-glyphs-killed (:caret-line model) (+ (count prior-lines) (:caret-line remainder-model)))
-            result-mark-line (if because-glyphs-killed (:mark-line model) (+ (count prior-lines) (:mark-line remainder-model)))
+            result-caret-line (if (or because-glyphs-killed (nil? (:caret-line remainder-model)))
+                                (:caret-line model)
+                                (+ (count prior-lines) (:caret-line remainder-model)))
+            result-mark-line (if (or because-glyphs-killed (nil? (:mark-line remainder-model)))
+                               (:mark-line model)
+                               (+ (count prior-lines) (:mark-line remainder-model)))
             new-model (Model.
                         (into prior-lines (mapv (fn [l] (update l :y + prior-h)) (:lines remainder-model)))
                         result-caret-line result-mark-line (+ prior-h (:total-h remainder-model)))]
@@ -1451,25 +1455,8 @@
 
 (defn glyphs->model-custom-location [model glyphs abs-pos w interop]
   (let [line-word-pos (abs->line-word-pos model abs-pos)
-        has-selection (has-selection? model)
-        old-caret-line-index (:caret-line model)
-        old-mark-line-index (:mark-line model)
-        insertion-line-index (nth line-word-pos 0)
-        model-with-glyphs (glyphs->model-insert-impl model glyphs insertion-line-index (nth line-word-pos 1) (nth line-word-pos 2) w interop)]
-    (if has-selection
-      (let [caret-updated (if (>= insertion-line-index old-caret-line-index)
-                            (propagate-cm-index-up model-with-glyphs false model :caret)
-                            (assoc model-with-glyphs :caret-line old-caret-line-index))
-            mark-updated (if (>= insertion-line-index old-mark-line-index)
-                           (propagate-cm-index-up caret-updated false model :mark)
-                           (assoc caret-updated :mark-line old-mark-line-index))]
-
-        mark-updated)
-      (if (>= insertion-line-index old-caret-line-index)
-        (propagate-cm-index-up model-with-glyphs false model :caret-&-mark)
-        (->
-          (assoc model-with-glyphs :caret-line old-caret-line-index)
-          (assoc :mark-line old-mark-line-index))))))
+        insertion-line-index (nth line-word-pos 0)]
+    (glyphs->model-insert-impl model glyphs insertion-line-index (nth line-word-pos 1) (nth line-word-pos 2) w interop)))
 
 (fg/defaccessorfn get-effective-w [component]
   (- (m/x (get-property component [:this] :clip-size)) (awt/strh component)))

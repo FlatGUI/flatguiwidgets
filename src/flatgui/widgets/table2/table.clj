@@ -149,8 +149,10 @@ flatgui.widgets.table2.table
         hml-fit (support-fit-to-size component old-header-model-loc hml-order)]
     hml-fit))
 
+(defn extract-cell-id [reason] (if (vector? reason) (vu/secondv reason)))
+
 (fg/defevolverfn :header-model-loc
- (if-let [cell-id (vu/secondv (get-reason))]
+ (if-let [cell-id (extract-cell-id (get-reason))]
    (let [no-order? (fn [d] (nil? (nth (:order old-header-model-loc) d)))
          as (get-property [:this cell-id] :atomic-state)
          model-coord (:model-coord as)
@@ -228,7 +230,7 @@ flatgui.widgets.table2.table
 ;; NOTE: This implementation does not support the case when const-size column
 ;;       goes after resized column in :fit-dim-to-size mode
 (fg/defevolverfn shift-header-model-loc-evolver :header-model-loc
-  (if-let [cell-id (vu/secondv (get-reason))]
+  (if-let [cell-id (extract-cell-id (get-reason))]
     (let [as (get-property [:this cell-id] :atomic-state)
           model-coord (:model-coord as)]
       (if (not= model-coord cell/not-in-use-coord)

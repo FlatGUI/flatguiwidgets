@@ -491,7 +491,7 @@ flatgui.widgets.table2.table
 ;; Caution: selection id not kept up to date with :header-model-loc and may
 ;;          become outdated for example after rows removed
 (fg/defevolverfn cbc-selection :selection
-  (if-let [cell-id (vu/secondv (get-reason))]
+  (if-let [cell-id (extract-cell-id (get-reason))]
     (let [as (get-property [:this cell-id] :atomic-state)
           mc (:model-coord as)]
       (if (not= mc cell/not-in-use-coord)

@@ -1197,7 +1197,7 @@
 
 (defn move-home-end-model-before-1 []
   (let [model (move-home-end-model-before-0)
-        _ (textfield2/model->str model)]
+        _ (textfield2/model->str-ext model)]
     (->
       (textfield2/move-caret-mark model :caret-&-mark :end nil nil)
       (textfield2/move-caret-mark :caret-&-mark :forward nil nil))))
@@ -2802,6 +2802,10 @@
         caret-pos (:caret-pos caret-word)]
     (test/is (= 12 (textfield2/line-word-pos->abs model caret-line-index caret-word-index caret-pos)))))
 
+(test/deftest line-word-pos->abs-test-6
+  (let [model textfield2/empty-model]
+    (test/is (= 0 (textfield2/line-word-pos->abs model 0 0 0)))))
+
 (test/deftest abs->line-word-pos-test-1
   (let [w 10
         model (test-wrap-lines [(tw "aaa ") (tw "bbb ") (tw "cc ")
@@ -2832,6 +2836,10 @@
     (test/is (= [1 1 0] (textfield2/abs->line-word-pos model 8)))
     (test/is (= [1 1 1] (textfield2/abs->line-word-pos model 9)))
     (test/is (= [1 1 2] (textfield2/abs->line-word-pos model 10)))))
+
+(test/deftest abs->line-word-pos-test-3
+  (let [model textfield2/empty-model]
+    (test/is (= [0 0 0] (textfield2/abs->line-word-pos model 0)))))
 
 (test/deftest rewrap-full-test
   (let [w 4

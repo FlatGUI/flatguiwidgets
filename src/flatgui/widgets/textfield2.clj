@@ -135,7 +135,11 @@
         :else raw-str)
       "`")))
 
-(defn line->str [line] (str (apply str (map word->str-ext (:words line))) "\n"))
+(defn line->str-ext [line] (str (apply str (map word->str-ext (:words line))) "\n"))
+
+(defn model->str-ext [model] (apply str (map line->str-ext (:lines model))))
+
+(defn line->str [line] (str (apply str (map word->str (:words line))) "\n"))
 
 (defn model->str [model] (apply str (map line->str (:lines model))))
 
@@ -1458,6 +1462,10 @@
         insertion-line-index (nth line-word-pos 0)]
     (glyphs->model-insert-impl model glyphs insertion-line-index (nth line-word-pos 1) (nth line-word-pos 2) w interop)))
 
+;;;
+;;; TODO do-delete at custom location
+;;;
+
 (fg/defaccessorfn get-effective-w [component]
   (- (m/x (get-property component [:this] :clip-size)) (awt/strh component)))
 
@@ -1639,7 +1647,7 @@
         (catch Exception ex
           (do
             (println "Evolving model for supplied-text =" supplied-text)
-            (println (model->str old-model))
+            (println (model->str-ext old-model))
             (throw ex)))))
     old-model))
 
@@ -1666,7 +1674,7 @@
       (catch Exception ex
         (do
           (println "Evolving model for key =" key)
-          (println (model->str old-model))
+          (println (model->str-ext old-model))
           (throw ex))))
     ))
 
